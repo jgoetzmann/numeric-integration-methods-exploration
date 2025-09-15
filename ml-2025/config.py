@@ -10,11 +10,11 @@ from typing import List, Tuple
 class Config:
     """Main configuration class for the project."""
     
-    # Dataset parameters (optimized for speed)
-    N_ODES: int = 500  # Further reduced for faster training
-    BATCH_SIZE: int = 20  # Much smaller batches for faster evaluation
-    N_STIFF_ODES: int = 150  # 30% stiff equations
-    N_NONSTIFF_ODES: int = 350  # 70% non-stiff equations
+    # Dataset parameters (extended for efficiency-focused training)
+    N_ODES: int = 1000  # Larger dataset for better training
+    BATCH_SIZE: int = 25  # Slightly larger batches
+    N_STIFF_ODES: int = 300  # 30% stiff equations
+    N_NONSTIFF_ODES: int = 700  # 70% non-stiff equations
     
     # Butcher table parameters
     MIN_STAGES: int = 4
@@ -33,16 +33,16 @@ class Config:
     LEARNING_RATE: float = 1e-3
     BATCH_SIZE_ML: int = 32
     
-    # Training parameters (optimized for maximum speed)
-    N_EPOCHS: int = 20  # Much fewer epochs for quick testing
-    N_CANDIDATES_PER_BATCH: int = 10  # Very few candidates per batch
-    EVALUATION_FREQUENCY: int = 10  # Less frequent full evaluation
+    # Training parameters (extended for efficiency-focused training)
+    N_EPOCHS: int = 400  # 4x longer training for efficiency focus
+    N_CANDIDATES_PER_BATCH: int = 15  # More candidates per batch
+    EVALUATION_FREQUENCY: int = 20  # Less frequent full evaluation
     
     # Paths
     DATA_DIR: str = "data"
-    RESULTS_DIR: str = "results"
-    CHECKPOINTS_DIR: str = "checkpoints"
-    LOGS_DIR: str = "logs"
+    RESULTS_DIR: str = "results_run_2_efficiency_focused"
+    CHECKPOINTS_DIR: str = "checkpoints_run_2_efficiency_focused"
+    LOGS_DIR: str = "logs_run_2_efficiency_focused"
     
     # Database
     DB_PATH: str = "results/integrator_results.db"

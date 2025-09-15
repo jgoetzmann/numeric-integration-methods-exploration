@@ -23,10 +23,10 @@ class ModelConfig:
     # Generator model parameters
     generator_input_size: int = 128  # Random noise input
     generator_hidden_size: int = 256
-    generator_output_size: int = 64  # For 4-stage explicit method
+    generator_output_size: int = 24  # For 4-stage explicit method (4*4+4+4=24)
     
     # Surrogate model parameters
-    surrogate_input_size: int = 64  # Butcher table representation
+    surrogate_input_size: int = 24  # Butcher table representation (4-stage: 4*4+4+4=24)
     surrogate_hidden_size: int = 128
     surrogate_output_size: int = 4  # [accuracy, efficiency, stability, composite]
     
@@ -152,10 +152,12 @@ class SurrogateEvaluator(nn.Module):
 class EvolutionaryGenerator:
     """Evolutionary algorithm for generating Butcher tables."""
     
-    def __init__(self, population_size: int = 100, mutation_rate: float = 0.1):
+    def __init__(self, population_size: int = 100, mutation_rate: float = 0.1, config_obj: ModelConfig = None):
         self.population_size = population_size
         self.mutation_rate = mutation_rate
-        self.generator = ButcherTableGenerator()
+        self.config = config_obj or ModelConfig()
+        from butcher_tables import ButcherTableGenerator as RandomGenerator
+        self.generator = RandomGenerator()
         
     def initialize_population(self, stages: int = 4) -> List[ButcherTable]:
         """Initialize random population of Butcher tables."""
@@ -287,7 +289,7 @@ class MLPipeline:
         )
         
         # Evolutionary generator as backup
-        self.evolutionary_generator = EvolutionaryGenerator()
+        self.evolutionary_generator = EvolutionaryGenerator(config_obj=self.config)
         
         # Training data storage
         self.training_data = []
@@ -305,13 +307,22 @@ class MLPipeline:
         n_epochs = n_epochs or self.config.n_epochs
         
         # Prepare training data
-        X = torch.stack([table.to_tensor() for table in butcher_tables])
+        X = torch.stack([table.to_tensor() for table in butcher_tables]).float()
+        
+        # Normalize accuracy for surrogate training
+        accuracy_scores = []
+        for i in range(len(metrics)):
+            max_error = max(metrics[i].max_error, 1e-16)
+            accuracy_score = 1.0 / (1.0 + np.log10(max_error))
+            accuracy_score = max(0.0, min(1.0, accuracy_score))
+            accuracy_scores.append(accuracy_score)
+        
         y = torch.stack([torch.tensor([
-            metrics[i].max_error,
+            accuracy_scores[i],
             metrics[i].efficiency_score,
             metrics[i].stability_score,
             metrics[i].composite_score
-        ]) for i in range(len(metrics))])
+        ], dtype=torch.float32) for i in range(len(metrics))])
         
         # Normalize targets
         y_mean = y.mean(dim=0)
@@ -378,7 +389,9 @@ class MLPipeline:
             
             # Fill with random if not enough generated
             while len(candidates) < n_candidates:
-                random_table = ButcherTableGenerator().generate_random_explicit(stages)
+                from butcher_tables import ButcherTableGenerator as RandomGenerator
+                random_generator = RandomGenerator()
+                random_table = random_generator.generate_random_explicit(stages)
                 candidates.append(random_table)
         
         return candidates[:n_candidates]
