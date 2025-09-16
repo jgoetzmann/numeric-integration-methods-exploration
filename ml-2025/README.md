@@ -42,6 +42,20 @@ pipeline.initialize_training()
 results = pipeline.run_training(n_epochs=100)
 ```
 
+### Specialized Training Runs
+The repository includes multiple training configurations optimized for different objectives:
+
+```bash
+# Accuracy-focused training (70% accuracy weight)
+python scripts/train_accuracy_focused.py
+
+# Stability-focused training (50% stability weight)  
+python scripts/train_stability_focused.py
+
+# Mixed-focus training (balanced approach)
+python scripts/train_mixed_focus.py
+```
+
 ### Generate and Evaluate Butcher Tables
 ```python
 from butcher_tables import ButcherTableGenerator
@@ -87,14 +101,26 @@ report_gen.generate_experiment_report("results/integrator_results.db")
 ├── config.py                 # Configuration settings
 ├── ode_dataset.py           # ODE generation and management
 ├── butcher_tables.py        # Butcher table representation
-├── integrator_runner.py     # Integration and benchmarking
 ├── metrics.py              # Performance metrics calculation
 ├── model.py                # ML models (generator, surrogate)
 ├── train.py                # Training pipeline
 ├── database.py             # Database storage and logging
 ├── visualization.py        # Plotting and reporting
 ├── requirements.txt        # Dependencies
-└── README.md              # This file
+├── experiments/            # All experimental results
+│   ├── run_1_balanced_weights/
+│   ├── run_2_efficiency_focused/
+│   ├── run_3_accuracy_focused/
+│   ├── run_4_stability_focused/
+│   └── run_5_mixed_focus/
+├── scripts/               # Supporting scripts and configs
+│   ├── integrator_runner.py
+│   ├── train_*.py         # Training scripts for different focuses
+│   └── config_*.py        # Configuration files for different runs
+├── tests/                 # Test files and examples
+│   └── examples/
+├── docs/                  # Documentation
+└── README.md             # This file
 ```
 
 ## Key Components

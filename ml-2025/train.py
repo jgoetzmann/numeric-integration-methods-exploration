@@ -33,15 +33,15 @@ from model import MLPipeline, ModelConfig
 class TrainingPipeline:
     """Complete training pipeline for discovering novel integration methods."""
     
-    def __init__(self, model_config: ModelConfig = None):
-        self.config = config
+    def __init__(self, model_config: ModelConfig = None, config_obj = None):
+        self.config = config_obj or config
         self.model_config = model_config or ModelConfig()
         
         # Initialize components
-        self.dataset = ODEDataset()
+        self.dataset = ODEDataset(config_obj=self.config)
         self.reference_solver = ReferenceSolver()
         self.benchmark = IntegratorBenchmark(self.reference_solver)
-        self.metrics_calculator = MetricsCalculator(self.benchmark)
+        self.metrics_calculator = MetricsCalculator(self.benchmark, config_obj=self.config)
         self.baseline_comparator = BaselineComparator(self.metrics_calculator)
         self.metrics_logger = MetricsLogger()
         

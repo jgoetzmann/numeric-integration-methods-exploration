@@ -48,8 +48,9 @@ class PerformanceMetrics:
 class MetricsCalculator:
     """Calculates comprehensive metrics for integration methods."""
     
-    def __init__(self, benchmark: IntegratorBenchmark):
+    def __init__(self, benchmark: IntegratorBenchmark, config_obj=None):
         self.benchmark = benchmark
+        self.config = config_obj or config  # Use passed config or global default
     
     def evaluate_on_ode_batch(self, 
                              butcher_table: ButcherTable,
@@ -124,7 +125,7 @@ class MetricsCalculator:
         
         # Composite score
         composite_score = self._compute_composite_score(
-            accuracy_metrics, efficiency_metrics, stability_metrics
+            accuracy_metrics, efficiency_metrics, stability_metrics, butcher_table
         )
         
         return PerformanceMetrics(
@@ -192,7 +193,7 @@ class MetricsCalculator:
             })
         
         # Use the same processing logic as sequential evaluation
-        return self._process_results(processed_results, len(ode_batch))
+        return self._process_results(processed_results, len(ode_batch), butcher_table)
     
     def _evaluate_single_ode(self, butcher_table: ButcherTable, step_size: float, ode_params: ODEParameters):
         """Evaluate a single ODE (for multiprocessing)."""
@@ -213,7 +214,7 @@ class MetricsCalculator:
             pass
         return None
     
-    def _process_results(self, results: List[Dict], n_total: int) -> PerformanceMetrics:
+    def _process_results(self, results: List[Dict], n_total: int, butcher_table=None) -> PerformanceMetrics:
         """Process evaluation results into metrics."""
         n_successful = len(results)
         
@@ -249,7 +250,7 @@ class MetricsCalculator:
         
         # Composite score
         composite_score = self._compute_composite_score(
-            accuracy_metrics, efficiency_metrics, stability_metrics
+            accuracy_metrics, efficiency_metrics, stability_metrics, butcher_table
         )
         
         return PerformanceMetrics(
@@ -375,8 +376,9 @@ class MetricsCalculator:
     def _compute_composite_score(self, 
                                 accuracy_metrics: Dict[str, float],
                                 efficiency_metrics: Dict[str, float],
-                                stability_metrics: Dict[str, float]) -> float:
-        """Compute weighted composite score."""
+                                stability_metrics: Dict[str, float],
+                                butcher_table: ButcherTable = None) -> float:
+        """Compute weighted composite score with diversity constraints."""
         
         # Normalize accuracy (lower error is better)
         accuracy_score = max(0.0, 1.0 - accuracy_metrics['mean_error'] / 10.0)
@@ -387,12 +389,46 @@ class MetricsCalculator:
         
         # Weighted combination
         composite = (
-            config.ACCURACY_WEIGHT * accuracy_score +
-            config.EFFICIENCY_WEIGHT * efficiency_score +
-            config.STABILITY_WEIGHT * stability_score
+            self.config.ACCURACY_WEIGHT * accuracy_score +
+            self.config.EFFICIENCY_WEIGHT * efficiency_score +
+            self.config.STABILITY_WEIGHT * stability_score
         )
         
+        # Apply diversity constraints if available
+        if hasattr(self.config, 'DIVERSITY_PENALTY') and butcher_table is not None:
+            diversity_penalty = self._compute_diversity_penalty(butcher_table)
+            composite -= self.config.DIVERSITY_PENALTY * diversity_penalty
+        
+        # Apply stability radius constraints if available
+        if hasattr(self.config, 'MIN_STABILITY_RADIUS') and butcher_table is not None:
+            if butcher_table.stability_radius < self.config.MIN_STABILITY_RADIUS:
+                composite *= 0.5  # Heavy penalty for low stability
+            elif hasattr(self.config, 'MAX_STABILITY_RADIUS') and butcher_table.stability_radius > self.config.MAX_STABILITY_RADIUS:
+                composite *= 0.7  # Moderate penalty for excessive stability
+        
         return max(0.0, min(composite, 1.0))
+    
+    def _compute_diversity_penalty(self, butcher_table: ButcherTable) -> float:
+        """Compute diversity penalty based on similarity to previous solutions."""
+        penalty = 0.0
+        
+        # Penalize 4-stage methods (the known optimal solution)
+        if hasattr(self.config, 'FORBIDDEN_STAGES') and len(butcher_table.b) == self.config.FORBIDDEN_STAGES:
+            penalty += 0.8  # Heavy penalty for 4-stage methods
+        
+        # Bonus for non-4-stage methods
+        if hasattr(self.config, 'STAGE_DIVERSITY_BONUS') and len(butcher_table.b) != 4:
+            penalty -= self.config.STAGE_DIVERSITY_BONUS
+        
+        # Penalize stability radius similar to optimal (~2.0)
+        if abs(butcher_table.stability_radius - 2.0) < 0.5:
+            penalty += 0.3  # Penalty for stability radius near optimal
+        
+        # Add small random component for exploration
+        import random
+        penalty += random.random() * 0.1
+        
+        return max(0.0, penalty)
 
 class BaselineComparator:
     """Compares candidate methods against baseline integrators."""
