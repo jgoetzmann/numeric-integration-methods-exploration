@@ -212,3 +212,4 @@ To add new test methods or improve the test suite:
 ## License
 
 This test suite is part of the Novel Numerical Integration Methods project.
+

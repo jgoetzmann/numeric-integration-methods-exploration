@@ -73,3 +73,4 @@ class Config:
 
 # Create config instance
 config = Config()
+
