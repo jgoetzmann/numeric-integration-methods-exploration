@@ -11,9 +11,12 @@ from typing import Callable, Tuple, List, Dict, Any, Optional
 from scipy.integrate import solve_ivp
 from dataclasses import dataclass
 import warnings
-from butcher_tables import ButcherTable
-from ode_dataset import ODEParameters, ODE_FUNCTIONS
-from config import config
+from .butcher_tables import ButcherTable
+from .ode_dataset import ODEParameters, ODE_FUNCTIONS
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent.parent))
+from configs.base import config
 
 # Suppress numerical warnings for cleaner output
 warnings.filterwarnings('ignore', category=RuntimeWarning)
@@ -396,7 +399,7 @@ class IntegratorBenchmark:
 
 if __name__ == "__main__":
     # Test the integrator
-    from butcher_tables import get_rk4
+    from .butcher_tables import get_rk4
     
     print("Testing Runge-Kutta integrator...")
     
@@ -419,7 +422,7 @@ if __name__ == "__main__":
     print(f"Final value: {result.y_vals[-1, 0]:.6f} (exact: {np.exp(-1.0):.6f})")
     
     # Test reference solver
-    from ode_dataset import ODEParameters
+    from .ode_dataset import ODEParameters
     
     test_ode = ODEParameters(
         ode_id=0,

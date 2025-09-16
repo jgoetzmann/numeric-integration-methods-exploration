@@ -18,7 +18,10 @@ import os
 from butcher_tables import ButcherTable
 from metrics import PerformanceMetrics
 from database import ResultsDatabase
-from config import config
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent.parent))
+from configs.base import config
 
 class ButcherTableVisualizer:
     """Visualization tools for Butcher tab                                                                                                                                                                                          les and their performance."""

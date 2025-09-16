@@ -12,10 +12,13 @@ from dataclasses import dataclass
 from tqdm import tqdm
 import multiprocessing as mp
 from functools import partial
-from butcher_tables import ButcherTable
-from ode_dataset import ODEParameters
-from integrator_runner import IntegratorBenchmark, IntegrationResult
-from config import config
+from .butcher_tables import ButcherTable
+from .ode_dataset import ODEParameters
+from .integrator_runner import IntegratorBenchmark, IntegrationResult
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent.parent))
+from configs.base import config
 
 @dataclass
 class PerformanceMetrics:
@@ -508,7 +511,7 @@ class BaselineComparator:
                                 step_size: float = None) -> Dict[str, PerformanceMetrics]:
         """Compute metrics for all baseline methods."""
         
-        from butcher_tables import get_all_baseline_tables
+        from .butcher_tables import get_all_baseline_tables
         
         baseline_tables = get_all_baseline_tables()
         baseline_metrics = {}
@@ -651,8 +654,8 @@ if __name__ == "__main__":
     ]
     
     # Test metrics calculation (without actual benchmark)
-    from butcher_tables import get_rk4
-    from integrator_runner import IntegratorBenchmark, ReferenceSolver
+    from .butcher_tables import get_rk4
+    from .integrator_runner import IntegratorBenchmark, ReferenceSolver
     
     # Create a simple benchmark
     ref_solver = ReferenceSolver()

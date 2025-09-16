@@ -13,7 +13,10 @@ from dataclasses import dataclass
 import random
 import warnings
 from tqdm import tqdm
-from config import config
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent.parent))
+from configs.base import config
 
 # Suppress numerical warnings for cleaner output
 warnings.filterwarnings('ignore', category=RuntimeWarning)

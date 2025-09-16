@@ -10,7 +10,10 @@ import torch
 from typing import List, Tuple, Optional, Dict, Any
 from dataclasses import dataclass
 import json
-from config import config
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent.parent))
+from configs.base import config
 
 @dataclass
 class ButcherTable:

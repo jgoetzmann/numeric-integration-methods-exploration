@@ -23,7 +23,10 @@ warnings.filterwarnings('ignore', message='.*invalid value.*')
 warnings.filterwarnings('ignore', message='.*Casting complex values.*')
 warnings.filterwarnings('ignore', message='.*ComplexWarning.*')
 
-from config import config
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent.parent))
+from configs.base import config
 from ode_dataset import ODEDataset
 from butcher_tables import ButcherTable, get_all_baseline_tables
 from integrator_runner import IntegratorBenchmark, ReferenceSolver
