@@ -34,12 +34,13 @@ pip install -r requirements.txt
 
 ### Basic Training
 ```python
-from train import TrainingPipeline
+from src.training import TrainingPipeline
+from configs import AccuracyFocusedConfig
 
-# Initialize and run training
-pipeline = TrainingPipeline()
-pipeline.initialize_training()
-results = pipeline.run_training(n_epochs=100)
+# Use accuracy-focused configuration
+config = AccuracyFocusedConfig()
+pipeline = TrainingPipeline(config)
+pipeline.run_training()
 ```
 
 ### Specialized Training Runs
@@ -47,20 +48,18 @@ The repository includes multiple training configurations optimized for different
 
 ```bash
 # Accuracy-focused training (70% accuracy weight)
-python scripts/train_accuracy_focused.py
+python scripts/training/train_accuracy_focused.py
 
 # Stability-focused training (50% stability weight)  
-python scripts/train_stability_focused.py
+python scripts/training/train_stability_focused.py
 
 # Mixed-focus training (balanced approach)
-python scripts/train_mixed_focus.py
+python scripts/training/train_mixed_focus.py
 ```
 
 ### Generate and Evaluate Butcher Tables
 ```python
-from butcher_tables import ButcherTableGenerator
-from integrator_runner import IntegratorBenchmark, ReferenceSolver
-from metrics import MetricsCalculator
+from src.core import ButcherTableGenerator, IntegratorBenchmark, ReferenceSolver, MetricsCalculator, ODEDataset
 
 # Generate random Butcher table
 generator = ButcherTableGenerator()
@@ -72,7 +71,6 @@ benchmark = IntegratorBenchmark(ref_solver)
 metrics_calc = MetricsCalculator(benchmark)
 
 # Load ODE dataset
-from ode_dataset import ODEDataset
 dataset = ODEDataset()
 dataset.generate_dataset()
 
@@ -84,7 +82,7 @@ print(f"Composite Score: {metrics.composite_score:.4f}")
 
 ### Visualize Results
 ```python
-from visualization import ButcherTableVisualizer, ReportGenerator
+from src.visualization import ButcherTableVisualizer, ReportGenerator
 
 # Visualize a Butcher table
 visualizer = ButcherTableVisualizer()
@@ -98,29 +96,46 @@ report_gen.generate_experiment_report("results/integrator_results.db")
 ## Project Structure
 
 ```
-├── config.py                 # Configuration settings
-├── ode_dataset.py           # ODE generation and management
-├── butcher_tables.py        # Butcher table representation
-├── metrics.py              # Performance metrics calculation
-├── model.py                # ML models (generator, surrogate)
-├── train.py                # Training pipeline
-├── database.py             # Database storage and logging
-├── visualization.py        # Plotting and reporting
-├── requirements.txt        # Dependencies
-├── experiments/            # All experimental results
-│   ├── run_1_balanced_weights/
-│   ├── run_2_efficiency_focused/
-│   ├── run_3_accuracy_focused/
-│   ├── run_4_stability_focused/
-│   └── run_5_mixed_focus/
-├── scripts/               # Supporting scripts and configs
-│   ├── integrator_runner.py
-│   ├── train_*.py         # Training scripts for different focuses
-│   └── config_*.py        # Configuration files for different runs
-├── tests/                 # Test files and examples
-│   └── examples/
-├── docs/                  # Documentation
-└── README.md             # This file
+novel_numerical_integration/
+├── src/                                    # Main source code package
+│   ├── core/                              # Core functionality
+│   │   ├── butcher_tables.py             # Butcher table representation
+│   │   ├── integrator_runner.py          # Integration engine
+│   │   ├── metrics.py                    # Performance metrics
+│   │   └── ode_dataset.py                # ODE generation
+│   ├── models/                            # ML models
+│   │   └── model.py                       # Neural networks and algorithms
+│   ├── training/                          # Training pipeline
+│   │   └── train.py                       # Training implementation
+│   ├── storage/                           # Data persistence
+│   │   └── database.py                   # Database operations
+│   └── visualization/                     # Plotting and reports
+│       └── visualization.py              # Visualization utilities
+├── configs/                               # Configuration files
+│   ├── base.py                           # Base configuration
+│   ├── accuracy_focused.py               # Accuracy-focused config
+│   ├── efficiency_focused.py            # Efficiency-focused config
+│   ├── stability_focused.py             # Stability-focused config
+│   └── mixed_focus.py                   # Mixed-focus config
+├── trials/                               # Experiment results
+│   ├── trial_001_balanced_weights/
+│   ├── trial_002_efficiency_focused/
+│   ├── trial_003_efficiency_focused_v2/
+│   ├── trial_004_stability_focused/
+│   ├── trial_005_diversity_focused/
+│   ├── trial_006_alternative_4stage/
+│   └── trial_007_alternative_6stage/
+├── scripts/                               # Utility scripts
+│   ├── training/                         # Training scripts
+│   ├── evaluation/                       # Evaluation scripts
+│   ├── visualization/                    # Visualization scripts
+│   └── analysis/                         # Analysis scripts
+├── data/                                 # Data directory
+├── results/                              # All results
+├── docs/                                 # Documentation
+├── tests/                                # Test suite
+├── requirements.txt                       # Dependencies
+└── README.md                             # This file
 ```
 
 ## Key Components
