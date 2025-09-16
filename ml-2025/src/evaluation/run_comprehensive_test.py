@@ -27,7 +27,7 @@ def run_main_test(n_odes: int = 10000, n_processes: int = None):
     print("RUNNING MAIN COMPREHENSIVE TEST")
     print("=" * 80)
     
-    from comprehensive_ode_test import ComprehensiveTester, TestConfig
+    from src.evaluation.comprehensive_ode_test import ComprehensiveTester, TestConfig
     
     config = TestConfig(
         n_odes=n_odes,
@@ -48,8 +48,8 @@ def run_extended_comparison():
     print("=" * 80)
     
     try:
-        from extended_comparison import ExtendedComparison
-        from ode_dataset import ODEDataset
+        from src.evaluation.extended_comparison import ExtendedComparison
+        from src.core.ode_dataset import ODEDataset
         
         # Generate smaller dataset for extended comparison (faster)
         dataset_generator = ODEDataset()
@@ -89,7 +89,7 @@ def run_performance_analysis():
     print("=" * 80)
     
     try:
-        from performance_analyzer import PerformanceAnalyzer
+        from src.evaluation.performance_analyzer import PerformanceAnalyzer
         
         results_path = os.path.join(os.path.dirname(__file__), '..', 'results', 'comprehensive_test_results.json')
         

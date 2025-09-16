@@ -9,9 +9,9 @@ from pathlib import Path
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from analysis.butcher_analyzer import ButcherTableAnalyzer
-from analysis.comparison_runner import ComparisonRunner
-from analysis.results_generator import ResultsGenerator
+from src.analysis.butcher_analyzer import ButcherTableAnalyzer
+from src.analysis.comparison_runner import ComparisonRunner
+from src.analysis.results_generator import ResultsGenerator
 
 def main():
     """Main analysis function."""

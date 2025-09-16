@@ -18,12 +18,12 @@ warnings.filterwarnings('ignore')
 
 # Add src to path
 import sys
-sys.path.append(str(Path(__file__).parent.parent.parent / 'src'))
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from core.butcher_tables import ButcherTable
-from core.integrator_runner import IntegratorRunner
-from core.ode_dataset import ODEDataset
-from core.metrics import MetricsCalculator
+from src.core.butcher_tables import ButcherTable
+from src.core.integrator_runner import IntegratorRunner
+from src.core.ode_dataset import ODEDataset
+from src.core.metrics import MetricsCalculator
 
 class ButcherTableAnalyzer:
     """Comprehensive analyzer for butcher tables."""

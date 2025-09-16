@@ -1,20 +1,20 @@
 """
-Training script for mixed-focus model.
+Training script for stability-focused model.
 """
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-# Import the mixed-focus config
-from config_mixed_focus import config
-from train import TrainingPipeline, main
+# Import the stability-focused config
+from configs.stability_focused import config
+from src.training.train import TrainingPipeline, main
 
-def main_mixed_focus():
-    """Main training function for mixed-focus model."""
+def main_stability_focused():
+    """Main training function for stability-focused model."""
     
     print("="*60)
-    print("MIXED-FOCUS TRAINING")
+    print("STABILITY-FOCUSED TRAINING")
     print("="*60)
     print(f"Configuration:")
     print(f"  Dataset: {config.N_ODES} ODEs ({config.N_STIFF_ODES} stiff, {config.N_NONSTIFF_ODES} non-stiff)")
@@ -36,14 +36,14 @@ def main_mixed_focus():
     results = pipeline.run_training(
         n_epochs=config.N_EPOCHS,
         use_evolution=False,  # Use neural network approach
-        save_frequency=25,
-        full_eval_frequency=60
+        save_frequency=15,
+        full_eval_frequency=35
     )
     
     # Print final results
     if results:
         print("\n" + "="*60)
-        print("MIXED-FOCUS TRAINING RESULTS")
+        print("STABILITY-FOCUSED TRAINING RESULTS")
         print("="*60)
         
         best_metrics = results['best_table_metrics']
@@ -65,4 +65,4 @@ def main_mixed_focus():
         print(pipeline.best_table)
 
 if __name__ == "__main__":
-    main_mixed_focus()
+    main_stability_focused()

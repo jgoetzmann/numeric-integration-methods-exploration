@@ -8,12 +8,12 @@ import os
 import numpy as np
 import torch
 import random
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-# Import the efficiency-focused config V2
-from scripts.config_efficiency_focused_v2 import config as efficiency_config_v2
-from train import TrainingPipeline, main
-import train
+# Import the efficiency-focused config V2 (using efficiency focused as base)
+from configs.efficiency_focused import config as efficiency_config_v2
+from src.training.train import TrainingPipeline, main
+import src.training.train as train
 
 # Set different random seeds for this run
 RANDOM_SEED = 12345  # Different seed for efficiency-focused V2

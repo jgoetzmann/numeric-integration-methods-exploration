@@ -12,9 +12,9 @@ from pathlib import Path
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from core.ode_dataset import ODEDataset
-from core.integrator_runner import RungeKuttaIntegrator
-from core.metrics import MetricsCalculator
+from src.core.ode_dataset import ODEDataset
+from src.core.integrator_runner import RungeKuttaIntegrator
+from src.core.metrics import MetricsCalculator
 
 class ComparisonRunner:
     """Runs comprehensive comparisons between discovered and classical methods."""
@@ -89,7 +89,7 @@ class ComparisonRunner:
         start_time = time.time()
         try:
             # Create butcher table object
-            from core.butcher_tables import ButcherTable
+            from src.core.butcher_tables import ButcherTable
             butcher_table = ButcherTable(
                 A=np.array(table['A']),
                 b=np.array(table['b']),

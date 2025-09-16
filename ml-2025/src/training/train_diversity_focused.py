@@ -8,13 +8,13 @@ import os
 import numpy as np
 import torch
 import random
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-# Import the diversity-focused config
-from scripts.config_diversity_focused import config as diversity_config
-from scripts.model_config_diversity import config as model_config
-from train import TrainingPipeline, main
-import train
+# Import the diversity-focused config (using mixed focus as base)
+from configs.mixed_focus import config as diversity_config
+from configs.mixed_focus import config as model_config
+from src.training.train import TrainingPipeline, main
+import src.training.train as train
 
 # Set different random seeds for this run
 RANDOM_SEED = 99999  # Very different seed for diversity-focused

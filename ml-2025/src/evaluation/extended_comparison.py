@@ -22,9 +22,9 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from butcher_tables import ButcherTable
-from ode_dataset import ODEParameters
-from integrator_runner import IntegratorBenchmark
+from src.core.butcher_tables import ButcherTable
+from src.core.ode_dataset import ODEParameters
+from src.core.integrator_runner import IntegratorBenchmark
 
 class ExtendedComparison:
     """Extended comparison with additional numerical methods."""

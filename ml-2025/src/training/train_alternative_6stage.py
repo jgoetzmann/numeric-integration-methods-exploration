@@ -3,13 +3,13 @@ import os
 import numpy as np
 import torch
 import random
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-# Import the alternative 6-stage config
-from scripts.config_alternative_6stage import config as alt_6stage_config
-from scripts.model_config_diversity import config as model_config
-from train import TrainingPipeline, main
-import train
+# Import the alternative 6-stage config (using efficiency focused as base)
+from configs.efficiency_focused import config as alt_6stage_config
+from configs.mixed_focus import config as model_config
+from src.training.train import TrainingPipeline, main
+import src.training.train as train
 
 # Set different random seeds for this run
 RANDOM_SEED = 88888  # Different seed for alternative 6-stage

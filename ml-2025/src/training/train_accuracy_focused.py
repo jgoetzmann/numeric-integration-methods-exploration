@@ -4,11 +4,11 @@ Training script for accuracy-focused model.
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 # Import the accuracy-focused config
-from config_accuracy_focused import config
-from train import TrainingPipeline, main
+from configs.accuracy_focused import config
+from src.training.train import TrainingPipeline, main
 
 def main_accuracy_focused():
     """Main training function for accuracy-focused model."""

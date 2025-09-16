@@ -16,6 +16,7 @@ import multiprocessing as mp
 from typing import List, Dict, Any, Tuple
 from dataclasses import dataclass
 from tqdm import tqdm
+from functools import partial
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.integrate import solve_ivp
@@ -27,10 +28,10 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from butcher_tables import ButcherTable, get_rk4, get_rk45_dormand_prince, get_gauss_legendre_2, get_gauss_legendre_3
-from ode_dataset import ODEParameters, ODEDataset
-from integrator_runner import IntegratorBenchmark, IntegrationResult
-from metrics import MetricsCalculator, PerformanceMetrics
+from src.core.butcher_tables import ButcherTable, get_rk4, get_rk45_dormand_prince, get_gauss_legendre_2, get_gauss_legendre_3
+from src.core.ode_dataset import ODEParameters, ODEDataset
+from src.core.integrator_runner import IntegratorBenchmark, IntegrationResult
+from src.core.metrics import MetricsCalculator, PerformanceMetrics
 
 @dataclass
 class TestConfig:

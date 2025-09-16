@@ -21,13 +21,13 @@ def test_imports():
     print("🔍 Testing imports...")
     
     try:
-        from butcher_tables import ButcherTable, get_rk4, get_rk45_dormand_prince, get_gauss_legendre_2, get_gauss_legendre_3
+        from src.core.butcher_tables import ButcherTable, get_rk4, get_rk45_dormand_prince, get_gauss_legendre_2, get_gauss_legendre_3
         print("✓ butcher_tables imported successfully")
         
-        from integrator_runner import IntegratorBenchmark
+        from src.core.integrator_runner import IntegratorBenchmark
         print("✓ integrator_runner imported successfully")
         
-        from ode_dataset import ODEParameters, ODEDataset
+        from src.core.ode_dataset import ODEParameters, ODEDataset
         print("✓ ode_dataset imported successfully")
         
         print("✅ All imports successful!")
@@ -65,7 +65,7 @@ def load_optimal_table():
         else:
             table_data = data
             
-        from butcher_tables import ButcherTable
+        from src.core.butcher_tables import ButcherTable
         table = ButcherTable(
             A=np.array(table_data['A']),
             b=np.array(table_data['b']),
@@ -83,7 +83,7 @@ def generate_test_dataset(n_odes: int = 1000):
     """Generate test dataset with progress bar."""
     print(f"\n🎯 Generating test dataset with {n_odes} ODEs...")
     
-    from ode_dataset import ODEGenerator
+    from src.core.ode_dataset import ODEGenerator
     
     generator = ODEGenerator()
     n_stiff = int(n_odes * 0.3)
@@ -237,7 +237,7 @@ def run_comprehensive_test(n_odes: int = 1000):
     
     # Step 3: Get baseline methods
     print("\n📚 Loading baseline methods...")
-    from butcher_tables import get_rk4, get_rk45_dormand_prince, get_gauss_legendre_2, get_gauss_legendre_3
+    from src.core.butcher_tables import get_rk4, get_rk45_dormand_prince, get_gauss_legendre_2, get_gauss_legendre_3
     
     baseline_methods = {
         'rk4': get_rk4(),
@@ -252,7 +252,7 @@ def run_comprehensive_test(n_odes: int = 1000):
     
     # Step 5: Initialize benchmark
     print("\n🔧 Initializing benchmark...")
-    from integrator_runner import IntegratorBenchmark
+    from src.core.integrator_runner import IntegratorBenchmark
     benchmark = IntegratorBenchmark()
     print("✅ Benchmark initialized")
     

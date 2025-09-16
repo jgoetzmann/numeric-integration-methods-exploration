@@ -8,10 +8,11 @@ This module contains the fundamental components for:
 - ODE dataset generation and management
 """
 
-from .butcher_tables import *
-from .integrator_runner import *
-from .metrics import *
-from .ode_dataset import *
+# Import only when needed to avoid torch dependency issues
+# from .butcher_tables import *
+# from .integrator_runner import *
+# from .metrics import *
+# from .ode_dataset import *
 
 __all__ = [
     "ButcherTable",

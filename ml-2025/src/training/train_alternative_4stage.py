@@ -3,12 +3,12 @@ import os
 import numpy as np
 import torch
 import random
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-# Import the alternative 4-stage config
-from scripts.config_alternative_4stage import config as alt_4stage_config
-from train import TrainingPipeline, main
-import train
+# Import the alternative 4-stage config (using efficiency focused as base)
+from configs.efficiency_focused import config as alt_4stage_config
+from src.training.train import TrainingPipeline, main
+import src.training.train as train
 
 # Set different random seeds for this run
 RANDOM_SEED = 77777  # Different seed for alternative 4-stage

@@ -14,16 +14,16 @@ def test_imports():
     print("Testing imports...")
     
     try:
-        from butcher_tables import ButcherTable, get_rk4
+        from src.core.butcher_tables import ButcherTable, get_rk4
         print("✓ butcher_tables imported successfully")
         
-        from integrator_runner import IntegratorBenchmark, IntegrationResult
+        from src.core.integrator_runner import IntegratorBenchmark, IntegrationResult
         print("✓ integrator_runner imported successfully")
         
-        from ode_dataset import ODEParameters, ODEDataset
+        from src.core.ode_dataset import ODEParameters, ODEDataset
         print("✓ ode_dataset imported successfully")
         
-        from metrics import PerformanceMetrics, MetricsCalculator
+        from src.core.metrics import PerformanceMetrics, MetricsCalculator
         print("✓ metrics imported successfully")
         
         return True
