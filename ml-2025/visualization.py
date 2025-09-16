@@ -21,7 +21,7 @@ from database import ResultsDatabase
 from config import config
 
 class ButcherTableVisualizer:
-    """Visualization tools for Butcher tables and their performance."""
+    """Visualization tools for Butcher tab                                                                                                                                                                                          les and their performance."""
     
     def __init__(self, style: str = 'seaborn-v0_8'):
         plt.style.use(style)

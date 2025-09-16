@@ -412,13 +412,23 @@ class MetricsCalculator:
         """Compute diversity penalty based on similarity to previous solutions."""
         penalty = 0.0
         
-        # Penalize 4-stage methods (the known optimal solution)
+        # Penalize forbidden stage counts
         if hasattr(self.config, 'FORBIDDEN_STAGES') and len(butcher_table.b) == self.config.FORBIDDEN_STAGES:
-            penalty += 0.8  # Heavy penalty for 4-stage methods
+            penalty += 0.8  # Heavy penalty for forbidden stage methods
         
-        # Bonus for non-4-stage methods
-        if hasattr(self.config, 'STAGE_DIVERSITY_BONUS') and len(butcher_table.b) != 4:
+        # Bonus for non-forbidden stage methods
+        if hasattr(self.config, 'STAGE_DIVERSITY_BONUS') and len(butcher_table.b) != getattr(self.config, 'FORBIDDEN_STAGES', 4):
             penalty -= self.config.STAGE_DIVERSITY_BONUS
+        
+        # Penalize coefficient similarity to forbidden coefficients
+        if hasattr(self.config, 'FORBIDDEN_COEFFICIENTS') and self.config.FORBIDDEN_COEFFICIENTS:
+            coefficient_penalty = self._compute_coefficient_penalty(butcher_table)
+            penalty += coefficient_penalty
+        
+        # Bonus for coefficient diversity
+        if hasattr(self.config, 'COEFFICIENT_DIVERSITY_BONUS'):
+            coefficient_bonus = self._compute_coefficient_bonus(butcher_table)
+            penalty -= coefficient_bonus
         
         # Penalize stability radius similar to optimal (~2.0)
         if abs(butcher_table.stability_radius - 2.0) < 0.5:
@@ -429,6 +439,62 @@ class MetricsCalculator:
         penalty += random.random() * 0.1
         
         return max(0.0, penalty)
+    
+    def _compute_coefficient_penalty(self, butcher_table: ButcherTable) -> float:
+        """Compute penalty for coefficient similarity to forbidden coefficients."""
+        penalty = 0.0
+        tolerance = 0.1  # Tolerance for coefficient similarity
+        
+        # Extract all coefficients from butcher table
+        coefficients = []
+        coefficients.extend(butcher_table.c)  # c coefficients
+        coefficients.extend(butcher_table.b)   # b coefficients
+        
+        # Add A matrix coefficients (upper triangular)
+        for i in range(len(butcher_table.A)):
+            for j in range(i):  # Only upper triangular
+                coefficients.append(butcher_table.A[i][j])
+        
+        # Check similarity to forbidden coefficients
+        for coeff in coefficients:
+            for forbidden_coeff in self.config.FORBIDDEN_COEFFICIENTS:
+                if abs(coeff - forbidden_coeff) < tolerance:
+                    penalty += 0.1  # Small penalty per similar coefficient
+        
+        return min(penalty, 0.5)  # Cap penalty at 0.5
+    
+    def _compute_coefficient_bonus(self, butcher_table: ButcherTable) -> float:
+        """Compute bonus for coefficient diversity."""
+        bonus = 0.0
+        tolerance = 0.2  # Tolerance for coefficient difference
+        
+        # Extract all coefficients from butcher table
+        coefficients = []
+        coefficients.extend(butcher_table.c)  # c coefficients
+        coefficients.extend(butcher_table.b)   # b coefficients
+        
+        # Add A matrix coefficients (upper triangular)
+        for i in range(len(butcher_table.A)):
+            for j in range(i):  # Only upper triangular
+                coefficients.append(butcher_table.A[i][j])
+        
+        # Check diversity from forbidden coefficients
+        diverse_count = 0
+        for coeff in coefficients:
+            is_diverse = True
+            for forbidden_coeff in getattr(self.config, 'FORBIDDEN_COEFFICIENTS', []):
+                if abs(coeff - forbidden_coeff) < tolerance:
+                    is_diverse = False
+                    break
+            if is_diverse:
+                diverse_count += 1
+        
+        # Bonus proportional to diversity
+        if len(coefficients) > 0:
+            diversity_ratio = diverse_count / len(coefficients)
+            bonus = diversity_ratio * self.config.COEFFICIENT_DIVERSITY_BONUS
+        
+        return bonus
 
 class BaselineComparator:
     """Compares candidate methods against baseline integrators."""

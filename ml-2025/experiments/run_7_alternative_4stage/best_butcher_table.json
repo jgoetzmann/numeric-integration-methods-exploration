@@ -1,0 +1,146 @@
+{
+  "butcher_table": {
+    "A": [
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        -0.250919762305275,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.9014286128198323,
+        0.4639878836228102,
+        0.0,
+        0.0
+      ],
+      [
+        0.1973169683940732,
+        -0.687962719115127,
+        -0.6880109593275947,
+        0.0
+      ]
+    ],
+    "b": [
+      0.014175094141077942,
+      0.4764367233203546,
+      0.21771965489880052,
+      0.29166852763976686
+    ],
+    "c": [
+      0.0,
+      -0.250919762305275,
+      1.3654164964426425,
+      -1.1786567100486485
+    ],
+    "is_explicit": true,
+    "consistency_order": 1,
+    "stability_radius": 2.0
+  },
+  "metrics": {
+    "max_error": 3.1008680885896473e+121,
+    "l2_error": 9.276404276425816e+120,
+    "mean_error": -3.1080157920285667,
+    "error_percentile_95": 9.598323162073694,
+    "runtime": 1.6288535594940186,
+    "n_steps": "5916",
+    "steps_per_second": 3632.0023770815383,
+    "efficiency_score": 1.0,
+    "stability_score": 0.6556068293017532,
+    "convergence_rate": 0.0,
+    "composite_score": 0.7980237729700301,
+    "success_rate": 0.986,
+    "n_successful": 493,
+    "n_total": 500
+  },
+  "comparisons": {
+    "rk4": {
+      "accuracy_ratio": 1.0,
+      "efficiency_ratio": 0.9104621886685519,
+      "stability_ratio": 0.6933657908921532,
+      "score_ratio": 0.7980237729700301,
+      "better_accuracy": "False",
+      "better_efficiency": "True",
+      "better_stability": "False",
+      "better_overall": "False"
+    },
+    "rk45_dormand_prince": {
+      "accuracy_ratio": 1.0,
+      "efficiency_ratio": 2.6430368563272304,
+      "stability_ratio": 0.6047417099565996,
+      "score_ratio": 0.7980237729700301,
+      "better_accuracy": "False",
+      "better_efficiency": "False",
+      "better_stability": "False",
+      "better_overall": "False"
+    },
+    "gauss_legendre_2": {
+      "accuracy_ratio": 1.0,
+      "efficiency_ratio": 0.34796638771575783,
+      "stability_ratio": 0.9046237227941557,
+      "score_ratio": 1.206835958713458,
+      "better_accuracy": "False",
+      "better_efficiency": "True",
+      "better_stability": "False",
+      "better_overall": "True"
+    },
+    "gauss_legendre_3": {
+      "accuracy_ratio": 1.0,
+      "efficiency_ratio": 0.5931231206747984,
+      "stability_ratio": 0.8700187149166864,
+      "score_ratio": 1.2409623730417345,
+      "better_accuracy": "False",
+      "better_efficiency": "True",
+      "better_stability": "False",
+      "better_overall": "True"
+    }
+  },
+  "training_epoch": 150,
+  "config": {
+    "N_ODES": 600,
+    "BATCH_SIZE": 15,
+    "N_STIFF_ODES": 200,
+    "N_NONSTIFF_ODES": 400,
+    "MIN_STAGES": 4,
+    "MAX_STAGES": 4,
+    "DEFAULT_STAGES": 4,
+    "T_START": 0.0,
+    "T_END": 0.1,
+    "REFERENCE_TOL": 1e-08,
+    "TEST_TOL": 0.0001,
+    "GENERATOR_HIDDEN_SIZE": 384,
+    "SURROGATE_HIDDEN_SIZE": 192,
+    "LEARNING_RATE": 0.0008,
+    "BATCH_SIZE_ML": 48,
+    "N_EPOCHS": 150,
+    "N_CANDIDATES_PER_BATCH": 8,
+    "EVALUATION_FREQUENCY": 15,
+    "DATA_DIR": "data",
+    "RESULTS_DIR": "experiments/run_7_alternative_4stage",
+    "CHECKPOINTS_DIR": "experiments/run_7_alternative_4stage/checkpoints",
+    "LOGS_DIR": "experiments/run_7_alternative_4stage/logs",
+    "DB_PATH": "experiments/run_7_alternative_4stage/integrator_results.db",
+    "ACCURACY_WEIGHT": 0.4,
+    "EFFICIENCY_WEIGHT": 0.35,
+    "STABILITY_WEIGHT": 0.25,
+    "DIVERSITY_PENALTY": 0.3,
+    "FORBIDDEN_COEFFICIENTS": [
+      -0.250919762305275,
+      0.9014286128198323,
+      0.4639878836228102,
+      0.1973169683940732,
+      -0.687962719115127,
+      -0.6880109593275947,
+      1.3654164964426425,
+      -1.1786567100486485
+    ],
+    "COEFFICIENT_DIVERSITY_BONUS": 0.15,
+    "MIN_STABILITY_RADIUS": 1.0,
+    "MAX_STABILITY_RADIUS": 4.0
+  }
+}
