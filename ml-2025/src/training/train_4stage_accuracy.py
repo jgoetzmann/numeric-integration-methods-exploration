@@ -41,6 +41,15 @@ def main_4stage_accuracy():
     print(f"  Complexity Level: {config.COMPLEXITY_LEVEL}")
     print(f"  Integration Time: {config.T_END}")
     print(f"  Reference Tolerance: {config.REFERENCE_TOL}")
+    
+    # CUDA status
+    if torch.cuda.is_available():
+        print(f"  CUDA: ⚠️  Available but disabled - {torch.cuda.get_device_name(0)}")
+        print(f"  GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+        print(f"  Reason: Laptop GPU slower than CPU for small operations")
+    else:
+        print(f"  CUDA: ❌ Not available - Using CPU")
+    
     print("="*70)
 
     assert config.N_EPOCHS == 100 and config.T_END == 1.0 and config.REFERENCE_TOL == 1e-10
@@ -48,11 +57,13 @@ def main_4stage_accuracy():
     # Create trial-specific configuration
     trial_id = f"4stage_accuracy_{RANDOM_SEED}"
     
-    # Initialize training pipeline
+    # Initialize training pipeline with CUDA support (disabled for laptop GPU)
+    # RTX 3050 Ti laptop GPU is slower than CPU for small operations
     pipeline = TrainingPipeline(
         config_obj=config,
         trial_id=trial_id,
-        complexity_level=config.COMPLEXITY_LEVEL
+        complexity_level=config.COMPLEXITY_LEVEL,
+        use_cuda=False  # Disable CUDA for laptop GPU performance
     )
     
     # Initialize training with fresh dataset

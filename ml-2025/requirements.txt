@@ -1,8 +1,12 @@
+# Core scientific computing
 numpy>=1.26.0
 scipy>=1.11.0
-torch>=2.0.0
-torch-audio>=2.0.0
-torch-vision>=0.15.0
+
+# PyTorch with CUDA 12.8 support
+# Install with: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+torch>=2.8.0+cu128
+torchvision>=0.23.0+cu128
+torchaudio>=2.8.0+cu128
 matplotlib>=3.8.0
 pandas>=2.1.0
 scikit-learn>=1.4.0

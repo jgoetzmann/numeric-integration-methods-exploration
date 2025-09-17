@@ -289,6 +289,8 @@ class MLPipeline:
         if torch.cuda.is_available():
             torch.backends.cudnn.benchmark = True
             torch.backends.cudnn.deterministic = False
+            # Clear GPU memory cache
+            torch.cuda.empty_cache()
         
         # Optimizers
         self.generator_optimizer = optim.Adam(
@@ -343,11 +345,12 @@ class MLPipeline:
         y_std = y.std(dim=0) + 1e-8
         y_normalized = (y - y_mean) / y_std
         
-        # Create data loader with multiple workers for faster data loading
+        # Create data loader optimized for CUDA
         dataset = torch.utils.data.TensorDataset(X, y_normalized)
         dataloader = torch.utils.data.DataLoader(
             dataset, batch_size=self.config.batch_size, shuffle=True, 
-            num_workers=min(4, torch.get_num_threads()), pin_memory=torch.cuda.is_available()
+            num_workers=0,  # Disable multiprocessing to avoid CUDA issues
+            pin_memory=torch.cuda.is_available()
         )
         
         # Training loop

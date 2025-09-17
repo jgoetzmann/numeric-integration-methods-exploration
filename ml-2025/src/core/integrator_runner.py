@@ -190,64 +190,34 @@ class RungeKuttaIntegrator:
         """Perform a single Runge-Kutta step."""
         s = self.s
         
-        if self.use_cuda:
-            # Use CUDA tensors for faster computation
-            A = self.A_cuda
-            b = self.b_cuda
-            c = self.c_cuda
+        # For now, always use CPU computation to avoid inefficient CPU-GPU transfers
+        # CUDA acceleration is better suited for batch operations in the ML pipeline
+        A = self.butcher_table.A
+        b = self.butcher_table.b
+        c = self.butcher_table.c
+        
+        # Compute stage values k_i
+        k = np.zeros((s, len(y)))
+        
+        for i in range(s):
+            # Compute argument for stage i
+            t_stage = t + c[i] * h
+            y_stage = y.copy()
             
-            # Convert input to CUDA tensor
-            y_cuda = torch.tensor(y, dtype=torch.float32, device=self.device)
-            k_cuda = torch.zeros((s, len(y)), dtype=torch.float32, device=self.device)
+            # Add contributions from previous stages
+            for j in range(i + 1):  # Include diagonal for implicit methods
+                if not np.isclose(A[i, j], 0.0):
+                    y_stage += h * A[i, j] * k[j]
             
-            for i in range(s):
-                # Compute argument for stage i
-                t_stage = t + c[i].item() * h
-                y_stage = y_cuda.clone()
-                
-                # Add contributions from previous stages
-                for j in range(i + 1):  # Include diagonal for implicit methods
-                    if not torch.isclose(A[i, j], torch.tensor(0.0, device=self.device)):
-                        y_stage += h * A[i, j] * k_cuda[j]
-                
-                # Evaluate ODE at this stage (convert back to numpy for ODE function)
-                k_cuda[i] = torch.tensor(ode_func(t_stage, y_stage.cpu().numpy()), 
-                                       dtype=torch.float32, device=self.device)
-            
-            # Compute final step
-            y_new_cuda = y_cuda.clone()
-            for i in range(s):
-                y_new_cuda += h * b[i] * k_cuda[i]
-            
-            return y_new_cuda.cpu().numpy()
-        else:
-            # Use numpy for CPU computation
-            A = self.butcher_table.A
-            b = self.butcher_table.b
-            c = self.butcher_table.c
-            
-            # Compute stage values k_i
-            k = np.zeros((s, len(y)))
-            
-            for i in range(s):
-                # Compute argument for stage i
-                t_stage = t + c[i] * h
-                y_stage = y.copy()
-                
-                # Add contributions from previous stages
-                for j in range(i + 1):  # Include diagonal for implicit methods
-                    if not np.isclose(A[i, j], 0.0):
-                        y_stage += h * A[i, j] * k[j]
-                
-                # Evaluate ODE at this stage
-                k[i] = ode_func(t_stage, y_stage)
-            
-            # Compute final step
-            y_new = y.copy()
-            for i in range(s):
-                y_new += h * b[i] * k[i]
-            
-            return y_new
+            # Evaluate ODE at this stage
+            k[i] = ode_func(t_stage, y_stage)
+        
+        # Compute final step
+        y_new = y.copy()
+        for i in range(s):
+            y_new += h * b[i] * k[i]
+        
+        return y_new
 
 class ReferenceSolver:
     """Computes high-precision reference solutions using SciPy."""
