@@ -12,7 +12,7 @@ class Config:
     
     # Dataset parameters
     N_ODES: int = 1000
-    BATCH_SIZE: int = 25
+    BATCH_SIZE: int = 100  # Increased for better CPU utilization
     N_STIFF_ODES: int = 300
     N_NONSTIFF_ODES: int = 700
     
@@ -35,7 +35,7 @@ class Config:
     
     # Training parameters
     N_EPOCHS: int = 400
-    N_CANDIDATES_PER_BATCH: int = 15
+    N_CANDIDATES_PER_BATCH: int = 50  # Increased for better parallelization
     EVALUATION_FREQUENCY: int = 20
     
     # Paths

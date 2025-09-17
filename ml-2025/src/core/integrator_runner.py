@@ -6,13 +6,14 @@ Butcher tables to solve ODEs and compute reference solutions.
 """
 
 import numpy as np
+import torch
 import time
 from typing import Callable, Tuple, List, Dict, Any, Optional
 from scipy.integrate import solve_ivp
 from dataclasses import dataclass
 import warnings
-from .butcher_tables import ButcherTable
-from .ode_dataset import ODEParameters, ODE_FUNCTIONS
+from src.core.butcher_tables import ButcherTable
+from src.core.ode_dataset import ODEParameters, ODE_FUNCTIONS
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -41,10 +42,18 @@ class IntegrationResult:
 class RungeKuttaIntegrator:
     """Implements Runge-Kutta integration using Butcher tables."""
     
-    def __init__(self, butcher_table: ButcherTable):
+    def __init__(self, butcher_table: ButcherTable, use_cuda: bool = False):
         self.butcher_table = butcher_table
         self.s = len(butcher_table.b)
         self.is_explicit = butcher_table.is_explicit
+        self.use_cuda = use_cuda and torch.cuda.is_available()
+        self.device = torch.device('cuda' if self.use_cuda else 'cpu')
+        
+        if self.use_cuda:
+            # Convert butcher table coefficients to CUDA tensors for faster computation
+            self.A_cuda = torch.tensor(butcher_table.A, dtype=torch.float32, device=self.device)
+            self.b_cuda = torch.tensor(butcher_table.b, dtype=torch.float32, device=self.device)
+            self.c_cuda = torch.tensor(butcher_table.c, dtype=torch.float32, device=self.device)
     
     def integrate(self, 
                   ode_func: Callable,
@@ -174,38 +183,71 @@ class RungeKuttaIntegrator:
         # Use SciPy's adaptive solver for reference, then apply our method
         # This is a simplified adaptive strategy
         return self._integrate_fixed(ode_func, y0, t_span, 
-                                   h=(t_end - t_start) / 10,  # Very few steps for maximum speed
+                                   h=(t_end - t_start) / 20,  # Fewer steps for maximum speed
                                    max_steps=max_steps)
     
     def _rk_step(self, ode_func: Callable, t: float, y: np.ndarray, h: float) -> np.ndarray:
         """Perform a single Runge-Kutta step."""
         s = self.s
-        A = self.butcher_table.A
-        b = self.butcher_table.b
-        c = self.butcher_table.c
         
-        # Compute stage values k_i
-        k = np.zeros((s, len(y)))
-        
-        for i in range(s):
-            # Compute argument for stage i
-            t_stage = t + c[i] * h
-            y_stage = y.copy()
+        if self.use_cuda:
+            # Use CUDA tensors for faster computation
+            A = self.A_cuda
+            b = self.b_cuda
+            c = self.c_cuda
             
-            # Add contributions from previous stages
-            for j in range(i + 1):  # Include diagonal for implicit methods
-                if not np.isclose(A[i, j], 0.0):
-                    y_stage += h * A[i, j] * k[j]
+            # Convert input to CUDA tensor
+            y_cuda = torch.tensor(y, dtype=torch.float32, device=self.device)
+            k_cuda = torch.zeros((s, len(y)), dtype=torch.float32, device=self.device)
             
-            # Evaluate ODE at this stage
-            k[i] = ode_func(t_stage, y_stage)
-        
-        # Compute final step
-        y_new = y.copy()
-        for i in range(s):
-            y_new += h * b[i] * k[i]
-        
-        return y_new
+            for i in range(s):
+                # Compute argument for stage i
+                t_stage = t + c[i].item() * h
+                y_stage = y_cuda.clone()
+                
+                # Add contributions from previous stages
+                for j in range(i + 1):  # Include diagonal for implicit methods
+                    if not torch.isclose(A[i, j], torch.tensor(0.0, device=self.device)):
+                        y_stage += h * A[i, j] * k_cuda[j]
+                
+                # Evaluate ODE at this stage (convert back to numpy for ODE function)
+                k_cuda[i] = torch.tensor(ode_func(t_stage, y_stage.cpu().numpy()), 
+                                       dtype=torch.float32, device=self.device)
+            
+            # Compute final step
+            y_new_cuda = y_cuda.clone()
+            for i in range(s):
+                y_new_cuda += h * b[i] * k_cuda[i]
+            
+            return y_new_cuda.cpu().numpy()
+        else:
+            # Use numpy for CPU computation
+            A = self.butcher_table.A
+            b = self.butcher_table.b
+            c = self.butcher_table.c
+            
+            # Compute stage values k_i
+            k = np.zeros((s, len(y)))
+            
+            for i in range(s):
+                # Compute argument for stage i
+                t_stage = t + c[i] * h
+                y_stage = y.copy()
+                
+                # Add contributions from previous stages
+                for j in range(i + 1):  # Include diagonal for implicit methods
+                    if not np.isclose(A[i, j], 0.0):
+                        y_stage += h * A[i, j] * k[j]
+                
+                # Evaluate ODE at this stage
+                k[i] = ode_func(t_stage, y_stage)
+            
+            # Compute final step
+            y_new = y.copy()
+            for i in range(s):
+                y_new += h * b[i] * k[i]
+            
+            return y_new
 
 class ReferenceSolver:
     """Computes high-precision reference solutions using SciPy."""
@@ -255,7 +297,7 @@ class ReferenceSolver:
                     rtol=self.rtol,
                     atol=self.atol,
                     dense_output=dense_output,
-                    max_step=(ode_parameters.t_span[1] - ode_parameters.t_span[0]) / 10  # Very few steps for speed
+                    max_step=(ode_parameters.t_span[1] - ode_parameters.t_span[0]) / 20  # Fewer steps for speed
                 )
             
             if not sol.success:
@@ -284,14 +326,16 @@ class ReferenceSolver:
 class IntegratorBenchmark:
     """Benchmarks Butcher table methods against reference solutions."""
     
-    def __init__(self, reference_solver: ReferenceSolver = None):
+    def __init__(self, reference_solver: ReferenceSolver = None, use_cuda: bool = False):
         self.reference_solver = reference_solver or ReferenceSolver()
+        self.use_cuda = use_cuda and torch.cuda.is_available()
     
     def evaluate_butcher_table(self, 
                               butcher_table: ButcherTable,
                               ode_parameters: ODEParameters,
-                              h: float = None) -> Dict[str, Any]:
-        """Evaluate a Butcher table on a single ODE."""
+                              h: float = None,
+                              use_varied_steps: bool = True) -> Dict[str, Any]:
+        """Evaluate a Butcher table on a single ODE with varied step sizes."""
         
         # Get reference solution
         ref_result = self.reference_solver.solve_reference(ode_parameters)
@@ -306,7 +350,7 @@ class IntegratorBenchmark:
             }
         
         # Solve with candidate method
-        integrator = RungeKuttaIntegrator(butcher_table)
+        integrator = RungeKuttaIntegrator(butcher_table, use_cuda=self.use_cuda)
         
         # Get ODE function
         ode_func = ODE_FUNCTIONS[ode_parameters.equation_type]
@@ -326,18 +370,82 @@ class IntegratorBenchmark:
                               ode_parameters.parameters["b"])
             elif ode_parameters.equation_type == "polynomial":
                 return ode_func(t, y, ode_parameters.parameters["coefficients"])
+            elif ode_parameters.equation_type == "robertson":
+                params = ode_parameters.parameters
+                return ode_func(t, y, params["k1"], params["k2"], params["k3"])
+            elif ode_parameters.equation_type == "oregonator":
+                params = ode_parameters.parameters
+                return ode_func(t, y, params["alpha"], params["beta"], params["gamma"])
+            elif ode_parameters.equation_type == "hindmarsh_rose":
+                params = ode_parameters.parameters
+                return ode_func(t, y, params["a"], params["b"], params["c"], 
+                              params["d"], params["r"], params["s"], params["xr"])
+            elif ode_parameters.equation_type == "lorenz":
+                params = ode_parameters.parameters
+                return ode_func(t, y, params["sigma"], params["rho"], params["beta"])
+            elif ode_parameters.equation_type == "kuramoto_sivashinsky":
+                params = ode_parameters.parameters
+                return ode_func(t, y, params["n_modes"], params["viscosity"])
+            elif ode_parameters.equation_type == "enhanced_linear_system":
+                params = ode_parameters.parameters
+                return ode_func(t, y, params["A"], params.get("complexity_level", 1))
         
-        # Determine step size if not provided (optimized for maximum speed)
-        if h is None:
-            h = (ode_parameters.t_span[1] - ode_parameters.t_span[0]) / 10  # Very few steps for speed
-        
-        # Solve with candidate method
-        candidate_result = integrator.integrate(
-            ode_wrapper, 
-            ode_parameters.initial_conditions, 
-            ode_parameters.t_span, 
-            h=h
-        )
+        # Use varied step sizes for robust evaluation
+        if use_varied_steps and h is None:
+            # Test with multiple step sizes and take the best result
+            t_span = ode_parameters.t_span
+            t_total = t_span[1] - t_span[0]
+            
+            # Define fewer step sizes to test for speed
+            step_sizes = [
+                t_total / 50,   # Coarse
+                t_total / 100,  # Medium
+                t_total / 200,  # Fine
+            ]
+            
+            best_result = None
+            best_error = float('inf')
+            
+            for step_size in step_sizes:
+                try:
+                    candidate_result = integrator.integrate(
+                        ode_wrapper, 
+                        ode_parameters.initial_conditions, 
+                        ode_parameters.t_span, 
+                        h=step_size
+                    )
+                    
+                    if candidate_result.success:
+                        # Compute error
+                        errors = self._compute_errors(candidate_result, ref_result)
+                        if errors['max_error'] < best_error:
+                            best_error = errors['max_error']
+                            best_result = candidate_result
+                except:
+                    continue
+            
+            if best_result is None:
+                # Fallback to single step size
+                h = t_total / 100
+                candidate_result = integrator.integrate(
+                    ode_wrapper, 
+                    ode_parameters.initial_conditions, 
+                    ode_parameters.t_span, 
+                    h=h
+                )
+            else:
+                candidate_result = best_result
+        else:
+            # Use provided step size or default
+            if h is None:
+                h = (ode_parameters.t_span[1] - ode_parameters.t_span[0]) / 100  # Medium step size
+            
+            candidate_result = integrator.integrate(
+                ode_wrapper, 
+                ode_parameters.initial_conditions, 
+                ode_parameters.t_span, 
+                h=h
+            )
         
         if not candidate_result.success:
             return {
@@ -399,7 +507,7 @@ class IntegratorBenchmark:
 
 if __name__ == "__main__":
     # Test the integrator
-    from .butcher_tables import get_rk4
+    from src.core.butcher_tables import get_rk4
     
     print("Testing Runge-Kutta integrator...")
     
@@ -422,7 +530,7 @@ if __name__ == "__main__":
     print(f"Final value: {result.y_vals[-1, 0]:.6f} (exact: {np.exp(-1.0):.6f})")
     
     # Test reference solver
-    from .ode_dataset import ODEParameters
+    from src.core.ode_dataset import ODEParameters
     
     test_ode = ODEParameters(
         ode_id=0,

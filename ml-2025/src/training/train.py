@@ -15,6 +15,7 @@ from typing import List, Dict, Any, Optional
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import seaborn as sns
+from src.core.performance_monitor import start_performance_monitoring, stop_performance_monitoring, log_training_phase, print_performance_report
 
 # Suppress numerical warnings for cleaner output
 warnings.filterwarnings('ignore', category=RuntimeWarning)
@@ -27,24 +28,33 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from configs.base import config
-from ode_dataset import ODEDataset
-from butcher_tables import ButcherTable, get_all_baseline_tables
-from integrator_runner import IntegratorBenchmark, ReferenceSolver
-from metrics import MetricsCalculator, BaselineComparator, MetricsLogger, PerformanceMetrics
-from model import MLPipeline, ModelConfig
+from src.core.ode_dataset import ODEDataset
+from src.core.butcher_tables import ButcherTable, get_all_baseline_tables
+from src.core.integrator_runner import IntegratorBenchmark, ReferenceSolver
+from src.core.metrics import MetricsCalculator, BaselineComparator, MetricsLogger, PerformanceMetrics
+from src.models.model import MLPipeline, ModelConfig
 
 class TrainingPipeline:
     """Complete training pipeline for discovering novel integration methods."""
     
-    def __init__(self, model_config: ModelConfig = None, config_obj = None):
+    def __init__(self, model_config: ModelConfig = None, config_obj = None, trial_id: str = "default", complexity_level: int = 1, use_cuda: bool = True):
         self.config = config_obj or config
         self.model_config = model_config or ModelConfig()
+        self.trial_id = trial_id
+        self.complexity_level = complexity_level
+        self.use_cuda = use_cuda and torch.cuda.is_available()
         
-        # Initialize components
-        self.dataset = ODEDataset(config_obj=self.config)
+        # Print CUDA status
+        if self.use_cuda:
+            print(f"CUDA enabled - Using GPU: {torch.cuda.get_device_name()}")
+        else:
+            print("CUDA not available or disabled - Using CPU")
+        
+        # Initialize components with trial-specific dataset
+        self.dataset = ODEDataset(config_obj=self.config, complexity_level=complexity_level, trial_id=trial_id)
         self.reference_solver = ReferenceSolver()
-        self.benchmark = IntegratorBenchmark(self.reference_solver)
-        self.metrics_calculator = MetricsCalculator(self.benchmark, config_obj=self.config)
+        self.benchmark = IntegratorBenchmark(self.reference_solver, use_cuda=self.use_cuda)
+        self.metrics_calculator = MetricsCalculator(self.benchmark, config_obj=self.config, use_cuda=self.use_cuda)
         self.baseline_comparator = BaselineComparator(self.metrics_calculator)
         self.metrics_logger = MetricsLogger()
         
@@ -126,13 +136,17 @@ class TrainingPipeline:
         
         # Evaluate candidates
         print(f"Epoch {self.epoch}: Evaluating {len(candidates)} candidates...")
+        log_training_phase("candidate_evaluation", self.epoch)
         candidate_metrics = []
         valid_candidates = []
         
         for i, candidate in enumerate(tqdm(candidates, desc=f"Epoch {self.epoch}: Evaluating candidates", 
                                           bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]')):
             try:
-                metrics = self.metrics_calculator.evaluate_on_ode_batch(candidate, train_batch)
+                # Use varied step evaluation for robust testing
+                metrics = self.metrics_calculator.evaluate_on_ode_batch(
+                    candidate, train_batch, use_varied_steps=True
+                )
                 
                 if metrics.success_rate > 0.5:  # Only keep successful methods
                     candidate_metrics.append(metrics)
@@ -148,11 +162,20 @@ class TrainingPipeline:
         
         if not valid_candidates:
             print("No valid candidates found in this epoch")
-            return {'epoch': self.epoch, 'n_valid_candidates': 0}
+            return {
+                'epoch': self.epoch, 
+                'n_valid_candidates': 0,
+                'best_score': 0.0,
+                'mean_score': 0.0,
+                'best_accuracy': 0.0,
+                'best_efficiency': 0.0,
+                'best_stability': 0.0
+            }
         
-        # Update training data and retrain surrogate
+        # Update training data and retrain surrogate (less frequently for speed)
         self.ml_pipeline.update_training_data(valid_candidates, candidate_metrics)
-        self.ml_pipeline.train_surrogate(valid_candidates, candidate_metrics, n_epochs=20)
+        if self.epoch % 3 == 0:  # Train surrogate every 3 epochs instead of every epoch
+            self.ml_pipeline.train_surrogate(valid_candidates, candidate_metrics, n_epochs=10)
         
         # Update evolutionary population if using evolution
         if use_evolution and hasattr(self.ml_pipeline, 'evolutionary_population'):
@@ -245,6 +268,9 @@ class TrainingPipeline:
             'config': self.config.__dict__
         }
         
+        # Ensure results directory exists
+        os.makedirs(self.config.RESULTS_DIR, exist_ok=True)
+        
         results_file = os.path.join(self.config.RESULTS_DIR, 'best_butcher_table.json')
         with open(results_file, 'w') as f:
             json.dump(table_spec, f, indent=2, default=str)
@@ -261,6 +287,9 @@ class TrainingPipeline:
             'training_history': self.training_history,
             'config': self.config.__dict__
         }
+        
+        # Ensure checkpoint directory exists
+        os.makedirs(self.config.CHECKPOINTS_DIR, exist_ok=True)
         
         checkpoint_file = os.path.join(self.config.CHECKPOINTS_DIR, f'checkpoint_epoch_{self.epoch}.json')
         with open(checkpoint_file, 'w') as f:
@@ -358,6 +387,10 @@ class TrainingPipeline:
         print(f"Starting training for {n_epochs} epochs...")
         print(f"Using {'evolutionary' if use_evolution else 'neural network'} approach")
         
+        # Start performance monitoring
+        start_performance_monitoring()
+        log_training_phase("training_start")
+        
         start_time = time.time()
         
         try:
@@ -391,12 +424,18 @@ class TrainingPipeline:
         
         # Final evaluation
         print("Running final evaluation...")
+        log_training_phase("final_evaluation")
         final_results = self.evaluate_on_full_dataset()
         
         # Save final results
         self.save_checkpoint()
         self.metrics_logger.save_to_csv()
         self.plot_training_progress()
+        
+        # Stop performance monitoring and print report
+        log_training_phase("training_complete")
+        stop_performance_monitoring()
+        print_performance_report()
         
         training_time = time.time() - start_time
         print(f"Training completed in {training_time:.2f} seconds")
@@ -406,8 +445,8 @@ class TrainingPipeline:
 def main():
     """Main training function."""
     
-    # Initialize training pipeline
-    pipeline = TrainingPipeline()
+    # Initialize training pipeline with CUDA support
+    pipeline = TrainingPipeline(use_cuda=True)
     
     # Initialize training
     pipeline.initialize_training(force_regenerate_dataset=False)

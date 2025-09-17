@@ -6,15 +6,16 @@ integration methods including accuracy, efficiency, and stability measures.
 """
 
 import numpy as np
+import torch
 import time
 from typing import List, Dict, Any, Tuple, Optional
 from dataclasses import dataclass
 from tqdm import tqdm
 import multiprocessing as mp
 from functools import partial
-from .butcher_tables import ButcherTable
-from .ode_dataset import ODEParameters
-from .integrator_runner import IntegratorBenchmark, IntegrationResult
+from src.core.butcher_tables import ButcherTable
+from src.core.ode_dataset import ODEParameters
+from src.core.integrator_runner import IntegratorBenchmark, IntegrationResult
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -51,19 +52,22 @@ class PerformanceMetrics:
 class MetricsCalculator:
     """Calculates comprehensive metrics for integration methods."""
     
-    def __init__(self, benchmark: IntegratorBenchmark, config_obj=None):
+    def __init__(self, benchmark: IntegratorBenchmark, config_obj=None, use_cuda: bool = False):
         self.benchmark = benchmark
         self.config = config_obj or config  # Use passed config or global default
+        self.use_cuda = use_cuda and torch.cuda.is_available()
+        self.device = torch.device('cuda' if self.use_cuda else 'cpu')
     
     def evaluate_on_ode_batch(self, 
                              butcher_table: ButcherTable,
                              ode_batch: List[ODEParameters],
-                             step_size: float = None) -> PerformanceMetrics:
-        """Evaluate a Butcher table on a batch of ODEs."""
+                             step_size: float = None,
+                             use_varied_steps: bool = True) -> PerformanceMetrics:
+        """Evaluate a Butcher table on a batch of ODEs with varied step sizes."""
         
         # Use parallel processing for faster evaluation
-        if len(ode_batch) > 5:  # Only use multiprocessing for larger batches
-            return self._evaluate_parallel(butcher_table, ode_batch, step_size)
+        if len(ode_batch) > 10:  # Enable multiprocessing for batches > 10
+            return self._evaluate_parallel(butcher_table, ode_batch, step_size, use_varied_steps)
         
         # Sequential evaluation for small batches
         results = []
@@ -71,7 +75,7 @@ class MetricsCalculator:
         
         for ode_params in ode_batch:
             eval_result = self.benchmark.evaluate_butcher_table(
-                butcher_table, ode_params, h=step_size
+                butcher_table, ode_params, h=step_size, use_varied_steps=use_varied_steps
             )
             
             if eval_result['success']:
@@ -128,7 +132,7 @@ class MetricsCalculator:
         
         # Composite score
         composite_score = self._compute_composite_score(
-            accuracy_metrics, efficiency_metrics, stability_metrics, butcher_table
+            accuracy_metrics, efficiency_metrics, stability_metrics, None
         )
         
         return PerformanceMetrics(
@@ -151,14 +155,15 @@ class MetricsCalculator:
     def _evaluate_parallel(self, 
                           butcher_table: ButcherTable,
                           ode_batch: List[ODEParameters],
-                          step_size: float = None) -> PerformanceMetrics:
+                          step_size: float = None,
+                          use_varied_steps: bool = True) -> PerformanceMetrics:
         """Evaluate using multiprocessing for speed."""
         
         # Create a partial function for the evaluation
-        eval_func = partial(self._evaluate_single_ode, butcher_table, step_size)
+        eval_func = partial(self._evaluate_single_ode, butcher_table, step_size, use_varied_steps)
         
-        # Use multiprocessing with limited cores to avoid overwhelming the system
-        n_cores = min(4, mp.cpu_count())  # Use max 4 cores
+        # Use multiprocessing with more cores for better performance
+        n_cores = min(8, mp.cpu_count())  # Use up to 8 cores for better utilization
         
         with mp.Pool(processes=n_cores) as pool:
             results = pool.map(eval_func, ode_batch)
@@ -198,11 +203,11 @@ class MetricsCalculator:
         # Use the same processing logic as sequential evaluation
         return self._process_results(processed_results, len(ode_batch), butcher_table)
     
-    def _evaluate_single_ode(self, butcher_table: ButcherTable, step_size: float, ode_params: ODEParameters):
+    def _evaluate_single_ode(self, butcher_table: ButcherTable, step_size: float, use_varied_steps: bool, ode_params: ODEParameters):
         """Evaluate a single ODE (for multiprocessing)."""
         try:
             eval_result = self.benchmark.evaluate_butcher_table(
-                butcher_table, ode_params, h=step_size
+                butcher_table, ode_params, h=step_size, use_varied_steps=use_varied_steps
             )
             
             if eval_result['success']:
@@ -253,7 +258,7 @@ class MetricsCalculator:
         
         # Composite score
         composite_score = self._compute_composite_score(
-            accuracy_metrics, efficiency_metrics, stability_metrics, butcher_table
+            accuracy_metrics, efficiency_metrics, stability_metrics, None
         )
         
         return PerformanceMetrics(
@@ -397,6 +402,11 @@ class MetricsCalculator:
             self.config.STABILITY_WEIGHT * stability_score
         )
         
+        # Add bonus points for c vector in [0,1] range
+        if butcher_table is not None and hasattr(butcher_table, 'c') and butcher_table.c is not None:
+            c_bonus = self._compute_c_vector_bonus(butcher_table.c)
+            composite += c_bonus
+        
         # Apply diversity constraints if available
         if hasattr(self.config, 'DIVERSITY_PENALTY') and butcher_table is not None:
             diversity_penalty = self._compute_diversity_penalty(butcher_table)
@@ -410,6 +420,21 @@ class MetricsCalculator:
                 composite *= 0.7  # Moderate penalty for excessive stability
         
         return max(0.0, min(composite, 1.0))
+    
+    def _compute_c_vector_bonus(self, c_vector: np.ndarray) -> float:
+        """Compute bonus points for c vector being in [0,1] range."""
+        if c_vector is None or len(c_vector) == 0:
+            return 0.0
+        
+        # Count how many c values are in [0,1] range
+        in_range = np.sum((c_vector >= 0) & (c_vector <= 1))
+        total = len(c_vector)
+        
+        # Bonus proportional to how many values are in range
+        # Maximum bonus of 0.1 (10% of total score)
+        bonus = 0.1 * (in_range / total)
+        
+        return bonus
     
     def _compute_diversity_penalty(self, butcher_table: ButcherTable) -> float:
         """Compute diversity penalty based on similarity to previous solutions."""
@@ -511,7 +536,7 @@ class BaselineComparator:
                                 step_size: float = None) -> Dict[str, PerformanceMetrics]:
         """Compute metrics for all baseline methods."""
         
-        from .butcher_tables import get_all_baseline_tables
+        from src.core.butcher_tables import get_all_baseline_tables
         
         baseline_tables = get_all_baseline_tables()
         baseline_metrics = {}
@@ -654,8 +679,8 @@ if __name__ == "__main__":
     ]
     
     # Test metrics calculation (without actual benchmark)
-    from .butcher_tables import get_rk4
-    from .integrator_runner import IntegratorBenchmark, ReferenceSolver
+    from src.core.butcher_tables import get_rk4
+    from src.core.integrator_runner import IntegratorBenchmark, ReferenceSolver
     
     # Create a simple benchmark
     ref_solver = ReferenceSolver()

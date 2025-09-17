@@ -12,8 +12,8 @@ import numpy as np
 from typing import List, Dict, Any, Tuple, Optional
 from dataclasses import dataclass
 import random
-from butcher_tables import ButcherTable, ButcherTableGenerator
-from metrics import PerformanceMetrics
+from ..core.butcher_tables import ButcherTable, ButcherTableGenerator
+from ..core.metrics import PerformanceMetrics
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -159,7 +159,7 @@ class EvolutionaryGenerator:
         self.population_size = population_size
         self.mutation_rate = mutation_rate
         self.config = config_obj or ModelConfig()
-        from butcher_tables import ButcherTableGenerator as RandomGenerator
+        from src.core.butcher_tables import ButcherTableGenerator as RandomGenerator
         self.generator = RandomGenerator()
         
     def initialize_population(self, stages: int = 4) -> List[ButcherTable]:
@@ -167,7 +167,7 @@ class EvolutionaryGenerator:
         population = []
         
         # Add some baseline methods
-        from butcher_tables import get_rk4, get_rk45_dormand_prince
+        from src.core.butcher_tables import get_rk4, get_rk45_dormand_prince
         if stages == 4:
             population.append(get_rk4())
         
@@ -275,9 +275,20 @@ class MLPipeline:
         self.config = model_config or ModelConfig()
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
+        # Print device information
+        print(f"Using device: {self.device}")
+        if torch.cuda.is_available():
+            print(f"CUDA device: {torch.cuda.get_device_name()}")
+            print(f"CUDA memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+        
         # Initialize models
         self.generator = ButcherTableGenerator(self.config).to(self.device)
         self.surrogate = SurrogateEvaluator(self.config).to(self.device)
+        
+        # Enable CUDA optimizations if available
+        if torch.cuda.is_available():
+            torch.backends.cudnn.benchmark = True
+            torch.backends.cudnn.deterministic = False
         
         # Optimizers
         self.generator_optimizer = optim.Adam(
@@ -310,7 +321,7 @@ class MLPipeline:
         n_epochs = n_epochs or self.config.n_epochs
         
         # Prepare training data
-        X = torch.stack([table.to_tensor() for table in butcher_tables]).float()
+        X = torch.stack([table.to_tensor(device=self.device) for table in butcher_tables]).float()
         
         # Normalize accuracy for surrogate training
         accuracy_scores = []
@@ -325,17 +336,18 @@ class MLPipeline:
             metrics[i].efficiency_score,
             metrics[i].stability_score,
             metrics[i].composite_score
-        ], dtype=torch.float32) for i in range(len(metrics))])
+        ], dtype=torch.float32, device=self.device) for i in range(len(metrics))])
         
         # Normalize targets
         y_mean = y.mean(dim=0)
         y_std = y.std(dim=0) + 1e-8
         y_normalized = (y - y_mean) / y_std
         
-        # Create data loader
+        # Create data loader with multiple workers for faster data loading
         dataset = torch.utils.data.TensorDataset(X, y_normalized)
         dataloader = torch.utils.data.DataLoader(
-            dataset, batch_size=self.config.batch_size, shuffle=True
+            dataset, batch_size=self.config.batch_size, shuffle=True, 
+            num_workers=min(4, torch.get_num_threads()), pin_memory=torch.cuda.is_available()
         )
         
         # Training loop
@@ -367,7 +379,7 @@ class MLPipeline:
         predictions = []
         with torch.no_grad():
             for table in butcher_tables:
-                table_tensor = table.to_tensor().unsqueeze(0).to(self.device)
+                table_tensor = table.to_tensor(device=self.device).unsqueeze(0)
                 pred = self.surrogate(table_tensor)
                 predictions.append(pred.squeeze(0))
         
@@ -392,7 +404,7 @@ class MLPipeline:
             
             # Fill with random if not enough generated
             while len(candidates) < n_candidates:
-                from butcher_tables import ButcherTableGenerator as RandomGenerator
+                from src.core.butcher_tables import ButcherTableGenerator as RandomGenerator
                 random_generator = RandomGenerator()
                 random_table = random_generator.generate_random_explicit(stages)
                 candidates.append(random_table)
@@ -425,7 +437,8 @@ class MLPipeline:
             'surrogate_state_dict': self.surrogate.state_dict(),
             'generator_optimizer': self.generator_optimizer.state_dict(),
             'surrogate_optimizer': self.surrogate_optimizer.state_dict(),
-            'config': self.config
+            'config': self.config,
+            'device': str(self.device)
         }, os.path.join(checkpoint_dir, 'ml_pipeline.pth'))
         
         print(f"Saved models to {checkpoint_dir}")
@@ -440,6 +453,20 @@ class MLPipeline:
         self.surrogate_optimizer.load_state_dict(checkpoint['surrogate_optimizer'])
         
         print(f"Loaded models from {checkpoint_path}")
+    
+    def get_cuda_memory_info(self):
+        """Get CUDA memory information if available."""
+        if torch.cuda.is_available():
+            allocated = torch.cuda.memory_allocated() / 1e9
+            cached = torch.cuda.memory_reserved() / 1e9
+            total = torch.cuda.get_device_properties(0).total_memory / 1e9
+            return {
+                'allocated_gb': allocated,
+                'cached_gb': cached,
+                'total_gb': total,
+                'free_gb': total - cached
+            }
+        return None
 
 if __name__ == "__main__":
     # Test the ML models

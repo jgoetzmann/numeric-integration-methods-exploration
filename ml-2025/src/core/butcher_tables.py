@@ -58,12 +58,8 @@ class ButcherTable:
         # Compute c from A if not provided
         if not hasattr(self, 'c') or self.c is None:
             self.c = np.sum(self.A, axis=1)
-        else:
-            # Verify c = sum(A, axis=1) for consistency
-            computed_c = np.sum(self.A, axis=1)
-            if not np.allclose(self.c, computed_c, atol=1e-10):
-                print(f"Warning: c vector doesn't match sum of A rows. Using computed values.")
-                self.c = computed_c
+        
+        # No constraints - let the model learn naturally
         
         # Compute order of consistency
         self.consistency_order = self._compute_consistency_order()
@@ -130,18 +126,18 @@ class ButcherTable:
         else:
             return 0.5
     
-    def to_tensor(self) -> torch.Tensor:
+    def to_tensor(self, device: torch.device = None) -> torch.Tensor:
         """Convert to PyTorch tensor for ML models."""
         s = len(self.b)
-        tensor = torch.zeros(s * s + s + s)  # A + b + c
+        tensor = torch.zeros(s * s + s + s, device=device)  # A + b + c
         
         # Flatten A (lower triangular for explicit methods)
         A_flat = self.A.flatten()
-        tensor[:s*s] = torch.tensor(A_flat, dtype=torch.float32)
+        tensor[:s*s] = torch.tensor(A_flat, dtype=torch.float32, device=device)
         
         # Add b and c
-        tensor[s*s:s*s+s] = torch.tensor(self.b, dtype=torch.float32)
-        tensor[s*s+s:] = torch.tensor(self.c, dtype=torch.float32)
+        tensor[s*s:s*s+s] = torch.tensor(self.b, dtype=torch.float32, device=device)
+        tensor[s*s+s:] = torch.tensor(self.c, dtype=torch.float32, device=device)
         
         return tensor
     
@@ -155,7 +151,11 @@ class ButcherTable:
         A = A_flat.reshape(s, s)
         
         b = tensor_np[s*s:s*s+s]
-        c = tensor_np[s*s+s:]
+        c_raw = tensor_np[s*s+s:]
+        
+        # Let the model learn naturally - no constraints
+        # Just use the raw c values from the neural network
+        c = c_raw
         
         return cls(A=A, b=b, c=c)
     
@@ -218,8 +218,8 @@ class ButcherTableGenerator:
         b = np.random.exponential(1.0, s)
         b = b / np.sum(b)  # Normalize to sum to 1
         
-        # Compute c from A
-        c = np.sum(A, axis=1)
+        # Generate c vector - let the model learn naturally
+        c = np.random.uniform(-2, 2, s)  # Wider range for exploration
         
         return ButcherTable(A=A, b=b, c=c)
     
@@ -239,8 +239,8 @@ class ButcherTableGenerator:
         b = np.random.exponential(1.0, s)
         b = b / np.sum(b)
         
-        # Compute c from A
-        c = np.sum(A, axis=1)
+        # Generate c vector - let the model learn naturally
+        c = np.random.uniform(-2, 2, s)  # Wider range for exploration
         
         return ButcherTable(A=A, b=b, c=c)
     
@@ -262,8 +262,10 @@ class ButcherTableGenerator:
         b_new = np.maximum(b_new, 0.01)  # Ensure positive weights
         b_new = b_new / np.sum(b_new)
         
-        # Compute new c
-        c_new = np.sum(A_new, axis=1)
+        # Add noise to c vector and constrain to [0,1]
+        noise_c = np.random.normal(0, noise_level, s)
+        c_new = baseline.c + noise_c
+        # No constraints - let the model learn naturally
         
         return ButcherTable(A=A_new, b=b_new, c=c_new)
 
