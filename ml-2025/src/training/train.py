@@ -39,10 +39,17 @@ class TrainingPipeline:
     
     def __init__(self, model_config: ModelConfig = None, config_obj = None, trial_id: str = "default", complexity_level: int = 1, use_cuda: bool = True):
         self.config = config_obj or config
-        self.model_config = model_config or ModelConfig()
         self.trial_id = trial_id
         self.complexity_level = complexity_level
         self.use_cuda = use_cuda and torch.cuda.is_available()
+        
+        # Create model config for the correct number of stages
+        if model_config is None:
+            stages = getattr(self.config, 'DEFAULT_STAGES', 4)
+            self.model_config = ModelConfig.for_stages(stages)
+            print(f"Created ModelConfig for {stages} stages (input_size: {self.model_config.surrogate_input_size})")
+        else:
+            self.model_config = model_config
         
         # Print CUDA status
         if self.use_cuda:
@@ -58,8 +65,9 @@ class TrainingPipeline:
         self.baseline_comparator = BaselineComparator(self.metrics_calculator)
         self.metrics_logger = MetricsLogger()
         
-        # ML pipeline
-        self.ml_pipeline = MLPipeline(self.model_config)
+        # ML pipeline with correct number of stages
+        stages = getattr(self.config, 'DEFAULT_STAGES', 4)
+        self.ml_pipeline = MLPipeline(self.model_config, stages=stages)
         
         # Training state
         self.epoch = 0
@@ -148,7 +156,7 @@ class TrainingPipeline:
                     candidate, train_batch, use_varied_steps=True
                 )
                 
-                if metrics.success_rate > 0.5:  # Only keep successful methods
+                if metrics.success_rate > 0.1:  # Lower threshold for evolution learning
                     candidate_metrics.append(metrics)
                     valid_candidates.append(candidate)
                     
@@ -161,16 +169,48 @@ class TrainingPipeline:
                 continue
         
         if not valid_candidates:
-            print("No valid candidates found in this epoch")
-            return {
-                'epoch': self.epoch, 
-                'n_valid_candidates': 0,
-                'best_score': 0.0,
-                'mean_score': 0.0,
-                'best_accuracy': 0.0,
-                'best_efficiency': 0.0,
-                'best_stability': 0.0
-            }
+            print("No valid candidates found in this epoch - falling back to random generation")
+            # Fallback: generate random candidates
+            from src.core.butcher_tables import ButcherTableGenerator as RandomGenerator
+            random_generator = RandomGenerator()
+            
+            fallback_candidates = []
+            for _ in range(self.config.N_CANDIDATES_PER_BATCH):
+                try:
+                    candidate = random_generator.generate_random_explicit(self.config.DEFAULT_STAGES)
+                    fallback_candidates.append(candidate)
+                except:
+                    continue
+            
+            # Evaluate fallback candidates
+            for candidate in fallback_candidates:
+                try:
+                    metrics = self.metrics_calculator.evaluate_on_ode_batch(
+                        candidate, train_batch, use_varied_steps=True
+                    )
+                    
+                    if metrics.success_rate > 0.05:  # Even lower threshold for fallback
+                        candidate_metrics.append(metrics)
+                        valid_candidates.append(candidate)
+                        
+                        # Log metrics
+                        comparisons = self.baseline_comparator.compare_to_baselines(metrics, self.baseline_metrics)
+                        self.metrics_logger.log_metrics(candidate, metrics, comparisons, self.epoch)
+                        
+                except Exception as e:
+                    continue
+            
+            if not valid_candidates:
+                print("Fallback also failed - skipping this epoch")
+                return {
+                    'epoch': self.epoch, 
+                    'n_valid_candidates': 0,
+                    'best_score': 0.0,
+                    'mean_score': 0.0,
+                    'best_accuracy': 0.0,
+                    'best_efficiency': 0.0,
+                    'best_stability': 0.0
+                }
         
         # Update training data and retrain surrogate (less frequently for speed)
         self.ml_pipeline.update_training_data(valid_candidates, candidate_metrics)
@@ -179,10 +219,25 @@ class TrainingPipeline:
         
         # Update evolutionary population if using evolution
         if use_evolution and hasattr(self.ml_pipeline, 'evolutionary_population'):
-            fitness_scores = [m.composite_score for m in candidate_metrics]
-            self.ml_pipeline.evolutionary_population = self.ml_pipeline.evolutionary_generator.evolve(
-                valid_candidates, fitness_scores, n_generations=1
-            )
+            if valid_candidates:
+                fitness_scores = [m.composite_score for m in candidate_metrics]
+                self.ml_pipeline.evolutionary_population = self.ml_pipeline.evolutionary_generator.evolve(
+                    valid_candidates, fitness_scores, n_generations=1
+                )
+            else:
+                # If no valid candidates, add some random diversity to population
+                print("Adding random diversity to evolution population")
+                from src.core.butcher_tables import ButcherTableGenerator as RandomGenerator
+                random_generator = RandomGenerator()
+                
+                # Replace some population members with random candidates
+                n_replace = min(10, len(self.ml_pipeline.evolutionary_population) // 4)
+                for i in range(n_replace):
+                    try:
+                        new_candidate = random_generator.generate_random_explicit(self.config.DEFAULT_STAGES)
+                        self.ml_pipeline.evolutionary_population[i] = new_candidate
+                    except:
+                        continue
         
         # Track best performer
         best_idx = np.argmax([m.composite_score for m in candidate_metrics])

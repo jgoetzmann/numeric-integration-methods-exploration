@@ -106,12 +106,13 @@ class MetricsCalculator:
                 n_total=len(ode_batch)
             )
         
-        return self._compute_metrics(results, successful_evaluations, len(ode_batch))
+        return self._compute_metrics(results, successful_evaluations, len(ode_batch), butcher_table)
     
     def _compute_metrics(self, 
                         results: List[Dict[str, Any]], 
                         n_successful: int, 
-                        n_total: int) -> PerformanceMetrics:
+                        n_total: int,
+                        butcher_table: ButcherTable = None) -> PerformanceMetrics:
         """Compute comprehensive metrics from evaluation results."""
         
         # Extract arrays for computation
@@ -132,7 +133,7 @@ class MetricsCalculator:
         
         # Composite score
         composite_score = self._compute_composite_score(
-            accuracy_metrics, efficiency_metrics, stability_metrics, None
+            accuracy_metrics, efficiency_metrics, stability_metrics, butcher_table
         )
         
         return PerformanceMetrics(
@@ -258,7 +259,7 @@ class MetricsCalculator:
         
         # Composite score
         composite_score = self._compute_composite_score(
-            accuracy_metrics, efficiency_metrics, stability_metrics, None
+            accuracy_metrics, efficiency_metrics, stability_metrics, butcher_table
         )
         
         return PerformanceMetrics(
@@ -402,7 +403,19 @@ class MetricsCalculator:
             self.config.STABILITY_WEIGHT * stability_score
         )
         
-        # Add bonus points for c vector in [0,1] range
+        # Add constraint rewards if available
+        if butcher_table is not None:
+            # C matrix [0,1] constraint reward
+            if hasattr(self.config, 'C_MATRIX_REWARD_WEIGHT'):
+                c_reward = self._compute_c_matrix_constraint_reward(butcher_table.c)
+                composite += self.config.C_MATRIX_REWARD_WEIGHT * c_reward
+            
+            # B matrix sum=1 constraint reward
+            if hasattr(self.config, 'B_MATRIX_SUM_REWARD_WEIGHT'):
+                b_reward = self._compute_b_matrix_sum_constraint_reward(butcher_table.b)
+                composite += self.config.B_MATRIX_SUM_REWARD_WEIGHT * b_reward
+        
+        # Add bonus points for c vector in [0,1] range (legacy)
         if butcher_table is not None and hasattr(butcher_table, 'c') and butcher_table.c is not None:
             c_bonus = self._compute_c_vector_bonus(butcher_table.c)
             composite += c_bonus
@@ -435,6 +448,46 @@ class MetricsCalculator:
         bonus = 0.1 * (in_range / total)
         
         return bonus
+    
+    def _compute_c_matrix_constraint_reward(self, c_vector: np.ndarray) -> float:
+        """Compute reward for C matrix values being in [0,1] range."""
+        if c_vector is None or len(c_vector) == 0:
+            return 0.0
+        
+        # Count how many c values are in [0,1] range
+        in_range = np.sum((c_vector >= 0) & (c_vector <= 1))
+        total = len(c_vector)
+        
+        # Reward proportional to how many values are in range
+        # Full reward (1.0) when all values are in [0,1]
+        reward = in_range / total
+        
+        return reward
+    
+    def _compute_b_matrix_sum_constraint_reward(self, b_vector: np.ndarray) -> float:
+        """Compute reward for B matrix sum being close to 1."""
+        if b_vector is None or len(b_vector) == 0:
+            return 0.0
+        
+        # Calculate sum of B matrix values
+        b_sum = np.sum(b_vector)
+        
+        # Get tolerance from config or use default
+        tolerance = getattr(self.config, 'CONSTRAINT_TOLERANCE', 1e-6)
+        
+        # Reward based on how close the sum is to 1
+        # Full reward (1.0) when sum is exactly 1
+        # Gradual decrease as sum deviates from 1
+        deviation = abs(b_sum - 1.0)
+        
+        if deviation <= tolerance:
+            reward = 1.0
+        else:
+            # Exponential decay reward based on deviation
+            # Still gives some reward for being close
+            reward = np.exp(-deviation * 10.0)  # Decay factor of 10
+            
+        return reward
     
     def _compute_diversity_penalty(self, butcher_table: ButcherTable) -> float:
         """Compute diversity penalty based on similarity to previous solutions."""

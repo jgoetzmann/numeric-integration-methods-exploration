@@ -38,6 +38,17 @@ class ModelConfig:
     batch_size: int = 32
     n_epochs: int = 100
     weight_decay: float = 1e-5
+    
+    @classmethod
+    def for_stages(cls, stages: int, **kwargs):
+        """Create ModelConfig for specific number of stages."""
+        butcher_table_size = stages * stages + stages + stages  # A + b + c
+        
+        return cls(
+            generator_output_size=butcher_table_size,
+            surrogate_input_size=butcher_table_size,
+            **kwargs
+        )
 
 class ButcherTableGenerator(nn.Module):
     """Neural network generator for creating Butcher tables."""
@@ -167,14 +178,35 @@ class EvolutionaryGenerator:
         population = []
         
         # Add some baseline methods
-        from src.core.butcher_tables import get_rk4, get_rk45_dormand_prince
-        if stages == 4:
-            population.append(get_rk4())
+        from src.core.butcher_tables import get_rk4, get_rk45_dormand_prince, get_all_baseline_tables
+        baseline_tables = get_all_baseline_tables()
+        
+        # Add relevant baseline methods
+        for name, table in baseline_tables.items():
+            if len(table.b) == stages:
+                population.append(table)
+        
+        # Add some perturbed baselines for diversity
+        for _ in range(min(5, self.population_size // 4)):
+            if population:
+                baseline = population[0]  # Use first baseline
+                perturbed = self.generator.generate_perturbed_baseline(baseline, 0.1)
+                population.append(perturbed)
         
         # Fill remaining with random methods
         while len(population) < self.population_size:
-            table = self.generator.generate_random_explicit(stages)
-            population.append(table)
+            try:
+                table = self.generator.generate_random_explicit(stages)
+                population.append(table)
+            except:
+                # If random generation fails, create a simple table
+                from src.core.butcher_tables import ButcherTable
+                import numpy as np
+                A = np.zeros((stages, stages))
+                b = np.ones(stages) / stages  # Equal weights
+                c = np.linspace(0, 1, stages)  # Linear spacing
+                table = ButcherTable(A=A, b=b, c=c)
+                population.append(table)
         
         return population[:self.population_size]
     
@@ -271,9 +303,11 @@ class EvolutionaryGenerator:
 class MLPipeline:
     """Complete ML pipeline for discovering Butcher tables."""
     
-    def __init__(self, model_config: ModelConfig = None):
+    def __init__(self, model_config: ModelConfig = None, stages: int = 4):
         self.config = model_config or ModelConfig()
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.stages = stages
+        # Use CPU by default to avoid CUDA memory issues
+        self.device = torch.device('cpu')
         
         # Print device information
         print(f"Using device: {self.device}")
@@ -281,12 +315,12 @@ class MLPipeline:
             print(f"CUDA device: {torch.cuda.get_device_name()}")
             print(f"CUDA memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
         
-        # Initialize models
-        self.generator = ButcherTableGenerator(self.config).to(self.device)
+        # Initialize models with correct number of stages
+        self.generator = ButcherTableGenerator(self.config, stages=stages).to(self.device)
         self.surrogate = SurrogateEvaluator(self.config).to(self.device)
         
-        # Enable CUDA optimizations if available
-        if torch.cuda.is_available():
+        # Enable CUDA optimizations if available and using CUDA
+        if torch.cuda.is_available() and self.device.type == 'cuda':
             torch.backends.cudnn.benchmark = True
             torch.backends.cudnn.deterministic = False
             # Clear GPU memory cache
