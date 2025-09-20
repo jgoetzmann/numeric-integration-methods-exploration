@@ -1,0 +1,148 @@
+{
+  "butcher_table": {
+    "A": [
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.5,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.5,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ]
+    ],
+    "b": [
+      0.16666666666666666,
+      0.3333333333333333,
+      0.3333333333333333,
+      0.16666666666666666
+    ],
+    "c": [
+      0.0,
+      0.5,
+      0.5,
+      1.0
+    ],
+    "is_explicit": true,
+    "consistency_order": 3,
+    "stability_radius": 1.5
+  },
+  "metrics": {
+    "max_error": 3.3452233661681274e-07,
+    "l2_error": 6.519166476643647e-08,
+    "mean_error": -11.083594639058141,
+    "error_percentile_95": -7.029855658013077,
+    "runtime": 11.565351009368896,
+    "n_steps": "21719",
+    "steps_per_second": 1877.936949981527,
+    "efficiency_score": 1.0,
+    "stability_score": 2.869677729137376,
+    "convergence_rate": 0.0,
+    "composite_score": 1.0,
+    "success_rate": 0.438,
+    "n_successful": 219,
+    "n_total": 500
+  },
+  "comparisons": {
+    "rk4": {
+      "accuracy_ratio": 1.0,
+      "efficiency_ratio": 0.9420088372787027,
+      "stability_ratio": 1.0,
+      "score_ratio": 1.0,
+      "better_accuracy": "False",
+      "better_efficiency": "True",
+      "better_stability": "False",
+      "better_overall": false
+    },
+    "rk45_dormand_prince": {
+      "accuracy_ratio": 1.0752276270507255,
+      "efficiency_ratio": 2.384666734750817,
+      "stability_ratio": 0.9915517218581453,
+      "score_ratio": 1.0,
+      "better_accuracy": "False",
+      "better_efficiency": "False",
+      "better_stability": "False",
+      "better_overall": false
+    },
+    "gauss_legendre_2": {
+      "accuracy_ratio": 0.00018830041161739547,
+      "efficiency_ratio": 0.5895118840581622,
+      "stability_ratio": 1.1201725641994593,
+      "score_ratio": 1.0,
+      "better_accuracy": "True",
+      "better_efficiency": "True",
+      "better_stability": "True",
+      "better_overall": false
+    },
+    "gauss_legendre_3": {
+      "accuracy_ratio": 0.0002706917313216739,
+      "efficiency_ratio": 1.118716809749892,
+      "stability_ratio": 1.1114835971678108,
+      "score_ratio": 1.0,
+      "better_accuracy": "True",
+      "better_efficiency": "False",
+      "better_stability": "True",
+      "better_overall": false
+    }
+  },
+  "training_epoch": 100,
+  "config": {
+    "N_ODES": 1000,
+    "BATCH_SIZE": 100,
+    "N_STIFF_ODES": 300,
+    "N_NONSTIFF_ODES": 700,
+    "MIN_STAGES": 4,
+    "MAX_STAGES": 4,
+    "DEFAULT_STAGES": 4,
+    "T_START": 0.0,
+    "T_END": 1.0,
+    "REFERENCE_TOL": 1e-10,
+    "TEST_TOL": 1e-06,
+    "GENERATOR_HIDDEN_SIZE": 256,
+    "SURROGATE_HIDDEN_SIZE": 128,
+    "LEARNING_RATE": 0.001,
+    "BATCH_SIZE_ML": 32,
+    "N_EPOCHS": 100,
+    "N_CANDIDATES_PER_BATCH": 75,
+    "EVALUATION_FREQUENCY": 20,
+    "DATA_DIR": "data",
+    "RESULTS_DIR": "trials/trial_4stage_novelty",
+    "TRIALS_DIR": "trials/trial_4stage_novelty",
+    "LOGS_DIR": "logs",
+    "CHECKPOINTS_DIR": "trials/trial_4stage_novelty/checkpoints",
+    "DB_PATH": "results/integrator_results.db",
+    "ACCURACY_WEIGHT": 0.7,
+    "EFFICIENCY_WEIGHT": 0.2,
+    "STABILITY_WEIGHT": 0.1,
+    "USE_VARIED_STEPS": true,
+    "C_MATRIX_CONSTRAINED": true,
+    "COMPLEXITY_LEVEL": 2,
+    "USE_EVOLUTION": true,
+    "EVOLUTION_POPULATION_SIZE": 75,
+    "EVOLUTION_MUTATION_RATE": 0.15,
+    "EVOLUTION_CROSSOVER_RATE": 0.75,
+    "EVOLUTION_ELITE_SIZE": 8,
+    "C_MATRIX_REWARD_WEIGHT": 0.08,
+    "B_MATRIX_SUM_REWARD_WEIGHT": 0.05,
+    "CONSTRAINT_TOLERANCE": 1e-06,
+    "NOVELTY_REWARD_WEIGHT": 0.03,
+    "NOVELTY_TOLERANCE": 0.1,
+    "BASELINE_PENALTY_WEIGHT": 0.02,
+    "NOVELTY_THRESHOLD": 0.2
+  }
+}

@@ -156,7 +156,9 @@ class TrainingPipeline:
                     candidate, train_batch, use_varied_steps=True
                 )
                 
-                if metrics.success_rate > 0.1:  # Lower threshold for evolution learning
+                # Use configurable success threshold
+                success_threshold = getattr(self.config, 'SUCCESS_THRESHOLD', 0.1)
+                if metrics.success_rate > success_threshold:
                     candidate_metrics.append(metrics)
                     valid_candidates.append(candidate)
                     

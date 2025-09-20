@@ -414,6 +414,16 @@ class MetricsCalculator:
             if hasattr(self.config, 'B_MATRIX_SUM_REWARD_WEIGHT'):
                 b_reward = self._compute_b_matrix_sum_constraint_reward(butcher_table.b)
                 composite += self.config.B_MATRIX_SUM_REWARD_WEIGHT * b_reward
+            
+            # Novelty search reward
+            if hasattr(self.config, 'NOVELTY_REWARD_WEIGHT'):
+                novelty_reward = self._compute_novelty_reward(butcher_table)
+                composite += self.config.NOVELTY_REWARD_WEIGHT * novelty_reward
+            
+            # Exploration bonus for diverse coefficients
+            if hasattr(self.config, 'EXPLORATION_BONUS'):
+                exploration_bonus = self._compute_exploration_bonus(butcher_table)
+                composite += self.config.EXPLORATION_BONUS * exploration_bonus
         
         # Add bonus points for c vector in [0,1] range (legacy)
         if butcher_table is not None and hasattr(butcher_table, 'c') and butcher_table.c is not None:
@@ -488,6 +498,93 @@ class MetricsCalculator:
             reward = np.exp(-deviation * 10.0)  # Decay factor of 10
             
         return reward
+    
+    def _compute_novelty_reward(self, butcher_table: ButcherTable) -> float:
+        """Compute reward for being novel (different from baseline methods)."""
+        if butcher_table is None:
+            return 0.0
+        
+        # Get baseline methods for comparison
+        from src.core.butcher_tables import get_all_baseline_tables
+        baseline_tables = get_all_baseline_tables()
+        
+        # Only compare with methods of same stage count
+        relevant_baselines = []
+        for name, table in baseline_tables.items():
+            if len(table.b) == len(butcher_table.b):
+                relevant_baselines.append((name, table))
+        
+        if not relevant_baselines:
+            return 0.0
+        
+        # Calculate novelty score based on coefficient differences
+        novelty_scores = []
+        tolerance = getattr(self.config, 'NOVELTY_TOLERANCE', 0.1)
+        
+        for baseline_name, baseline_table in relevant_baselines:
+            # Compare A matrix coefficients
+            a_diff = self._compute_matrix_difference(butcher_table.A, baseline_table.A)
+            
+            # Compare b vector
+            b_diff = np.mean(np.abs(butcher_table.b - baseline_table.b))
+            
+            # Compare c vector
+            c_diff = np.mean(np.abs(butcher_table.c - baseline_table.c))
+            
+            # Overall difference
+            total_diff = (a_diff + b_diff + c_diff) / 3.0
+            
+            # Novelty score (higher is more novel)
+            novelty_score = min(1.0, total_diff / tolerance)
+            novelty_scores.append(novelty_score)
+        
+        # Return average novelty score
+        return np.mean(novelty_scores) if novelty_scores else 0.0
+    
+    def _compute_exploration_bonus(self, butcher_table: ButcherTable) -> float:
+        """Compute bonus for coefficient diversity and exploration."""
+        if butcher_table is None:
+            return 0.0
+        
+        # Extract all coefficients
+        coefficients = []
+        coefficients.extend(butcher_table.c.flatten())
+        coefficients.extend(butcher_table.b.flatten())
+        
+        # Add A matrix coefficients (upper triangular)
+        for i in range(len(butcher_table.A)):
+            for j in range(i):  # Only upper triangular
+                coefficients.append(butcher_table.A[i][j])
+        
+        coefficients = np.array(coefficients)
+        
+        # Reward coefficient diversity (standard deviation)
+        if len(coefficients) > 1:
+            diversity = np.std(coefficients)
+            # Normalize diversity score (higher std = more diverse)
+            diversity_score = min(1.0, diversity / 2.0)  # Cap at 1.0
+        else:
+            diversity_score = 0.0
+        
+        # Reward for using unusual coefficient ranges
+        unusual_coeffs = np.sum((coefficients < -1) | (coefficients > 1))
+        unusual_score = unusual_coeffs / len(coefficients) if len(coefficients) > 0 else 0.0
+        
+        # Combine diversity and unusualness
+        exploration_score = 0.7 * diversity_score + 0.3 * unusual_score
+        
+        return exploration_score
+    
+    def _compute_matrix_difference(self, matrix1: np.ndarray, matrix2: np.ndarray) -> float:
+        """Compute normalized difference between two matrices."""
+        if matrix1.shape != matrix2.shape:
+            return 1.0  # Maximum difference for different shapes
+        
+        # Compute element-wise absolute difference
+        diff = np.abs(matrix1 - matrix2)
+        
+        # Return mean difference normalized by matrix size
+        return np.mean(diff)
     
     def _compute_diversity_penalty(self, butcher_table: ButcherTable) -> float:
         """Compute diversity penalty based on similarity to previous solutions."""
