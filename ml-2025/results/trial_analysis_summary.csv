@@ -1,0 +1,10 @@
+trial,method,stages,training_type,accuracy_ratio_vs_rk4,efficiency_ratio_vs_rk4,stability_ratio_vs_rk4,composite_score,converged_to_rk4,novelty_score,config_weights
+trial_008,4stage_accuracy,4,gradient_descent,69.40,0.57,0.89,1.0,False,0.0,"ACC=0.9, EFF=0.1, STAB=0.0"
+trial_009,4stage_efficiency,4,gradient_descent,34.15,0.50,0.85,1.0,False,0.0,"ACC=0.2, EFF=0.8, STAB=0.0"
+trial_010,7stage_efficiency,7,gradient_descent,2039.09,0.21,0.88,1.0,False,0.0,"ACC=0.2, EFF=0.8, STAB=0.0"
+trial_011,7stage_accuracy,7,gradient_descent,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,"ACC=0.9, EFF=0.1, STAB=0.0"
+trial_012,4stage_evolution,4,evolution,1.0,0.94,1.0,1.0,True,0.0,"ACC=0.7, EFF=0.2, STAB=0.1 + evolution"
+trial_013,7stage_evolution,7,evolution,0.17,0.43,1.01,1.0,True,0.0,"ACC=0.7, EFF=0.2, STAB=0.1 + evolution"
+trial_014,4stage_novelty,4,evolution+novelty,1.0,0.94,1.0,1.0,True,0.0,"ACC=0.7, EFF=0.2, STAB=0.1 + novelty"
+trial_015,4stage_unconstrained,4,evolution,1.0,0.98,1.0,1.0,True,0.0,"ACC=0.7, EFF=0.2, STAB=0.1 + unconstrained"
+trial_016,4stage_novelty_v2,4,evolution+novelty,1.95,0.37,0.89,1.05,False,0.39,"ACC=0.7, EFF=0.2, STAB=0.1 + 30% novelty"
