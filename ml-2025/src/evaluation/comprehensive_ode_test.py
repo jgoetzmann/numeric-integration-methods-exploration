@@ -1,12 +1,10 @@
 """
-Comprehensive ODE Test Suite for Novel Numerical Integration Methods
+Comprehensive ODE Test Suite
 
-This script performs extensive testing of the optimal Butcher table discovered in run_1
-against various classical numerical integration methods on a large dataset of 10,000 ODEs
-including both stiff and non-stiff problems.
+Author: Jack Goetzmann
 
-Author: AI Assistant
-Date: 2025-09-15
+Runs full evaluation of discovered Butcher tables against classical methods
+on large ODE datasets. Used for final validation and comparison.
 """
 
 import numpy as np

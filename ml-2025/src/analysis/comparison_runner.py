@@ -1,5 +1,9 @@
 """
 Comparison runner for testing butcher tables against classical methods.
+
+Author: Jack Goetzmann
+
+Runs comprehensive comparisons between discovered and classical RK methods.
 """
 
 import time

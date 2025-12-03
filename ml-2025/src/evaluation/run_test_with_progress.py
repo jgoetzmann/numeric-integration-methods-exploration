@@ -1,8 +1,10 @@
 """
 Comprehensive Test Runner with Progress Bars
 
-This script runs the comprehensive test with clear progress indicators
-and avoids torch dependencies by using a simplified approach.
+Author: Jack Goetzmann
+
+Runs comprehensive tests with progress indicators. Simplified approach
+to avoid heavy dependencies.
 """
 
 import os

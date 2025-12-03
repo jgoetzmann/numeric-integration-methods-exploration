@@ -1,8 +1,9 @@
 """
 Database and Logging Module.
 
-This module provides database functionality for storing and retrieving
-Butcher table results, metrics, and training progress.
+Author: Jack Goetzmann
+
+SQLite database for storing results, metrics, and training history.
 """
 
 import sqlite3

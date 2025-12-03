@@ -1,8 +1,11 @@
 """
 Machine Learning Models Module.
 
-This module implements the generator and surrogate evaluator models for
-discovering novel Butcher tables through machine learning.
+Author: Jack Goetzmann
+
+Neural network models for generating and evaluating Butcher tables.
+Generator creates candidate tables, surrogate predicts performance without
+full ODE evaluation.
 """
 
 import torch
@@ -102,11 +105,11 @@ class ButcherTableGenerator(nn.Module):
             for i in range(n_tables):
                 try:
                     table = ButcherTable.from_tensor(outputs[i], self.stages)
-                    # Ensure explicit structure
+                    # only keep explicit methods
                     if table.is_explicit:
                         tables.append(table)
                 except:
-                    # Skip invalid tables
+                    # skip invalid ones
                     continue
             
             return tables

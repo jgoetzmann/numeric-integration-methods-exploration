@@ -1,14 +1,9 @@
 """
-Main Runner Script for Comprehensive ODE Testing Suite
+Main Runner Script for Comprehensive ODE Testing
 
-This script orchestrates the entire comprehensive testing process:
-1. Runs the main comprehensive test
-2. Performs extended comparison with additional methods
-3. Generates performance analysis and visualizations
-4. Creates summary reports
+Author: Jack Goetzmann
 
-Author: AI Assistant
-Date: 2025-09-15
+Orchestrates the full testing pipeline - runs tests, comparisons, and generates reports.
 """
 
 import os

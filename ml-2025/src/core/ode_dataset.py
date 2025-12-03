@@ -1,8 +1,10 @@
 """
 ODE Dataset Generation and Management Module.
 
-This module generates a collection of 10,000 static ODEs (mix of stiff and non-stiff)
-and provides batching functionality for training.
+Author: Jack Goetzmann
+
+Generates large datasets of ODEs for training - mix of stiff and non-stiff problems.
+Also handles batching and dataset persistence.
 """
 
 import numpy as np
@@ -256,7 +258,7 @@ class ODEDataset:
         # Generate stiff ODEs with increasing complexity
         print(f"Generating {self.config.N_STIFF_ODES} stiff ODEs...")
         for i in tqdm(range(self.config.N_STIFF_ODES), desc="Generating stiff ODEs"):
-            ode_type = i % 8  # More variety
+            ode_type = i % 8  # cycle through types
             
             if ode_type == 0:
                 # Enhanced linear systems with high stiffness

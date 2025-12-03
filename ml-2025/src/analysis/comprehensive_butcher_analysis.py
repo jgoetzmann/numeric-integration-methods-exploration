@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """
 Comprehensive analysis of all discovered butcher tables against classical methods.
-This script performs sanity checking, creates test datasets, and runs comprehensive comparisons.
+
+Author: Jack Goetzmann
+
+Full analysis pipeline - sanity checks, test datasets, and comprehensive comparisons
+between discovered and classical methods.
 """
 
 import json

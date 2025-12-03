@@ -1,5 +1,10 @@
 """
-Quick Test Script - Verifies the test suite works before running full test
+Quick Test Script
+
+Author: Jack Goetzmann
+
+Quick sanity check - verifies imports and basic functionality work before
+running the full test suite.
 """
 
 import os

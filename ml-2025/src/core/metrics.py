@@ -1,8 +1,10 @@
 """
 Metrics and Evaluation Module.
 
-This module implements comprehensive evaluation metrics for comparing
-integration methods including accuracy, efficiency, and stability measures.
+Author: Jack Goetzmann
+
+Calculates all the metrics we care about - accuracy, efficiency, stability.
+Used to compare discovered methods against baselines.
 """
 
 import numpy as np
@@ -65,11 +67,11 @@ class MetricsCalculator:
                              use_varied_steps: bool = True) -> PerformanceMetrics:
         """Evaluate a Butcher table on a batch of ODEs with varied step sizes."""
         
-        # Use parallel processing for faster evaluation
-        if len(ode_batch) > 10:  # Enable multiprocessing for batches > 10
+        # parallel processing for large batches
+        if len(ode_batch) > 10:
             return self._evaluate_parallel(butcher_table, ode_batch, step_size, use_varied_steps)
         
-        # Sequential evaluation for small batches
+        # sequential for small batches
         results = []
         successful_evaluations = 0
         
@@ -115,23 +117,17 @@ class MetricsCalculator:
                         butcher_table: ButcherTable = None) -> PerformanceMetrics:
         """Compute comprehensive metrics from evaluation results."""
         
-        # Extract arrays for computation
+        # extract arrays for computation
         max_errors = np.array([r['max_error'] for r in results])
         l2_errors = np.array([r['l2_error'] for r in results])
         runtimes = np.array([r['runtime'] for r in results])
         n_steps = np.array([r['n_steps'] for r in results])
         is_stiff = np.array([r['is_stiff'] for r in results])
         
-        # Accuracy metrics
+        # compute all the metrics
         accuracy_metrics = self._compute_accuracy_metrics(max_errors, l2_errors)
-        
-        # Efficiency metrics
         efficiency_metrics = self._compute_efficiency_metrics(runtimes, n_steps)
-        
-        # Stability metrics
         stability_metrics = self._compute_stability_metrics(results, is_stiff)
-        
-        # Composite score
         composite_score = self._compute_composite_score(
             accuracy_metrics, efficiency_metrics, stability_metrics, butcher_table
         )

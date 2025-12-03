@@ -1,5 +1,9 @@
 """
 Core butcher table analysis functionality.
+
+Author: Jack Goetzmann
+
+Analyzes discovered butcher tables - finds unique ones, compares to classical methods.
 """
 
 import json

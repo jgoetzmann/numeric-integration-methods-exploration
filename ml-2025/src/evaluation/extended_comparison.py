@@ -1,11 +1,10 @@
 """
 Extended Comparison Script
 
-This script adds additional numerical integration methods for comparison
-including scipy's built-in methods and other classical methods.
+Author: Jack Goetzmann
 
-Author: AI Assistant
-Date: 2025-09-15
+Compares discovered methods against additional classical integrators including
+SciPy's built-in methods.
 """
 
 import numpy as np

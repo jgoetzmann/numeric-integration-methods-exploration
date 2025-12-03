@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """
 Main analysis script for comprehensive butcher table evaluation.
+
+Author: Jack Goetzmann
+
+Orchestrates the full analysis pipeline - finds unique tables, runs comparisons,
+and generates reports.
 """
 
 import sys

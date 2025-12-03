@@ -1,8 +1,10 @@
 """
 Training Pipeline Module.
 
-This module implements the complete optimization loop for discovering
-novel Butcher tables using machine learning and evolutionary algorithms.
+Author: Jack Goetzmann
+
+Main training loop - combines ML generation with evolutionary search to
+find new Butcher tables. Handles batching, evaluation, and checkpointing.
 """
 
 import os
@@ -127,9 +129,8 @@ class TrainingPipeline:
         
         self.epoch += 1
         
-        # Get training batch
+        # Get training batch - mix stiff problems every few epochs
         if self.epoch % 3 == 0:
-            # Use stiff problems every third epoch
             train_batch = self.dataset.get_stiff_batch(self.config.BATCH_SIZE // 2)
             train_batch.extend(self.dataset.get_nonstiff_batch(self.config.BATCH_SIZE // 2))
         else:
@@ -151,12 +152,12 @@ class TrainingPipeline:
         for i, candidate in enumerate(tqdm(candidates, desc=f"Epoch {self.epoch}: Evaluating candidates", 
                                           bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]')):
             try:
-                # Use varied step evaluation for robust testing
+                # evaluate with varied step sizes
                 metrics = self.metrics_calculator.evaluate_on_ode_batch(
                     candidate, train_batch, use_varied_steps=True
                 )
                 
-                # Use configurable success threshold
+                # only keep candidates that actually work
                 success_threshold = getattr(self.config, 'SUCCESS_THRESHOLD', 0.1)
                 if metrics.success_rate > success_threshold:
                     candidate_metrics.append(metrics)
@@ -167,12 +168,12 @@ class TrainingPipeline:
                     self.metrics_logger.log_metrics(candidate, metrics, comparisons, self.epoch)
                     
             except Exception as e:
-                # Silently skip failed candidates to avoid cluttering output
+                # skip failures - they happen
                 continue
         
         if not valid_candidates:
             print("No valid candidates found in this epoch - falling back to random generation")
-            # Fallback: generate random candidates
+            # fallback to random if ML generation fails
             from src.core.butcher_tables import ButcherTableGenerator as RandomGenerator
             random_generator = RandomGenerator()
             

@@ -1,8 +1,9 @@
 """
 Performance Monitoring Module.
 
-This module provides utilities for monitoring CPU usage, memory consumption,
-and training performance to help optimize the training pipeline.
+Author: Jack Goetzmann
+
+Monitors CPU/memory usage during training. Useful for optimization and debugging.
 """
 
 import time

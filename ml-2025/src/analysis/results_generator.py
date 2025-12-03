@@ -1,5 +1,9 @@
 """
 Results generator for creating comprehensive analysis outputs.
+
+Author: Jack Goetzmann
+
+Generates CSV reports, JSON exports, and visualization plots from analysis results.
 """
 
 import pandas as pd

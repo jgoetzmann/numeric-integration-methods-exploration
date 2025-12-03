@@ -1,11 +1,9 @@
 """
-Performance Analysis Script for Comprehensive ODE Test Results
+Performance Analysis Script
 
-This script provides detailed analysis of the test results, including statistical
-analysis, performance rankings, and detailed comparisons between methods.
+Author: Jack Goetzmann
 
-Author: AI Assistant
-Date: 2025-09-15
+Analyzes test results - stats, rankings, and comparisons between methods.
 """
 
 import numpy as np

@@ -1,5 +1,9 @@
 """
-Base configuration class for the Novel Numerical Integration Methods project.
+Base Configuration
+
+Author: Jack Goetzmann
+
+Main config class - all the hyperparameters and paths in one place.
 """
 
 import os

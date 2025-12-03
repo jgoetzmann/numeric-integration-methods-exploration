@@ -1,8 +1,10 @@
 """
 Butcher Table Representation and Management Module.
 
-This module handles the representation, validation, and manipulation of Butcher tables
-for Runge-Kutta integration schemes.
+Author: Jack Goetzmann
+
+Core implementation for Butcher table structures used in RK methods.
+Handles validation, serialization, and the baseline classical methods.
 """
 
 import numpy as np
@@ -26,7 +28,7 @@ class ButcherTable:
     def __post_init__(self):
         """Validate the Butcher table after initialization."""
         self.validate()
-        self.compute_consistency()
+        self.compute_consistency()  # computes order and stability properties
     
     def validate(self):
         """Validate the Butcher table structure."""
@@ -59,7 +61,7 @@ class ButcherTable:
         if not hasattr(self, 'c') or self.c is None:
             self.c = np.sum(self.A, axis=1)
         
-        # No constraints - let the model learn naturally
+        # Letting model learn naturally without hard constraints
         
         # Compute order of consistency
         self.consistency_order = self._compute_consistency_order()
@@ -105,10 +107,10 @@ class ButcherTable:
         # For explicit methods, compute stability function
         if self.is_explicit:
             # Stability function: R(z) = 1 + z*b^T*(I - z*A)^(-1)*1
-            # For small z, we can approximate
+            # Approximating for speed
             self.stability_radius = self._estimate_stability_radius()
         else:
-            # For implicit methods, stability is generally better
+            # Implicit methods generally have better stability
             self.stability_radius = float('inf')
     
     def _estimate_stability_radius(self) -> float:
@@ -216,10 +218,10 @@ class ButcherTableGenerator:
         
         # Generate weights b (must sum to 1)
         b = np.random.exponential(1.0, s)
-        b = b / np.sum(b)  # Normalize to sum to 1
+        b = b / np.sum(b)  # normalize
         
-        # Generate c vector - let the model learn naturally
-        c = np.random.uniform(-2, 2, s)  # Wider range for exploration
+        # c vector - wider range for exploration
+        c = np.random.uniform(-2, 2, s)
         
         return ButcherTable(A=A, b=b, c=c)
     
@@ -262,16 +264,15 @@ class ButcherTableGenerator:
         b_new = np.maximum(b_new, 0.01)  # Ensure positive weights
         b_new = b_new / np.sum(b_new)
         
-        # Add noise to c vector and constrain to [0,1]
+        # Add noise to c vector
         noise_c = np.random.normal(0, noise_level, s)
         c_new = baseline.c + noise_c
-        # No constraints - let the model learn naturally
         
         return ButcherTable(A=A_new, b=b_new, c=c_new)
 
 # Classic Butcher tables
 def get_rk4() -> ButcherTable:
-    """Classic 4th order Runge-Kutta method."""
+    """Classic 4th order Runge-Kutta method - the standard."""
     A = np.array([
         [0,   0,   0,   0],
         [0.5, 0,   0,   0],
@@ -283,7 +284,7 @@ def get_rk4() -> ButcherTable:
     return ButcherTable(A=A, b=b, c=c)
 
 def get_rk45_dormand_prince() -> ButcherTable:
-    """Dormand-Prince 5th order method."""
+    """Dormand-Prince 5th order method - adaptive step size favorite."""
     A = np.array([
         [0,             0,             0,             0,             0,             0,           0],
         [1/5,           0,             0,             0,             0,             0,           0],

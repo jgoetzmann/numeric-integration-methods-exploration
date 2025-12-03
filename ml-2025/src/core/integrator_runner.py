@@ -1,8 +1,10 @@
 """
 Integrator Runner Module.
 
-This module implements the core integration functionality for applying
-Butcher tables to solve ODEs and compute reference solutions.
+Author: Jack Goetzmann
+
+Core integration engine - takes Butcher tables and solves ODEs with them.
+Also handles reference solutions via SciPy for comparison.
 """
 
 import numpy as np
@@ -50,7 +52,7 @@ class RungeKuttaIntegrator:
         self.device = torch.device('cuda' if self.use_cuda else 'cpu')
         
         if self.use_cuda:
-            # Convert butcher table coefficients to CUDA tensors for faster computation
+            # Pre-convert to CUDA tensors
             self.A_cuda = torch.tensor(butcher_table.A, dtype=torch.float32, device=self.device)
             self.b_cuda = torch.tensor(butcher_table.b, dtype=torch.float32, device=self.device)
             self.c_cuda = torch.tensor(butcher_table.c, dtype=torch.float32, device=self.device)
@@ -190,8 +192,7 @@ class RungeKuttaIntegrator:
         """Perform a single Runge-Kutta step."""
         s = self.s
         
-        # For now, always use CPU computation to avoid inefficient CPU-GPU transfers
-        # CUDA acceleration is better suited for batch operations in the ML pipeline
+        # Using CPU here - GPU transfer overhead not worth it for single ODEs
         A = self.butcher_table.A
         b = self.butcher_table.b
         c = self.butcher_table.c
@@ -255,19 +256,19 @@ class ReferenceSolver:
         start_time = time.time()
         
         try:
-            # Use SciPy's solve_ivp with tight tolerances
+            # Using SciPy for reference solutions
             with warnings.catch_warnings():
-                warnings.simplefilter("ignore")  # Suppress integration warnings
+                warnings.simplefilter("ignore")
                 
                 sol = solve_ivp(
                     ode_wrapper,
                     ode_parameters.t_span,
                     ode_parameters.initial_conditions,
-                    method='RK45',  # Faster method for local training
+                    method='RK45',  # good enough for reference
                     rtol=self.rtol,
                     atol=self.atol,
                     dense_output=dense_output,
-                    max_step=(ode_parameters.t_span[1] - ode_parameters.t_span[0]) / 20  # Fewer steps for speed
+                    max_step=(ode_parameters.t_span[1] - ode_parameters.t_span[0]) / 20  # fewer steps for speed
                 )
             
             if not sol.success:
