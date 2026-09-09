@@ -277,6 +277,7 @@ while ($true) {
     $status = (docker inspect -f "{{.State.Status}}" $Container 2>$null)
     if ($status -ne "running" -and $status -ne "paused") { Say "container not running ($status); watchdog idle"; if ($Once) { break }; continue }
     $isPaused = ($status -eq "paused")
+    if ($isPaused) { $resumedAt = $null }
 
     # 0b. Battery: pause while unplugged, resume on AC. Takes precedence over the CPU pause logic.
     if (-not $NoBatteryGuard) {
@@ -289,7 +290,7 @@ while ($true) {
             if ($Once) { break }; continue
         } elseif ($pausedBattery) {
             Say "back on AC -> docker unpause"
-            if ($isPaused) { docker unpause $Container | Out-Null; $isPaused = $false }
+            if ($isPaused) { docker unpause $Container | Out-Null; $isPaused = $false; $resumedAt = Get-Date }
             $pausedBattery = $false
         }
     }
@@ -307,7 +308,12 @@ while ($true) {
             $age = ((Get-Date).ToUniversalTime() - $ts).TotalSeconds
             # Startup grace: never kill a container younger than the staleness threshold - the
             # entrypoint gate runs before the runner's heartbeat thread exists.
-            if ($age -gt $HeartbeatStaleSeconds -and -not $isPaused -and (Container-UptimeSeconds) -gt $HeartbeatStaleSeconds) {
+            # Resume grace, for the same reason: a paused container's process is frozen, so the
+            # heartbeat necessarily ages by the whole pause and the runner needs a poll interval
+            # after thawing to write a fresh one. Without this the guard pauses the container and
+            # then kills it for the silence it just caused.
+            $resumeGrace = ($null -ne $resumedAt -and ((Get-Date) - $resumedAt).TotalSeconds -le $HeartbeatStaleSeconds)
+            if ($age -gt $HeartbeatStaleSeconds -and -not $isPaused -and -not $resumeGrace -and (Container-UptimeSeconds) -gt $HeartbeatStaleSeconds) {
                 Say "heartbeat stale ${age}s -> docker kill"
                 docker kill $Container | Out-Null
                 if ($Once) { break }; continue
@@ -430,6 +436,7 @@ while ($true) {
         $why = if ($spikeResume) { "host CPU ${host_cpu}% < ${CpuLow}% for ${CpuSustainSeconds}s" } else { "host CPU avg ${avgTxt}% < ${CpuLowAvg}% over ${winMin} min" }
         Say "$why -> docker unpause"
         docker unpause $Container | Out-Null
+        $resumedAt = Get-Date
         $highSince = $null; $lowSince = $null; $cpuSamples.Clear()
     }
     if ($Once) { break }
