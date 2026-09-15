@@ -7,6 +7,10 @@ rk_harness.fixedpoint and rk_harness.simulate.solve_q15 exactly; demo_data.json 
 """
 from __future__ import annotations
 
+import json
+
+from pages_text import LIVE_URL
+
 DEMO_CSS = """
 .ctlbar{position:sticky;top:0;z-index:5;background:var(--surface-0);
   border-bottom:1px solid var(--line);padding:10px 0 12px;margin:0 0 18px;
@@ -56,6 +60,18 @@ svg .dot.classical{fill:var(--s2)}
 svg .dot.sel{stroke:var(--text-1);stroke-width:2}
 svg .front{fill:none;stroke:var(--s1);stroke-width:1.2;stroke-dasharray:4 3;opacity:.8}
 svg .hot{cursor:pointer}
+/* Each bar and dot is a keyboard stop. The ring shows only on :focus-visible, so a pointer
+   user never sees it, and the mark itself also takes a stroke in case a browser draws no
+   outline around an SVG group. */
+svg g.hot{outline:none}
+svg g.hot:focus-visible{outline:2px solid var(--s1);outline-offset:1px}
+svg g.hot:focus-visible .bar,svg g.hot:focus-visible .dot{stroke:var(--s1);stroke-width:2.5}
+svg .callout rect{fill:var(--surface-0);stroke:var(--text-2);stroke-width:1}
+svg .callout path{fill:var(--text-2)}
+svg .callout text{font-size:12px;fill:var(--text-1);font-variant-numeric:tabular-nums}
+/* Present for a screen reader, drawn for nobody: the live readout mirrors the callout. */
+.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap}
 .tabsm{display:flex;gap:14px;font-size:12.5px;color:var(--text-2);flex-wrap:wrap;margin:0 0 8px}
 .tabsm b{color:var(--text-1)}
 table.tab{font-size:12.5px;margin:8px 0 0}
@@ -248,6 +264,110 @@ function powLabel(v){
 /* ---------------------------------------------------------------- state */
 var S={prob:"damped_osc", mode:"floor", meth:"11e898cb", state:0};
 
+/* ---------------------------------------------------------------- chart input
+   Two separate things can be chosen on the ranking and the cost chart. S.meth is the
+   method loaded into the trajectory, and it stays until another mark or button replaces
+   it. RD holds each chart's readout: the numbers for one mark, drawn at that mark and
+   mirrored into a live region. A tap anywhere but a mark, or Escape, hides the readout
+   and leaves S.meth alone. RK is each chart's roving tab stop, the one mark Tab lands on,
+   so a chart costs the keyboard one stop rather than eleven. */
+var RD={board:null, pareto:null}, RK={board:null, pareto:null};
+var DRAW={board:function(){ board(); }, pareto:function(){ pareto(); }};
+
+function tabKey(id, keys){
+  if(RK[id]!==null && keys.indexOf(RK[id])>=0) return RK[id];
+  return keys.indexOf(S.meth)>=0 ? S.meth : keys[0];
+}
+function markAttrs(id, key, keys, label){
+  return ' data-meth="'+esc(key)+'" data-chart="'+id+'" tabindex="'+
+    (key===tabKey(id,keys)?"0":"-1")+'" role="button" aria-pressed="'+
+    (key===S.meth?"true":"false")+'" aria-label="'+esc(label)+'"';
+}
+/* The readout box for one mark, whose drawn extent is r = {x0,y0,x1,y1}. A bar gets the
+   box under its left end, which a phone shows without scrolling the chart sideways, or
+   above it when there is no room below. A dot gets the box beside it, on whichever side has
+   room. Two short lines rather than one long one, so the box fits a phone's view of the
+   chart. Width is estimated from the character count and errs wide. */
+function callout(key, W, H, r, under, l1, l2){
+  var w=Math.round(Math.max(l1.length,l2.length)*6.9)+16, h=38, x, y, o=[];
+  if(under){
+    x=Math.min(W-4-w, Math.max(4, r.x0-100));
+    y=r.y1+6;
+    if(y+h>H-2) y=r.y0-6-h;
+  }else{
+    x=r.x1+6; if(x+w>W-4) x=r.x0-6-w; if(x<4) x=4;
+    y=Math.min(H-2-h, Math.max(2, (r.y0+r.y1)/2-h/2));
+  }
+  o.push('<g class="callout" data-for="'+esc(key)+'" aria-hidden="true">');
+  if(under){
+    var tx=r.x0+8, ty=y>r.y1?y:y+h, dir=y>r.y1?-5:5;
+    o.push('<path d="M'+(tx-5).toFixed(1)+' '+ty.toFixed(1)+' L'+tx.toFixed(1)+' '+
+      (ty+dir).toFixed(1)+' L'+(tx+5).toFixed(1)+' '+ty.toFixed(1)+' Z"/>');
+  }
+  o.push('<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+w+'" height="'+h+'" rx="5"/>');
+  o.push('<text x="'+(x+8).toFixed(1)+'" y="'+(y+15).toFixed(1)+'"><tspan>'+esc(l1)+
+    '</tspan><tspan x="'+(x+8).toFixed(1)+'" dy="16">'+esc(l2)+"</tspan></text></g>");
+  return o.join("");
+}
+/* On a phone each chart is wider than the screen and scrolls inside its panel, so a box
+   drawn at a mark can land outside the part in view. This scrolls the least distance that
+   shows the box. */
+function reveal(id){
+  var host=document.getElementById(id);
+  var box=host.querySelector ? host.querySelector("g.callout rect") : null;
+  if(box && box.scrollIntoView) box.scrollIntoView({block:"nearest", inline:"nearest"});
+}
+/* Written only when it changes, so a redraw that leaves the readout where it was does not
+   make a screen reader say it again. */
+function say(id, text){
+  var el=document.getElementById(id+"live");
+  if(el && el.textContent!==text) el.textContent=text;
+}
+function marks(id){
+  return Array.prototype.slice.call(document.getElementById(id).querySelectorAll("g[data-meth]"));
+}
+function focusMark(id, key){
+  var g=marks(id).filter(function(z){ return z.getAttribute("data-meth")===key; })[0];
+  if(g && g.focus) g.focus();
+}
+/* Every redraw replaces a chart's markup, and the element that had focus goes with it.
+   render() notes which mark held focus before it draws and puts focus back on the same
+   method afterwards, so a keyboard user is not dropped to the top of the page. */
+function focusedMark(){
+  var a=document.activeElement;
+  var k=a && a.getAttribute ? a.getAttribute("data-meth") : null;
+  return k ? {id:a.getAttribute("data-chart"), key:k} : null;
+}
+function onChartKey(ev){
+  var g=ev.target && ev.target.closest ? ev.target.closest("g[data-meth]") : null;
+  if(!g) return;
+  var id=g.getAttribute("data-chart"), key=g.getAttribute("data-meth");
+  var keys=marks(id).map(function(z){ return z.getAttribute("data-meth"); });
+  var i=keys.indexOf(key), k=ev.key, next;
+  if(!keys.length || !DRAW[id]) return;
+  if(k==="ArrowDown"||k==="ArrowRight") next=keys[(i+1)%keys.length];
+  else if(k==="ArrowUp"||k==="ArrowLeft") next=keys[(i-1+keys.length)%keys.length];
+  else if(k==="Home") next=keys[0];
+  else if(k==="End") next=keys[keys.length-1];
+  else if(k==="Enter"||k===" "||k==="Spacebar"){
+    if(ev.preventDefault) ev.preventDefault();
+    S.meth=key; RD[id]=key; RK[id]=key;
+    render();
+    return;
+  }
+  else if(k==="Escape"){
+    if(RD[id]===null) return;
+    if(ev.preventDefault) ev.preventDefault();
+    RD[id]=null; RK[id]=key;
+    DRAW[id](); focusMark(id,key);
+    return;
+  }
+  else return;
+  if(ev.preventDefault) ev.preventDefault();
+  RD[id]=next; RK[id]=next;
+  DRAW[id](); focusMark(id,next);
+}
+
 /* ---------------------------------------------------------------- 1. leaderboard */
 function board(){
   var p=PROB[S.prob];
@@ -277,8 +397,11 @@ function board(){
   var W=760, ml=190, mr=74, rowh=27, top=30;
   var H=top+rows.length*rowh+30;
   var x=logScale(lo*0.7,hi*1.4,ml,W-mr);
-  var out=['<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="'+
-    ok.length+' methods ranked by final error, lowest first">'];
+  var keys=ok.map(function(r){ return r.m.key; }), pin=null;
+  /* role="group", not "img": an img's children are presentational, which would hide the
+     eleven buttons inside it from a screen reader. */
+  var out=['<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="group" aria-label="'+
+    ok.length+' methods ranked by final error, lowest first" aria-describedby="boardhint">'];
   decades(lo*0.7,hi*1.4).forEach(function(d){
     var px=x(d);
     if(px<ml-1||px>W-mr+1) return;
@@ -288,8 +411,14 @@ function board(){
   ok.forEach(function(r,i){
     var y=top+i*rowh, bw=x(r.r.error)-ml, cls=r.m.origin==="classical"?"bar classical":"bar";
     if(r.m.key===S.meth) cls+=" sel";
-    out.push('<g class="hot" data-meth="'+esc(r.m.key)+'"><title>'+esc(r.m.label)+
-      ": error "+fmt(r.r.error)+", "+cyclesFor(r.m,p)+" cycles/step, "+r.r.steps+" steps</title>");
+    var l1=r.m.label+": rank "+rankHere[r.m.key]+" of "+ok.length+", error "+fmt(r.r.error);
+    var l2=cyclesFor(r.m,p)+" cycles/step, "+r.r.steps+" steps";
+    var facts=esc(l1+", "+l2);
+    if(r.m.key===RD.board){
+      pin={r:{x0:ml, y0:y+6, x1:ml+Math.max(1,bw), y1:y+rowh-7}, l1:l1, l2:l2};
+    }
+    out.push('<g class="hot"'+markAttrs("board", r.m.key, keys, r.m.label+", rank "+rankHere[r.m.key]+
+      " of "+ok.length)+"><title>"+facts+"</title>");
     out.push('<rect x="0" y="'+y+'" width="'+W+'" height="'+rowh+'" fill="transparent"/>');
     out.push('<text class="rowlab'+(r.m.key===S.meth?" on":"")+'" x="'+(ml-10)+'" y="'+(y+rowh/2+4)+'" text-anchor="end">'+esc(r.m.label)+
       ' <tspan class="val">#'+rankHere[r.m.key]+" · "+cyclesFor(r.m,p)+"c</tspan></text>");
@@ -302,8 +431,13 @@ function board(){
     out.push('<text class="val" x="'+(W-mr+8)+'" y="'+(y+rowh/2+4)+'">'+fmt(r.r.error)+"</text>");
     out.push("</g>");
   });
+  /* Drawn after every mark, so it sits on top of the rows it overlaps. */
+  if(pin) out.push(callout(RD.board, W, H, pin.r, true, pin.l1, pin.l2));
   out.push("</svg>");
   document.getElementById("board").innerHTML=out.join("");
+  if(pin) reveal("board");
+  say("board", pin ? pin.l1+", "+pin.l2+", under "+(S.mode==="floor"?"floor (ASRS)":"round-to-nearest")+
+    " on "+S.prob+"."+(RD.board===S.meth?" Loaded in the trajectory.":"") : "");
 
   var best=ok[0], worst=ok[ok.length-1];
   var other=S.mode==="floor"?"round-to-nearest":"floor";
@@ -396,8 +530,9 @@ function pareto(){
   var xs=pts.map(function(z){ return z.x; }), ys=pts.map(function(z){ return z.y; });
   var X=logScale(Math.min.apply(null,xs)*0.82, Math.max.apply(null,xs)*1.22, ml, W-mr);
   var Y=logScale(Math.min.apply(null,ys)*0.6, Math.max.apply(null,ys)*1.7, H-mb, mt);
-  var out=['<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="'+
-    pts.length+' methods by cycles per step against final error, both axes log">'];
+  var out=['<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="group" aria-label="'+
+    pts.length+' methods by cycles per step against final error, both axes log" '+
+    'aria-describedby="paretohint">'];
   decades(Math.min.apply(null,xs)*0.82, Math.max.apply(null,xs)*1.22).forEach(function(d){
     var px=X(d); if(px<ml-1||px>W-mr+1) return;
     out.push('<line class="gridline" x1="'+px.toFixed(1)+'" y1="'+mt+'" x2="'+px.toFixed(1)+'" y2="'+(H-mb)+'"/>');
@@ -417,19 +552,30 @@ function pareto(){
     out.push('<path class="front" d="'+front.map(function(z,i){
       return (i?"L":"M")+X(z.x).toFixed(1)+" "+Y(z.y).toFixed(1); }).join(" ")+'"/>');
   }
-  pts.forEach(function(z){
+  /* Marks go down in cost order, cheapest first, which is also the order the arrow keys
+     walk them. */
+  var keys=sorted.map(function(z){ return z.m.key; }), pin=null;
+  sorted.forEach(function(z){
     var cls="dot"+(z.m.origin==="classical"?" classical":"")+(z.m.key===S.meth?" sel":"");
     var onFront=front.indexOf(z)>=0;
-    out.push('<g class="hot" data-meth="'+esc(z.m.key)+'"><title>'+esc(z.m.label)+": "+z.x+
-      " cycles/step, error "+fmt(z.y)+(onFront?", on the frontier":"")+"</title>");
+    var l1=z.m.label+": "+z.x+" cycles/step", l2="error "+fmt(z.y)+(onFront?", on the frontier":"");
+    var rr=(z.m.key===S.meth?7:5), px=X(z.x), py=Y(z.y);
+    if(z.m.key===RD.pareto) pin={r:{x0:px-rr, y0:py-rr, x1:px+rr, y1:py+rr}, l1:l1, l2:l2};
+    out.push('<g class="hot"'+markAttrs("pareto", z.m.key, keys, z.m.label+", "+z.x+
+      " cycles per step")+"><title>"+esc(l1+", "+l2)+"</title>");
     out.push('<circle class="'+cls+'" cx="'+X(z.x).toFixed(1)+'" cy="'+Y(z.y).toFixed(1)+'" r="'+(z.m.key===S.meth?7:5)+'"/>');
     if(onFront||z.m.key===S.meth){
       out.push('<text class="val" x="'+(X(z.x)+9).toFixed(1)+'" y="'+(Y(z.y)+4).toFixed(1)+'">'+esc(z.m.key)+"</text>");
     }
     out.push("</g>");
   });
+  if(pin) out.push(callout(RD.pareto, W, H, pin.r, false, pin.l1, pin.l2));
   out.push("</svg>");
   document.getElementById("pareto").innerHTML=out.join("");
+  if(pin) reveal("pareto");
+  say("pareto", pin ? pin.l1+", "+pin.l2+", on "+S.prob+" under "+
+    (S.mode==="floor"?"floor (ASRS)":"round-to-nearest")+"."+
+    (RD.pareto===S.meth?" Loaded in the trajectory.":"") : "");
   document.getElementById("paretoline").innerHTML =
     "Down and left is better. "+front.length+" of "+pts.length+
     (front.length===1?" methods sits":" methods sit")+" on the frontier for this problem: "+
@@ -486,6 +632,7 @@ function seg(id, items, get, set){
 }
 
 function render(){
+  var fo=focusedMark();
   ["probseg","modeseg","methseg"].forEach(function(id){
     var h=document.getElementById(id);
     if(h&&h.__sync) h.__sync();
@@ -509,6 +656,7 @@ function render(){
     S.state=0;
   }
   board(); traj(); pareto();
+  if(fo && DRAW[fo.id]) focusMark(fo.id, fo.key);
 }
 
 document.addEventListener("DOMContentLoaded",function(){
@@ -526,14 +674,29 @@ document.addEventListener("DOMContentLoaded",function(){
     S.state=parseInt(b.getAttribute("data-v"),10);
     render();
   });
+  /* A tap on a mark loads that method and pins the readout at it. */
   ["board","pareto"].forEach(function(id){
-    document.getElementById(id).addEventListener("click",function(ev){
+    var host=document.getElementById(id);
+    host.addEventListener("click",function(ev){
       var g=ev.target.closest("g[data-meth]");
       if(!g) return;
-      S.meth=g.getAttribute("data-meth");
+      var k=g.getAttribute("data-meth");
+      S.meth=k; RD[id]=k; RK[id]=k;
       render();
     });
+    host.addEventListener("keydown", onChartKey);
   });
+  /* Tap away. Capture phase, so it runs before any handler below it redraws and detaches
+     the element that was tapped. Any tap that does not land on one of a chart's own marks
+     hides that chart's readout; the loaded method is not touched. The chart a mark belongs
+     to is read from its data-chart attribute, which still answers on a detached node. */
+  document.addEventListener("click",function(ev){
+    var t=ev.target, g=t && t.closest ? t.closest("g[data-meth]") : null;
+    var on=g ? g.getAttribute("data-chart") : null;
+    ["board","pareto"].forEach(function(id){
+      if(RD[id]!==null && on!==id){ RD[id]=null; DRAW[id](); }
+    });
+  }, true);
   render();
   setTimeout(selfCheck,60);
 });
@@ -568,9 +731,13 @@ Inside that budget a cheap method takes more, smaller steps than an expensive on
 this compares methods rather than step sizes. The thin mark on each bar is where that
 method lands under the other rounding mode.</p>
 <p class="flip" id="rankline"></p>
-<div class="panel"><div id="board"></div></div>
-<p class="hint">Click a bar to load that method into the trajectory below. Orange is
-classical, blue was found by the search.</p>
+<div class="panel"><div id="board"></div>
+  <p class="vh" id="boardlive" role="status" aria-live="polite"></p></div>
+<p class="hint" id="boardhint">Click or tap a bar to load that method into the trajectory
+below and see its numbers under the bar. Tapping anywhere else hides the numbers and keeps
+the method loaded. From the keyboard, Tab to the chart and walk it with the arrow keys;
+Enter loads a method and Escape hides the numbers. Orange is classical, blue was found by
+the search.</p>
 
 <h2>Watch one method integrate</h2>
 <div class="ctl" style="margin:0 0 12px"><label for="methseg">Method</label>
@@ -588,7 +755,10 @@ achieve on the selected problem. The dashed line is the Pareto frontier: the met
 other method improves on for cost and error at once. It moves when you change the problem
 or the rounding mode.</p>
 <div class="panel"><div id="pareto"></div>
-  <p class="hint" id="paretoline"></p></div>
+  <p class="vh" id="paretolive" role="status" aria-live="polite"></p>
+  <p class="hint" id="paretoline"></p>
+  <p class="hint" id="paretohint">Tap a dot to load its method and see its numbers beside
+  it. The keyboard works here the same way it does on the ranking above.</p></div>
 
 <h2>How this page is checked</h2>
 <p><span class="mono">tools/demo_data.py</span> runs every method, problem and rounding
@@ -601,7 +771,7 @@ file the floor-bias finding is computed from, with a largest relative difference
 <p>Two limits. The cycle counts come from the analytic cost model, not silicon; the
 <a href="results.html#speed">measured wall clock</a> is where that model meets a real
 clock. And the <a href="{live_url}">findings site</a> ranks methods by RMS error over
-four held-out problems, while this page shows one problem at a time so the mechanism
+four <a href="{live_url}methodology.html#held-out-set">held-out</a> problems, while this page shows one problem at a time so the mechanism
 stays visible.</p>
 """
 
@@ -625,10 +795,20 @@ HERO_CSS = """
 .flipseg button:hover{color:var(--text-1)}
 .flipseg button[aria-pressed="true"]{background:var(--surface-1);border-color:var(--line);
   color:var(--text-1);font-weight:600}
-#flip{overflow-x:auto}
+#flip{overflow-x:auto;border-radius:8px}
+/* The chart is a tab stop, because the arrow keys walk the ranking and a control nobody
+   can reach by keyboard is not a control. Only :focus-visible, so a pointer user never
+   sees the ring. */
+#flip:focus-visible{outline:2px solid var(--s1);outline-offset:3px}
 @media (max-width:700px){#flip svg{max-width:none}}
 #flipsay{font-size:14.5px;line-height:1.6;margin:10px 0 2px;max-width:80ch}
 #flipsay b{font-variant-numeric:tabular-nums}
+/* The readout for a pinned line. Empty, it collapses rather than being hidden: a live
+   region that is not rendered is not announced when it fills. */
+.flipread{font-size:13.5px;line-height:1.55;margin:6px 0 2px;padding:6px 12px;
+  border-left:3px solid var(--s1);max-width:80ch}
+.flipread:empty{margin:0;padding:0;border:0}
+.flipread b{font-variant-numeric:tabular-nums}
 svg .fl{stroke:var(--text-3);stroke-width:1.4;fill:none;opacity:.5}
 svg .fl.up{stroke:var(--s3);opacity:1;stroke-width:2.2}
 svg .fl.dn{stroke:var(--s2);opacity:1;stroke-width:2.2}
@@ -637,6 +817,18 @@ svg .fn.on{fill:var(--text-1);font-weight:700}
 svg .fh{font-size:11px;fill:var(--text-3);letter-spacing:.06em;text-transform:uppercase}
 svg .fd{fill:var(--text-3)}
 svg .fd.disc{fill:var(--s1)}
+/* The staleness line under the counters, filled in by the reader's browser. It ships
+   hidden and stays hidden without script, so a reader who blocks script sees the stored
+   date on its own rather than an empty box. */
+.stale{display:inline-block;margin:8px 0 0;padding:7px 12px;font-size:12.5px;
+  color:var(--text-2);background:var(--surface-1);border:1px solid var(--line);
+  border-radius:8px;max-width:80ch}
+.stale[hidden]{display:none}
+/* Past the threshold the badge changes colour as well as wording, so the state reads
+   before the sentence does. */
+.stale.old{color:var(--warn-fg);background:var(--warn-bg);border-color:var(--warn-fg)}
+.stale.old a{color:inherit;text-decoration:underline}
+.stale b{font-weight:650}
 .cta{margin:14px 0 0;font-size:14px}
 .cta a{font-weight:650;text-decoration:none}
 .cta a:hover{text-decoration:underline}
@@ -648,7 +840,10 @@ HERO_JS = r"""
 "use strict";
 var H=window.__RKFLIP__;
 if(!H||!document.getElementById("flip")) return;
-var prob=H.default_problem, hot=null;
+/* hot is the line under the pointer and pin is the line a tap or a key chose. The pointer
+   wins while it is over a line; when it leaves, the pin shows again. readOpen says whether
+   the readout under the chart is showing the pin's ranks. */
+var prob=H.default_problem, hot=null, pin=null, readOpen=false;
 
 function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 function fmt(v){
@@ -669,7 +864,7 @@ function ranked(mode){
 }
 
 function draw(){
-  var L=ranked("floor"), R=ranked("nearest");
+  var L=ranked("floor"), R=ranked("nearest"), cur=(hot!==null?hot:pin);
   var pos={}; R.forEach(function(z,i){ pos[z.m.key]=i; });
   var rank={}; R.forEach(function(z){ rank[z.m.key]=z.rank; });
   var rowh=25, top=44, W=760, H2=top+L.length*rowh+16;
@@ -682,7 +877,7 @@ function draw(){
   L.forEach(function(z,i){
     var j=pos[z.m.key], y1=top+i*rowh, y2=top+j*rowh, d=z.rank-rank[z.m.key];
     var cls="fl"+(d>0?" up":d<0?" dn":"");
-    var on=hot===z.m.key;
+    var on=cur===z.m.key;
     o.push('<g class="hot" data-k="'+esc(z.m.key)+'">');
     o.push('<rect x="0" y="'+(y1-rowh/2)+'" width="'+W+'" height="'+rowh+'" fill="transparent"/>');
     o.push('<title>'+esc(z.m.label)+": rank "+z.rank+" under floor, rank "+rank[z.m.key]+
@@ -695,7 +890,7 @@ function draw(){
     o.push("</g>");
   });
   R.forEach(function(z,j){
-    var y=top+j*rowh, on=hot===z.m.key;
+    var y=top+j*rowh, on=cur===z.m.key;
     o.push('<g class="hot" data-k="'+esc(z.m.key)+'">');
     o.push('<circle class="fd'+(z.m.origin==="discovered"?" disc":"")+'" cx="'+(xr-8)+'" cy="'+y+'" r="3.5"/>');
     o.push('<text class="fn'+(on?" on":"")+'" x="'+(xr+6)+'" y="'+(y+4)+'">'+z.rank+"  "+
@@ -718,6 +913,27 @@ function draw(){
     (big?", and <b>"+esc(big.m.label)+"</b> shifts "+Math.abs(big.rank-rank[big.m.key])+
      " place"+(Math.abs(big.rank-rank[big.m.key])===1?"":"s"):"")+
     ". Same tableaus, same budget, same problems; only the rounding changed.";
+  readout(L, R);
+}
+
+/* The pinned method's two ranks in words, in a live region, so a screen reader hears what
+   lit up. Hover never writes it: a pointer crossing the chart should not make the page
+   talk. The text is written only when it changes, so a redraw does not repeat it. */
+function readout(L, R){
+  var el=document.getElementById("flipread");
+  if(!el) return;
+  var t="";
+  if(readOpen && pin!==null){
+    var a=L.filter(function(z){ return z.m.key===pin; })[0];
+    var b=R.filter(function(z){ return z.m.key===pin; })[0];
+    var m=H.methods.filter(function(z){ return z.key===pin; })[0];
+    t="<b>"+esc(m?m.label:pin)+"</b> on <b>"+esc(prob)+"</b>: "+
+      (a ? "rank "+a.rank+" of "+L.length+" under floor, error "+fmt(a.e)
+         : "not ranked under floor")+"; "+
+      (b ? "rank "+b.rank+" of "+R.length+" under round-to-nearest, error "+fmt(b.e)
+         : "not ranked under round-to-nearest")+".";
+  }
+  if(el.innerHTML!==t) el.innerHTML=t;
 }
 
 function sync(){
@@ -742,10 +958,86 @@ document.addEventListener("DOMContentLoaded",function(){
     if(k!==hot){ hot=k; draw(); }
   });
   f.addEventListener("mouseleave",function(){ if(hot){ hot=null; draw(); } });
+  /* A tap is not a hover, and the paragraph above the chart promises both. A tap on a line
+     pins it and opens the readout. It sets rather than toggles on purpose: a touch browser
+     sends a synthetic mouseover before the click, and a toggle would put the line out in
+     the same tap that lit it. */
+  f.addEventListener("click",function(ev){
+    var g=ev.target.closest("g[data-k]");
+    if(!g) return;
+    pin=g.getAttribute("data-k"); readOpen=true; draw();
+  });
+  /* Tap away. Any tap that is not on a line closes the readout and leaves the pinned line
+     lit. Capture phase, so it sees the tap before a redraw can detach the tapped element. */
+  document.addEventListener("click",function(ev){
+    var t=ev.target, g=t&&t.closest?t.closest("#flip g[data-k]"):null;
+    if(!g && readOpen){ readOpen=false; draw(); }
+  }, true);
+  /* The keyboard path. The chart is a tab stop, so the arrow keys move the pin along the
+     floor ranking in the order it is drawn, Home and End jump to its ends, Enter or Space
+     pins the top line when nothing is pinned, and Escape clears the pin and the readout.
+     Every move opens the readout, which is how a screen reader hears where the pin went. */
+  f.addEventListener("keydown",function(ev){
+    var keys=ranked("floor").map(function(z){ return z.m.key; });
+    if(!keys.length) return;
+    var i=keys.indexOf(pin), next=pin, k=ev.key;
+    if(k==="ArrowDown"||k==="ArrowRight") next=keys[(i<0||i+1>=keys.length)?0:i+1];
+    else if(k==="ArrowUp"||k==="ArrowLeft") next=keys[i<=0?keys.length-1:i-1];
+    else if(k==="Home") next=keys[0];
+    else if(k==="End") next=keys[keys.length-1];
+    else if(k==="Enter"||k===" "||k==="Spacebar") next=(i<0?keys[0]:pin);
+    else if(k==="Escape"){
+      if(pin===null&&!readOpen) return;
+      if(ev.preventDefault) ev.preventDefault();
+      pin=null; readOpen=false; hot=null; draw();
+      return;
+    }
+    else return;
+    if(ev.preventDefault) ev.preventDefault();
+    pin=next; readOpen=true; hot=null; draw();
+  });
   sync(); draw();
 });
 })();
+
+/* The one clock on this site, and it is the reader's own. The page ships the date it was
+   built from and the browser does the subtraction, which is where a staleness comparison
+   belongs: a stored stamp cannot say how old it has become, and this file is written long
+   before it is read. The element stays hidden when script does not run, so nobody is
+   shown an age that nothing computed. None of this reaches the findings site, which keeps
+   its stored stamps and no script at all.
+
+   More than STALE_DAYS old, the badge switches to a stale state with styling of its own.
+   At any age it says what a snapshot cannot know, and points to the findings site, which
+   is rebuilt every cycle and carries a build stamp of its own. It does not claim that
+   stamp settles the question either. */
+(function(){
+"use strict";
+var STALE_DAYS=7;
+var LIVE="__LIVE_URL__";
+var el=document.getElementById("stale");
+var asof=el&&el.getAttribute("data-asof");
+if(!el||!asof||!/^\d{4}-\d{2}-\d{2}$/.test(asof)) return;
+var days=Math.floor((Date.now()-Date.parse(asof+"T12:00:00Z"))/86400000);
+if(!isFinite(days)||days<0) return;
+var age=(days===0?"from today":days===1?"1 day old":days+" days old");
+var old=days>STALE_DAYS;
+el.innerHTML=(old
+    ? "<b>Stale.</b> By your own clock the archive date above is "+age+
+      ", over this page's "+STALE_DAYS+"-day limit. "
+    : "By your own clock the archive date above is "+age+". ")+
+  "This page is a snapshot, and a snapshot cannot tell a paused run from a broken build. "+
+  'The <a href="'+LIVE+'">findings site</a> is rebuilt every cycle and carries its own '+
+  "build stamp.";
+el.className=old?"stale old":"stale";
+el.setAttribute("data-state",old?"stale":"fresh");
+el.hidden=false;
+})();
 """
+
+# The badge links to the findings site. Its root is taken from pages_text, where every
+# other link to that site gets it, rather than typed a second time here.
+HERO_JS = HERO_JS.replace('"__LIVE_URL__"', json.dumps(LIVE_URL))
 
 
 def hero_body(methods: list[dict], budget: int) -> str:
@@ -760,15 +1052,21 @@ def hero_body(methods: list[dict], budget: int) -> str:
     return f"""
 <div class="hero">
 <h2>The result, in one interaction</h2>
-<p class="heroq">{n_methods} Runge-Kutta methods, {n_classical} textbook and
+<p class="heroq" id="heroq">{n_methods} Runge-Kutta methods, {n_classical} textbook and
 {n_discovered} found by the search, ranked by their error at an equal
 {budget:,}-cycle budget. On the left every multiply rounds down, which is what a
 Cortex-M0+ without an FPU does. On the right it rounds to nearest, as the textbooks
-assume. Tap or hover a line, or switch problems.</p>
+assume. Hover a line to follow one method across, or tap it to keep it lit and read both
+of its ranks under the chart. A tap anywhere else hides the ranks and leaves the line lit.
+With the chart focused, the arrow keys move from method to method and Escape clears the
+choice. The buttons switch problems.</p>
 <div class="flipwrap">
   <div class="flipbar"><span class="lab">test problem</span><div class="flipseg" id="flipseg"></div></div>
-  <div id="flip"></div>
+  <div id="flip" tabindex="0" role="group"
+       aria-label="Method ranking, floor rounding against round-to-nearest"
+       aria-describedby="heroq"></div>
   <p id="flipsay"></p>
+  <p id="flipread" class="flipread" role="status" aria-live="polite"></p>
 </div>
 <p class="cta"><a href="demo.html">Open the demo &rarr;</a> <span>Change the method and
 the problem and watch the trajectory quantize.</span></p>

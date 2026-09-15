@@ -3,7 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Architecture</title>
+<title>Architecture | rk-harness overview</title>
+<meta name="description" content="How the run is built, from the container boundary down to the arithmetic.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="rk-harness overview">
+<meta property="og:title" content="Architecture | rk-harness overview">
+<meta property="og:description" content="How the run is built, from the container boundary down to the arithmetic.">
+<meta property="og:url" content="https://jgoetzmann.github.io/rk-overview/architecture.html">
+<meta name="twitter:card" content="summary">
 <style>
 :root{
   color-scheme:light;
@@ -276,6 +283,7 @@ nav.tabs a.ext:hover{color:var(--text-1)}
   nav.tabs a{padding:7px 10px;border-radius:8px;border:1px solid transparent}
   nav.tabs a.on{border-color:var(--line);box-shadow:none}
   nav.tabs a.ext{margin-left:0}}
+.banner{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;padding:10px 16px;margin:0 0 16px}
 .chips{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0 8px}
 .chip{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
   padding:10px 16px;min-width:120px}
@@ -348,6 +356,8 @@ ul.toc li{margin:3px 0}
   font-weight:600;margin-left:8px;vertical-align:2px}
 .tag-kept{background:var(--good-bg);color:var(--good-fg)}
 .tag-changed{background:var(--warn-bg);color:var(--warn-fg)}
+.decision h3 a.perm{margin-left:8px;color:var(--text-3);text-decoration:none;font-weight:400}
+.decision h3 a.perm:hover{color:var(--s1)}
 
 /* Landing page: a bigger opening, then a four-step spine. The rest of the site keeps
    the compact scale; only the front door is allowed to be loud. */
@@ -375,13 +385,14 @@ body.home .herolead{font-size:18.5px;line-height:1.55;max-width:66ch;margin:14px
 <nav class="tabs"><a href="index.html">overview</a><a href="architecture.html" class="on">architecture</a><a href="design-decisions.html">design decisions</a><a href="results.html">key findings</a><a href="demo.html">demo</a><a class="ext" href="https://jgoetzmann.github.io/rk-findings/">live findings &#8599;</a></nav>
 </div></header>
 <div class="wrap">
+<p class="banner">Epoch 1, frozen 2026-09-14. Every cycle count and score on these pages comes from epoch 1, scored under verifier hash de5bec22 with the retired rule that charges a coefficient the cheaper of a shift-add chain and a hardware multiply.</p>
 <svg width="0" height="0" aria-hidden="true" style="position:absolute"><defs><marker id="ah" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--text-3)"/></marker></defs></svg>
 
 <p>The reasons behind each piece are on the
 <a href="design-decisions.html">design decisions</a> page.</p>
 
 <h2 id="repos">The repositories</h2>
-<figure class="panel"><figcaption>One writer and one trust level per repository. Boxes are git repositories and the dashed enclosure is the container boundary. The findings site moves with the run; this site is a snapshot.<span class="src">drawn from the repository layout; the test count is the suite as collected at build time</span><span class="src stamp">as of 2026-09-10 (US Central), from the code and data at build time</span></figcaption><div class="scroll"><svg viewBox="0 0 1110 371" width="1110" height="371" role="img" aria-label="Repository diagram, 4 repositories joined by 3 flows: rk-harness and rk-work mounted into the container, rk-findings rebuilt every cycle and published live, rk-overview a snapshot built from rk-work by hand"><rect class="enclosure" x="10" y="20" width="661" height="141" rx="12"/><text class="alab" x="18" y="14">mounted into the run container</text><rect class="boxhl" x="20" y="46" width="261" height="101" rx="9"/><text class="bt" x="33" y="69">rk-harness</text><text class="bs" x="33" y="91">the scorer: verifier, evaluator,</text><text class="bs" x="33" y="110">cost models, 1,793 tests</text><text class="bs" x="33" y="129">read-only in the container</text><rect class="box" x="415" y="46" width="246" height="101" rx="9"/><text class="bt" x="428" y="69">rk-work</text><text class="bs" x="428" y="91">run data: append-only archive,</text><text class="bs" x="428" y="110">hypothesis ledger, results</text><text class="bs" x="428" y="129">the one writable mount</text><rect class="box" x="808" y="46" width="253" height="82" rx="9"/><text class="bt" x="821" y="69">rk-findings</text><text class="bs" x="821" y="91">machine-generated numbers site,</text><text class="bs" x="821" y="110">rebuilt by the run every cycle</text><rect x="1003" y="56" width="42" height="19" rx="9" fill="var(--good-bg)"/><text x="1024.0" y="69.5" text-anchor="middle" style="font-size:11px;font-weight:700;fill:var(--good-fg)">LIVE</text><rect class="box dashedbox" x="415" y="243" width="321" height="82" rx="9"/><text class="bt" x="428" y="266">rk-overview  (this site)</text><text class="bs" x="428" y="288">hand-written explainer pages,</text><text class="bs" x="428" y="307">built from the archive by hand</text><rect x="652" y="253" width="70" height="19" rx="9" fill="var(--mut-bg)"/><text x="687.0" y="266.5" text-anchor="middle" style="font-size:11px;font-weight:700;fill:var(--mut-fg)">SNAPSHOT</text><path class="arrow" d="M 281 96.5 L 415 96.5"/><text class="alab" x="348.0" y="90.5" text-anchor="middle">verifies + scores</text><path class="arrow" d="M 661 96.5 L 808 87.0"/><text class="alab" x="734.5" y="85.75" text-anchor="middle">rebuilt every cycle</text><path class="arrow arrowdash" d="M 455 147 L 455 241"/><text class="alab" x="465" y="185">read by a hand-run build, 2026-09-10</text><a href="https://jgoetzmann.github.io/rk-findings/"><text class="alab" x="808" y="146" style="fill:var(--s1)">jgoetzmann.github.io/rk-findings ↗ (live)</text></a><text class="alab" x="415" y="343">jgoetzmann.github.io/rk-overview (you are here)</text></svg></div></figure>
+<figure class="panel"><figcaption>One writer and one trust level per repository. Boxes are git repositories and the dashed enclosure is the container boundary. The findings site moves with the run; this site is a snapshot.<span class="src">drawn from the repository layout; the test count is the suite as collected at build time</span><span class="src stamp">as of 2026-09-10 (US Central), from the code and data at build time</span></figcaption><div class="scroll"><svg viewBox="0 0 1110 371" width="1110" height="371" role="img" aria-label="Repository diagram, 4 repositories joined by 3 flows: rk-harness and rk-work mounted into the container, rk-findings rebuilt every cycle and published live, rk-overview a snapshot built from rk-work by hand"><rect class="enclosure" x="10" y="20" width="661" height="141" rx="12"/><text class="alab" x="18" y="14">mounted into the run container</text><rect class="boxhl" x="20" y="46" width="261" height="101" rx="9"/><text class="bt" x="33" y="69">rk-harness</text><text class="bs" x="33" y="91">the scorer: verifier, evaluator,</text><text class="bs" x="33" y="110">cost models, 1,833 tests</text><text class="bs" x="33" y="129">read-only in the container</text><rect class="box" x="415" y="46" width="246" height="101" rx="9"/><text class="bt" x="428" y="69">rk-work</text><text class="bs" x="428" y="91">run data: append-only archive,</text><text class="bs" x="428" y="110">hypothesis ledger, results</text><text class="bs" x="428" y="129">the one writable mount</text><rect class="box" x="808" y="46" width="253" height="82" rx="9"/><text class="bt" x="821" y="69">rk-findings</text><text class="bs" x="821" y="91">machine-generated numbers site,</text><text class="bs" x="821" y="110">rebuilt by the run every cycle</text><rect x="1003" y="56" width="42" height="19" rx="9" fill="var(--good-bg)"/><text x="1024.0" y="69.5" text-anchor="middle" style="font-size:11px;font-weight:700;fill:var(--good-fg)">LIVE</text><rect class="box dashedbox" x="415" y="243" width="321" height="82" rx="9"/><text class="bt" x="428" y="266">rk-overview  (this site)</text><text class="bs" x="428" y="288">hand-written explainer pages,</text><text class="bs" x="428" y="307">built from the archive by hand</text><rect x="652" y="253" width="70" height="19" rx="9" fill="var(--mut-bg)"/><text x="687.0" y="266.5" text-anchor="middle" style="font-size:11px;font-weight:700;fill:var(--mut-fg)">SNAPSHOT</text><path class="arrow" d="M 281 96.5 L 415 96.5"/><text class="alab" x="348.0" y="90.5" text-anchor="middle">verifies + scores</text><path class="arrow" d="M 661 96.5 L 808 87.0"/><text class="alab" x="734.5" y="85.75" text-anchor="middle">rebuilt every cycle</text><path class="arrow arrowdash" d="M 455 147 L 455 241"/><text class="alab" x="465" y="185">read by a hand-run build, 2026-09-10</text><a href="https://jgoetzmann.github.io/rk-findings/"><text class="alab" x="808" y="146" style="fill:var(--s1)">jgoetzmann.github.io/rk-findings ↗ (live)</text></a><text class="alab" x="415" y="343">jgoetzmann.github.io/rk-overview (you are here)</text></svg></div></figure>
 
 <p><code>rk-work</code> holds the run's data: the append-only archive of every verified
 tableau and the hypothesis ledger. The event stream and run state are gitignored and stay
@@ -403,8 +414,9 @@ gets a filtered environment, and the host watchdog does every push.</li>
 from the archive, and a directive with an unknown key is rejected.</li>
 <li>Model-written code is quarantined. A problem the model writes runs only after an
 AST-checked import allowlist, determinism and time bounds, a range check and a reference
-solution. Even then it can join only the held-out set, so the optimizer never trains on
-it.</li>
+solution. Even then it can join only the
+<a href="https://jgoetzmann.github.io/rk-findings/methodology.html#held-out-set">held-out set</a>, so the optimizer never
+trains on it.</li>
 </ul>
 
 <h2 id="loop">The cycle loop</h2>
@@ -500,7 +512,7 @@ sequence it describes. That check now exists, off the run: the Q15 step was comp
 cortex-m0plus with arm-none-eabi-gcc at -O2, executed under an instruction-accurate
 emulator, and the executed instructions were priced with the same table. The emulator
 reports which instructions run and in what order rather than what a part would take, so it
-is not cycle accurate and the comparison does not claim to be. At the scope the model prices, the stage and b combinations and nothing else, the traced count runs 1.00 to 2.03 times the analytic one across 6 methods, and 3 of them sit more than 25% away, the widest being rk4 at 51%. The gap is in the model rather than in the measurement: the compiler turns every coefficient, dyadic or not, into shifts and adds, so <code>coeff_cost</code> prices a multiply it never emits. Under the slow multiplier, where the model already expects a shift-add chain, the two orderings agree. The per-method
+is not cycle accurate and the comparison does not claim to be. At the scope the model prices, the stage and b combinations and nothing else, the traced count runs 1.00 to 2.03 times the analytic one across 9 methods, and 6 of them sit more than 25% away, the widest being rk4 at 51%. The gap is in the model rather than in the measurement: in these nine traces the compiler turns every applied coefficient, dyadic or not, into shifts and adds, so <code>coeff_cost</code> prices a multiply it never emits in these nine traces. The ordering moves with it. Under the slow multiplier, where the model already expects a shift-add chain, 2 pairs change places at this scope: the model puts 11e898cb under ralston2 at 29 cycles against 30, and the trace has them at 35 and 27; the model puts rk38 under kutta3 at 64 cycles against 65, and the trace has them at 59 and 49. The per-method
 rows are on the <a href="https://jgoetzmann.github.io/rk-findings/validation.html#trace">findings validation page</a>.</p>
 
 <h2 id="candidates">Where candidates come from</h2>
@@ -579,18 +591,19 @@ archive. Storage is UTC everywhere, and only display code converts to US Central
 
 <h2 id="tests">Testing</h2>
 
-<p>The suite collects <strong>1,793 tests</strong> in 18 numbered tiers that
+<p>The suite collects <strong>1,833 tests</strong> in 18 numbered tiers that
 follow the dependency stack, from fixed-point arithmetic up to the findings pages. Golden
 tests (G-numbered) pin behavior to fixture values written before the code existed, down
 to exact measured orders and cycle counts. Canary tests (K-numbered) guard against
 gaming: K1 plants a candidate tuned on the search set and asserts that it can earn
 search_only but never heldout_verified, and K2 asserts that a winner on a single problem
-family lands at no_improvement, the tier for a candidate that earns neither of the others.
-Its counterpart no_incumbent marks a record written into an empty cell. The two were one
-word, unreplicated, until they were split, and records written before that still carry it.
-The 55 golden and canary cases are also the container's start gate.</p>
+family lands at no_improvement, the tier for a candidate whose cell had an incumbent and
+for which neither the heldout_verified nor the search_only rule applied. Its counterpart
+no_incumbent marks a record written into an empty cell. Before the split both were stored
+as one word, unreplicated, and no record in the archive this page was built from carries it. The 55 golden and canary cases are also the
+container's start gate.</p>
 
-<details class="fold"><summary>What each test tier covers</summary><div><div class="scroll"><table><tr><th>tier</th><th class="num">tests</th><th>covers</th></tr><tr><td>T1</td><td class="num">348</td><td>fixed point, coefficient representation, cycle counting</td></tr><tr><td>T2</td><td class="num">216</td><td>order conditions, evaluator, verifier</td></tr><tr><td>T3</td><td class="num">276</td><td>archive, search, directive validation</td></tr><tr><td>T4</td><td class="num">237</td><td>ledger, runner, site generator, epoch panel</td></tr><tr><td>T5</td><td class="num">98</td><td>operational config, the watch view, status, checkout hygiene</td></tr><tr><td>T6</td><td class="num">8</td><td>Central-time display formatting</td></tr><tr><td>T7</td><td class="num">20</td><td>the findings methodology page</td></tr><tr><td>T8</td><td class="num">69</td><td>the practical validation suite, stiff subset included</td></tr><tr><td>T9</td><td class="num">16</td><td>the epoch saturation orchestrator</td></tr><tr><td>T10</td><td class="num">55</td><td>the library benchmark harness</td></tr><tr><td>T11</td><td class="num">16</td><td>the adaptive embedded-pair prototype</td></tr><tr><td>T12</td><td class="num">7</td><td>the SDIRK implicit prototype</td></tr><tr><td>T13</td><td class="num">29</td><td>the side-track executor and its ledger</td></tr><tr><td>T14</td><td class="num">23</td><td>second-pass metrics over the archive: cycles to tolerance, the stability frontier</td></tr><tr><td>T15</td><td class="num">25</td><td>the stiff-problem screen, admissions and rejections alike</td></tr><tr><td>T16</td><td class="num">208</td><td>the lane scheduler, the lane cycle and the lane search</td></tr><tr><td>T17</td><td class="num">62</td><td>the two-axis validation document across the three method classes</td></tr><tr><td>T18</td><td class="num">80</td><td>the per-class findings pages: explicit, implicit, adaptive</td></tr></table></div></div></details>
+<details class="fold"><summary>What each test tier covers</summary><div><div class="scroll"><table><tr><th>tier</th><th class="num">tests</th><th>covers</th></tr><tr><td>T1</td><td class="num">353</td><td>fixed point, coefficient representation, cycle counting</td></tr><tr><td>T2</td><td class="num">216</td><td>order conditions, evaluator, verifier</td></tr><tr><td>T3</td><td class="num">276</td><td>archive, search, directive validation</td></tr><tr><td>T4</td><td class="num">259</td><td>ledger, runner, site generator, epoch panel</td></tr><tr><td>T5</td><td class="num">101</td><td>operational config, the watch view, status, checkout hygiene</td></tr><tr><td>T6</td><td class="num">8</td><td>Central-time display formatting</td></tr><tr><td>T7</td><td class="num">23</td><td>the findings methodology page</td></tr><tr><td>T8</td><td class="num">69</td><td>the practical validation suite, stiff subset included</td></tr><tr><td>T9</td><td class="num">16</td><td>the epoch saturation orchestrator</td></tr><tr><td>T10</td><td class="num">55</td><td>the library benchmark harness</td></tr><tr><td>T11</td><td class="num">16</td><td>the adaptive embedded-pair prototype</td></tr><tr><td>T12</td><td class="num">7</td><td>the SDIRK implicit prototype</td></tr><tr><td>T13</td><td class="num">29</td><td>the side-track executor and its ledger</td></tr><tr><td>T14</td><td class="num">23</td><td>second-pass metrics over the archive: cycles to tolerance, the stability frontier</td></tr><tr><td>T15</td><td class="num">25</td><td>the stiff-problem screen, admissions and rejections alike</td></tr><tr><td>T16</td><td class="num">208</td><td>the lane scheduler, the lane cycle and the lane search</td></tr><tr><td>T17</td><td class="num">62</td><td>the two-axis validation document across the three method classes</td></tr><tr><td>T18</td><td class="num">87</td><td>the per-class findings pages: explicit, implicit, adaptive</td></tr></table></div></div></details>
 <h3 id="preflight">The pre-flight, run as a program</h3>
 
 <p><code>scripts/preflight.py</code> executes every item on the pre-flight checklist
@@ -607,7 +620,7 @@ the archive files alone. The findings site is a pure function of the archive. Th
 is not, because it also reads the test collection and the latest analysis at build
 time.</p>
 
-<footer>Built by rk-overview/tools/generate.py from the run archive, data as of 2026-09-10 (US Central). This site is a snapshot; rk-findings carries the live numbers. Built from rk-harness 0adcfc72e417, rk-work b5fc8b515845, rk-findings d1805779e800 and rk-overview ddf426b97dd9, the commit each repository was at when this page was written. Text drafted with Claude, edited and owned by the author.</footer>
+<footer>Built by rk-overview/tools/generate.py from the run archive, data as of 2026-09-10 (US Central). This site is a snapshot; rk-findings carries the live numbers. Built from rk-harness bff7544dd572, rk-work b5fc8b515845, rk-findings e743f5b6b38f and rk-overview a73d708ce0cb, the commit each repository was at when this page was written. Text drafted with Claude, edited and owned by the author.</footer>
 </div>
 </body>
 </html>

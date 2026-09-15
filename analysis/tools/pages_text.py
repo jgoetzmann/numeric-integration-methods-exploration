@@ -77,7 +77,7 @@ SPINE = (
      "<p>On one test problem the true answer is smaller than one Q15 step, and the bias "
      "carries the cheapest method to the closest value the format has, while rk4, the "
      "textbook favorite, ends up several times further away. Searched against that bias, "
-     "the best coefficients are not the textbook ones.</p>",
+     "the best coefficients are not the textbook ones. {dq_panel_sentence}</p>",
      "results.html", "six findings, with their caveats"),
     ("verify", "Every number traces to a file, and the demo checks itself",
      "<p>The charts are built from one analysis file recomputed from the run archive. "
@@ -197,8 +197,9 @@ gets a filtered environment, and the host watchdog does every push.</li>
 from the archive, and a directive with an unknown key is rejected.</li>
 <li>Model-written code is quarantined. A problem the model writes runs only after an
 AST-checked import allowlist, determinism and time bounds, a range check and a reference
-solution. Even then it can join only the held-out set, so the optimizer never trains on
-it.</li>
+solution. Even then it can join only the
+<a href="{live}methodology.html#held-out-set">held-out set</a>, so the optimizer never
+trains on it.</li>
 </ul>
 """
 
@@ -377,10 +378,11 @@ tests (G-numbered) pin behavior to fixture values written before the code existe
 to exact measured orders and cycle counts. Canary tests (K-numbered) guard against
 gaming: K1 plants a candidate tuned on the search set and asserts that it can earn
 search_only but never heldout_verified, and K2 asserts that a winner on a single problem
-family lands at no_improvement, the tier for a candidate that earns neither of the others.
-Its counterpart no_incumbent marks a record written into an empty cell. The two were one
-word, unreplicated, until they were split, and records written before that still carry it.
-The {gate} golden and canary cases are also the container's start gate.</p>
+family lands at no_improvement, the tier for a candidate whose cell had an incumbent and
+for which neither the heldout_verified nor the search_only rule applied. Its counterpart
+no_incumbent marks a record written into an empty cell. Before the split both were stored
+as one word, unreplicated{tier_arch_clause}. The {gate} golden and canary cases are also the
+container's start gate.</p>
 """
 
 ARCH_PREFLIGHT = """
@@ -444,8 +446,10 @@ DECISIONS = (
      "The M0+ has no FPU, divide or long multiply, so fixed point is forced. Running a "
      "1-cycle and a 32-cycle multiplier model costs nothing and shows whether hardware "
      "awareness changes the ranking.",
-     "Kept, and the ranking does change: rk4 is cheaper with the fast multiplier and rk38 "
-     "with the slow one (the <a href=\"results.html#anchor\">anchor result</a>). After a "
+     "Kept, and under the frozen epoch-1 rule the ranking does change: it prices rk4 cheaper "
+     "with the fast multiplier and rk38 with the slow one (the "
+     "<a href=\"results.html#anchor\">anchor result</a>, which also gives the compiled "
+     "trace's counts for the same pair). After a "
      "live candidate was rejected on an infinity in the AVR column, verification was "
      "restricted to the primary-model columns."),
     ("q15-overflow",
@@ -468,7 +472,8 @@ DECISIONS = (
      "solvable over a dyadic A), the fix was a projection fallback in the optimizer, not "
      "more LLM. The outer loop grew hypotheses and a literature loop."),
     ("heldout-split",
-     "Search/held-out split, enforced structurally",
+     "Search/<a href=\"{live}methodology.html#held-out-set\">held-out</a> split, enforced "
+     "structurally",
      "The optimizer has no code path that reads HELDOUT_SET, and the held-out gap is a "
      "dashboard metric so it cannot rot unnoticed.",
      "Kept literally: a test walks the optimizer's import graph to enforce it, and the "
@@ -583,16 +588,21 @@ model-written.</p>
 
 RESULTS_SUB = "What the explicit search found, at snapshot {date}."
 
+# The description a shared link shows. RESULTS_SUB carries the snapshot date, and a link
+# preview outlives the snapshot it was taken from, so this one is written without a date.
+RESULTS_DESC = ("What the explicit search found: the anchor result, the findings and their "
+                "caveats, the method matrix, measured speed and the limits.")
+
 HEADLINE_VERDICT = """
-<p class="verdict">At a fixed budget of {budget} cycles on a Cortex-M0+ cost model, the
-search found Runge-Kutta methods with up to <strong>{best_x}&times;</strong> lower
+<p class="verdict">At a fixed budget of {budget} cycles on a Cortex-M0+ cost model, under
+magnitude weighting on the analytic cost basis, which prices the stage and b combinations
+only, the search found Runge-Kutta methods with up to <strong>{best_x}&times;</strong> lower
 <a href="{live}methodology.html#held-out-set">held-out error</a> than the best classical
-method. Drop any one of the four held-out problems
-and the lead runs from {loo_min}&times; to {loo_max}&times;, so it does not rest on one of
-them. The data also shows why: Q15's floor
-rounding adds a bias of about half an LSB to every multiply, and that alone reorders the
-classical methods before any search starts. The <a href="demo.html">demo</a> lets you
-watch it happen.</p>
+method. On that weighting and basis, dropping any one of the four held-out problems leaves
+a lead of {loo_min}&times; to {loo_max}&times;, so there the lead does not rest on one of
+them. {headline_survival} The data also shows why: Q15's floor rounding adds a bias of
+about half an LSB to every multiply, and that alone reorders the classical methods before
+any search starts. The <a href="demo.html">demo</a> lets you watch it happen.</p>
 """
 
 RESULTS_SCOPE = (
@@ -602,15 +612,24 @@ RESULTS_SCOPE = (
     "to 5 were computed at {kf_records} archive records, finding 6 and the method matrix "
     "at {vd_records}, and each figure carries the state it was computed at.")
 
+# One sentence for the page's static charts. None of them responds to a key or a tap, and
+# the table folded under each is the route to its numbers that needs neither a pointer nor
+# script (DECISIONS.md D44, D-j).
+RESULTS_CHARTS_NOTE = (
+    "Every chart on this page is a static drawing, and the table folded under it, which "
+    "holds the same numbers, is the keyboard and tap path to them.")
+
 ANCHOR_TITLE = "The anchor result"
 
 ANCHOR_TEXT = """
 <p>rk4 and rk38 are both four-stage, order-4 methods with the same stability polynomial,
-and textbooks treat them as interchangeable. Priced against a real multiplier they are
-not. With a 1-cycle multiplier rk4 is cheaper ({rk4_fast} against {rk38_fast} cycles per
-step). With a 32-cycle multiplier rk38 is cheaper ({rk38_slow} against {rk4_slow}),
-because rk4's coefficients need more shift-add work. Which one to ship depends on the
-multiplier the chip has.</p>
+and textbooks treat them as interchangeable. The analytic cost model does not. With a
+1-cycle multiplier it prices rk4 cheaper ({rk4_fast} against {rk38_fast} cycles per step),
+and with a 32-cycle multiplier it prices rk38 cheaper ({rk38_slow} against {rk4_slow}),
+because rk4's coefficients need more shift-add work there. That swap belongs to the
+frozen epoch-1 rule, which charges each coefficient the cheaper of a shift-add chain
+and a hardware multiply, and the compiled, traced step is what checks it.
+{anchor_trace_sentence}</p>
 """
 
 F_EFFICIENCY_INTRO = """
@@ -640,22 +659,55 @@ shifts and adds.</p>
 <details class="fold"><summary>Its tableau and its error on each held-out
 problem</summary><div>
 <p>A = {bd_A}, b = {bd_b}, c = {bd_c}. Measured order {bd_measured}. Held-out error per
-problem: {bd_per_problem}.</p>
+problem, each with its share of the held-out sum of squares: {bd_per_problem}.
+{bd_flag_note}</p>
 </div></details>
 <h3>Dropping one held-out problem at a time</h3>
-<p>Held-out error is an RMS over four problems, so each of them carries a quarter of the
-ratio above. rc_thermal is the problem where every classical method lands on the same
-quantization floor (<a href="#rc-thermal">finding 4</a>), and it is what makes the
-full-set ratio the widest. Dropping it leaves {loo_min}&times;, the lowest ratio in the
-table below; the highest is {loo_max}&times;, and the best classical method changes
-identity when quaternion goes.</p>
+<p>{share_sentence} rc_thermal is the problem where every classical method lands on the
+same quantization floor (<a href="#rc-thermal">finding 4</a>). {loo_sentence}</p>
 {loo_table}
 <p>Two caveats. Elites are chosen by held-out error from {archive_n} archived candidates,
-so the best values carry selection bias, although the optimizer itself only sees
-search-set error. And a tier is a mechanical comparison with the cell's incumbent when
-the record is written, not a validation grade: the best cell's elite is {bd_tier}, which
-means it cleared neither tier above it, and both of those start from a lower search error.
-Of the {cells_disc} discovered elites, {cells_hv} are heldout_verified.</p>
+so the best values carry selection bias. The <a href="architecture.html#outer">outer
+loop</a> is shown one held-out error per occupied cell; only the inner optimizer is scored
+on search-set error alone. And a tier is a mechanical comparison with the cell's incumbent
+when the record is written, not a validation grade. {bd_tier_sentence} Of the
+{cells_disc} discovered elites, {cells_hv} are heldout_verified.</p>
+{counterfactual_block}
+"""
+
+# Finding 1's counterfactual grid: the same comparison under two other weightings and a
+# second cost basis. Every number in it is generated in generate.py from the
+# `counterfactual` key of tools/key_findings.json, and every cell names its weighting and
+# its basis, because six cells of a grid are only readable if each one says which cell it
+# is. DECISIONS.md D43 governs what may be said here: the traced count is a budget
+# denominator and never a numerator against the analytic one, the median-anchor scale is
+# never published without the reference-norm scale beside it, and the whole grid ships
+# including the cells that go against the published number.
+F_COUNTERFACTUAL = """
+<h3 id="weighting-cost">The same comparison under two other weightings and a second cost
+basis</h3>
+<p>The ratio above is one cell of a grid. It is measured under magnitude weighting, the
+aggregate the archive selects on (an unweighted RMS of the four per-problem errors), and on
+the analytic cost basis, the per-step cost the
+<a href="architecture.html#costmodel">analytic cost model</a> charges for the stage and b
+combinations. The grid adds two other weightings and one other cost basis, and all six
+combinations are below. {cf_weighting_sentence}</p>
+<p>{cf_basis_sentence}</p>
+{cf_grid_table}
+{cf_survival_sentence}
+<p>{cf_median_traced_sentence}</p>
+{cf_loo_table}
+{cf_heldout_table}
+{cf_permethod_fold}
+<h3>What the search would have kept under the other two weightings</h3>
+<p>The champion was selected under magnitude weighting, so a ratio for that same tableau
+under another weighting describes the metric and not the search. Every archived record
+stores its four held-out errors, so re-aggregating all of them answers the other question
+directly, with no step count and no solve changed. {cf_rerank_sentence}</p>
+{cf_rerank_table}
+<p>{cf_excluded_sentence}</p>
+{cf_excluded_table}
+<p class="note">{cf_scope_note}</p>
 """
 
 F_FLIP_INTRO = """
@@ -666,15 +718,20 @@ methods, budget and problems with round-to-nearest.</p>
 """
 
 F_FLIP_INTERP = """
-<p>On the three search problems, floor puts euler first (RMS {fl_euler}) and rk4 last
-({fl_rk4}, {fl_ratio}&times; worse). Round-to-nearest restores the textbook order, with
-rk4 ahead of euler ({rd_rk4} against {rd_euler}). Per problem, the best method changes on
-{n_changed} of the {n_problems} problems.</p>
+<p>{flip_lead} Round-to-nearest, on the same weighting and basis, restores the textbook
+order, with rk4 ahead of euler ({rd_rk4} against {rd_euler}). {flip_changed_sentence}</p>
 <p>Dahlquist shows the mechanism most clearly. Under floor, {dq_tie} all report error
 {dq_err}, which is the entire reference value: the Q15 state decays to exactly zero, the
 true answer is below one LSB, and floor's downward bias lands on it. Under
 round-to-nearest the state stalls above zero and the error is up to {dq_worst}&times;
 larger.</p>
+<p>{dq_verdict_para}</p>
+{dq_table}
+<h3 id="flip-counterfactual">Whether rank 1 survives a different weighting or a compiled
+cost basis</h3>
+<p>{cf_euler_sentence}</p>
+{cf_search_table}
+<p class="note">{cf_search_scope}</p>
 """
 
 F_CROSSOVER_INTRO = """
@@ -695,7 +752,7 @@ needed.</p>
 per-step cycles under the fast multiplier, above the {proceed}% proceed line, but heun2
 under the slow one sits at {heun2_slow}%, just under the {kill}% kill line. At the shared
 budget under floor, rk4 is the best of the {n_flip} methods on {rk4_wins} of the
-{n_problems} problems.</p>
+{n_problems} problems{cross_flag_clause}.</p>
 <p>The shape of this is not new, and reporting it that way is the point. Analysis of
 low-precision Runge-Kutta integration finds that a round-to-nearest solution stagnates
 once the timestep is small enough, with the rounding term growing as the step shrinks.
@@ -722,6 +779,7 @@ extra decay.</p>
 {rk38_rd}, and the best discovered method on this problem, a {bdrc_stages}-stage,
 order-{bdrc_order} tableau at {bdrc_cycles} cycles per step, reaches {bd_rc} while still
 using floor.</p>
+<p>{rc_verdict_sentence}</p>
 """
 
 F_PHASE0_INTRO = """
@@ -764,7 +822,11 @@ it is lower in {ch_lower} of {ch_cells} cells, higher in {ch_higher} and tied in
 {ch_table}
 <p>{ch_flag_sentence} A ratio within {tie_pct}% of 1.0 is counted as a tie rather than a
 win, on both sides of the comparison. The findings validation page applies the same two
-rules to the same document, so the two sites report one tally.</p>
+rules to the same document, so the two sites report one tally. This suite is summarized by
+medians of per-problem ratios and by win counts rather than by an RMS, so no problem
+carries a weight in its tables and there is no share to report in them, unlike the
+per-problem tables under <a href="#efficiency">finding 1</a> and
+<a href="#floor-flip">finding 2</a>.</p>
 """
 
 F_VALIDATION_INTERP = """
@@ -847,7 +909,7 @@ MATRIX_NOTES = {
     "heun2": "Same cost class as midpoint and slightly worse throughout.",
     "rk4": "The textbook default. Its classically optimal coefficients buy nothing at "
            "this budget in Q15, and it is expensive under a slow multiplier.",
-    "rk38": "Same order and stages as rk4, and cheaper under a slow multiplier.",
+    "rk38": "Same order and stages as rk4; under the frozen epoch-1 rule it is cheaper with a slow multiplier.",
     "champion": "The three-stage, order-2 discovered champion, with the lowest held-out "
                 "error in the archive. Its edge comes from how it handles floor bias, "
                 "not from truncation order.",
@@ -890,7 +952,7 @@ SPEED_INTERP = """
 <p>Every problem lands within {maxdev}% of the predicted ratio. At the same budget the
 champion also has the lower error on {sp_won} of the {sp_n} problems (rk4 keeps
 {rk4_keeps}; median error ratio {sp_med}), so the time saved per step does not cost
-accuracy. Python timings check the model rather than stand in for the chip; the protocol
+accuracy. {speed_flag_sentence} Python timings check the model rather than stand in for the chip; the protocol
 and its caveats are on the <a href="{live}validation.html#speed">findings validation
 page</a>.</p>
 """
@@ -899,10 +961,12 @@ PROTOCOL_TITLE = "How the numbers were made"
 
 PROTOCOL = """
 <p>Code assigns each record's tier when it is written, by comparison with its cell's
-incumbent: heldout_verified, search_only, no_incumbent when the cell was empty, or
-no_improvement when the candidate earned neither of the other two. Those last two were one
-word, unreplicated, and records written before the split still carry it. The model
-proposes hypotheses only
+incumbent: heldout_verified when it improved on the incumbent in both search-set and
+held-out error across at least two problem families, search_only when its search error
+improved and its held-out error did not, no_incumbent when the cell was empty, and
+no_improvement when there was an incumbent and neither of those rules applied, which
+includes a held-out improvement without a search improvement. {tier_legacy_sentence}
+{tier_counts_sentence} The model proposes hypotheses only
 as predicates in a closed grammar, and code writes the verdict: no data or an effect
 below Cohen's d of 0.2 is inconclusive, and refuted hypotheses are fed back into later
 prompts. The premise got the same treatment, a falsification run with thresholds fixed in

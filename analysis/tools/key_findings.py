@@ -10,6 +10,9 @@ Inputs
                                   Python's json, which accepts them, then every
                                   non-finite float is written out as null)
     rk-overview/tools/floor_round.json
+    rk-work/trace/results.json   through tools/counterfactual.py, which refuses to
+                                  run unless the document's verifier hash and trace
+                                  hash match the two pins on disk
 
 Usage (any cwd; the script sets RK_WORK_DIR/RK_FINDINGS_DIR itself if unset):
     D:/Programming-Projects/Integration-Harness/rk-harness/.venv/Scripts/python.exe tools/key_findings.py
@@ -23,6 +26,8 @@ Output schema (key_findings.json)
       crossover            where Q15 error decouples from float truncation error
       rc_thermal_collapse  the shared quantization floor on rc_thermal
       phase0_exhaustive    the closed 2-stage enumeration result
+      counterfactual       the same methods rescored under two cost bases and
+                           three weightings, plus the archive re-ranked
     Every finding has exactly three keys:
       verdict              one- or two-sentence honest statement of the result
       numbers              scalar facts, each traceable to the data files
@@ -45,6 +50,10 @@ os.environ.setdefault("RK_WORK_DIR", str(WS / "rk-work"))
 os.environ.setdefault("RK_FINDINGS_DIR", str(WS / "rk-findings"))
 sys.path.insert(0, str(WS / "rk-harness"))
 
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+
+import counterfactual                                             # noqa: E402
 from rk_harness import archive, enumeration                       # noqa: E402
 from rk_harness.costmodel import M0PLUS_FAST                      # noqa: E402
 from rk_harness.problems import PROBLEMS                          # noqa: E402
@@ -88,11 +97,14 @@ def _ranks(scores: dict[str, float]) -> dict[str, int]:
 def _leave_one_out(best: dict, anchor_rows: list[dict]) -> list[dict]:
     """The champion against the best classical anchor, one held-out problem dropped.
 
-    Held-out error is an RMS over four problems, so each one carries a quarter of the
-    headline ratio and a single degenerate problem could carry most of the lead with it.
-    Dropping each in turn says how much rests on any one of them. The anchor is re-chosen
-    on every reduced set, because the lowest classical error does not stay with the same
-    method: drop quaternion and it moves from midpoint to rk38.
+    Held-out error is an RMS over four problems, which sums squares, so a problem's
+    influence grows with the square of its error and the four do not carry a quarter each.
+    rc_thermal carries 64.8 percent of the champion's sum of squares and 85.1 percent of
+    midpoint's, and pendulum carries 0.7 and 0.00002 percent, so one problem can carry most
+    of the lead with it. The shares are published in the counterfactual finding rather than
+    described here. Dropping each problem in turn says how much rests on any one of them.
+    The anchor is re-chosen on every reduced set, because the lowest classical error does
+    not stay with the same method: drop quaternion and it moves from midpoint to rk38.
     """
     if any(best["per_problem_heldout"].get(p) is None for p in HELDOUT_PROBLEMS):
         return []
@@ -210,6 +222,33 @@ def classical_index(records):
 
 # ------------------------------------------------------------------ finding 1
 
+def _tier_caveat(tier: str) -> str:
+    """The tier caveat for the best cell's elite, written from the tier it is stored with.
+
+    unreplicated is still a legal stored tier and scripts/backfill_tiers.py rewrites it in
+    place, so a caveat that says the record "still carries the merged word" is true until
+    that script runs and false after it. The sentence follows the stored value instead.
+    """
+    head = ("Tier labels are mechanical insertion-time comparisons against the "
+            "then-incumbent, not a validation grade of the final elite: ")
+    tails = {
+        "unreplicated": (
+            "the best cell's elite is stored as 'unreplicated', the word the run wrote "
+            "before no_incumbent (an empty cell) and no_improvement (an incumbent, and "
+            "neither heldout_verified nor search_only applied) were split, so the stored "
+            "word alone does not say which of the two it was"),
+        "no_incumbent": "the best cell's elite is stored as no_incumbent: its cell was empty "
+                        "when the record was written",
+        "no_improvement": (
+            "the best cell's elite is stored as no_improvement: its cell had an incumbent "
+            "and neither heldout_verified nor search_only applied, and both of those start "
+            "from a lower search error than the incumbent's"),
+        "heldout_verified": "the best cell's elite is stored as heldout_verified",
+        "search_only": "the best cell's elite is stored as search_only",
+    }
+    return head + tails.get(tier, f"the best cell's elite is stored as {tier}") + "."
+
+
 def efficiency(state, records, anchors: dict):
     classical_hashes = {r.tableau_hash: n for n, r in anchors.items()}
     anchor_rows = sorted(
@@ -229,6 +268,15 @@ def efficiency(state, records, anchors: dict):
         for (stages, bucket), r in sorted(state.grids[order].items()):
             cells.append((order, stages, bucket, r))
 
+    # Where each frontier row's tier comes from. A row for a cell holder (every discovered
+    # row, and any classical method that still holds a cell) carries the stored tier of
+    # the record that is that cell's elite. A classical method that holds
+    # no cell is appended further down with the stored tier of its one seed record, written
+    # at cycle 0 and since displaced from its cell, so that tier describes the record's
+    # entry into a cell and not a cell it holds now. Every tier here is a stored archive
+    # value: scripts/backfill_tiers.py rewrites unreplicated in place, and rerunning this
+    # script afterwards is what moves these rows. A method with no archive record has no
+    # tier, and the overview prints n/a for it.
     frontier = []
     ratios_all, ratios_wins = [], []
     n_wins = n_discovered = 0
@@ -327,14 +375,7 @@ def efficiency(state, records, anchors: dict):
                 "candidates, so the champion values carry selection (winner's "
                 "curse) bias; the CMA-ES search itself optimizes only the "
                 "search-set error.",
-                "Tier labels are mechanical insertion-time comparisons against "
-                "the then-incumbent, not a validation grade of the final elite: "
-                "the best cell's elite cleared neither tier above its own, and "
-                "both of those start from a lower search error than the "
-                "incumbent's. The vocabulary now writes that case no_improvement "
-                "and an empty cell no_incumbent; records written before the "
-                "split, this one included, still carry the merged word "
-                "'unreplicated'.",
+                _tier_caveat(br.tier),
                 "rc_thermal saturates near 0.156 for every classical method "
                 "(see rc_thermal_collapse), so classical held-out RMS values "
                 "are floored near 0.078; discovered winners break that floor.",
@@ -854,12 +895,17 @@ def build() -> dict:
             a = rec.score.per_problem.get(prob)
             if a and v:
                 max_rel = max(max_rel, abs(a - v) / max(abs(v), 1e-300))
+    # Computed before the document so the counterfactual can take the champion and the
+    # anchor rows from the same place the published numbers come from, rather than
+    # rebuilding them and risking a second, differently-derived champion.
+    eff = efficiency(state, records, anchors)
     out = {
         "_meta": {
             "script": "rk-overview/tools/key_findings.py",
             "sources": ["rk-work/archive/*.jsonl (via rk_harness.archive.cached_view)",
                         "rk-work/falsification.json",
                         "rk-overview/tools/floor_round.json",
+                        "rk-work/trace/results.json (the counterfactual's traced prices)",
                         "rk-work/sidetrack/ledger.jsonl (absent until the executor fires)",
                         "rk-work/saturation_state.json (the run's last saturation check)"],
             "budget_cycles": BUDGET,
@@ -877,11 +923,12 @@ def build() -> dict:
                        "(honest one-liner), 'numbers' (scalar facts), 'series' "
                        "(chart-ready arrays; non-empty or {'absent': reason})"),
         },
-        "efficiency": efficiency(state, records, anchors),
+        "efficiency": eff,
         "floor_bias_flip": floor_bias_flip(fr),
         "crossover": crossover(fals, fr),
         "rc_thermal_collapse": rc_thermal_collapse(state, anchors, fr),
         "phase0_exhaustive": phase0_exhaustive(records, anchors),
+        "counterfactual": counterfactual.build(records, eff, budget=BUDGET, model_name=MODEL),
         "search_progress": search_progress(state, records, anchors),
         "side_tracks": side_tracks(),
     }
@@ -936,6 +983,104 @@ def _check_claims(out: dict) -> list[str]:
         if abs(full["ratio"] - headline) > 5e-3 * headline:
             issues.append(f"the full-set leave-one-out ratio {full['ratio']:.4f} does not "
                           f"reproduce best_error_ratio ({headline:.4f})")
+    issues.extend(_check_counterfactual(out))
+    return issues
+
+
+def _check_counterfactual(out: dict) -> list[str]:
+    """Gate the counterfactual's arithmetic where the numbers are made.
+
+    Every one of these is an invariant rather than a pinned value, so it survives a fresh
+    archive: the shares of a sum of squares add to one, an RMS rebuilt from its own
+    per-problem values reproduces the aggregate it is supposed to be, every step count is
+    still a budget division, and the magnitude-and-analytic corner of the grid reproduces
+    the leave-one-out rows finding 1 already publishes. A generator that drifts fails here
+    instead of shipping.
+    """
+    issues = []
+    cf = out.get("counterfactual")
+    if not cf:
+        issues.append("key_findings.json carries no counterfactual finding, so no page may "
+                      "state a cost or weighting counterfactual (rerun tools/key_findings.py)")
+        return issues
+    inv = cf.get("numbers", {}).get("invariants", {})
+
+    def _bad(key, limit):
+        v = inv.get(key)
+        return v is None or not (abs(float(v)) <= limit)
+
+    if inv.get("share_sets_checked", 0) < 1:
+        issues.append("the counterfactual checked no share set, so the sum-to-one gate "
+                      "asserted nothing")
+    if _bad("share_sum_max_deviation_from_one", 1e-9):
+        issues.append(f"a published weight-share set does not sum to one (worst deviation "
+                      f"{inv.get('share_sum_max_deviation_from_one')})")
+    if _bad("rms_reconstruction_max_abs_diff", 1e-12):
+        issues.append(f"rebuilding search and held-out error from the per-problem values "
+                      f"does not reproduce the published aggregates (worst absolute "
+                      f"difference {inv.get('rms_reconstruction_max_abs_diff')})")
+    if _bad("archive_rms_reconstruction_max_abs_diff", 1e-12):
+        issues.append(f"the archive re-ranking does not reproduce each record's stored "
+                      f"held-out error (worst absolute difference "
+                      f"{inv.get('archive_rms_reconstruction_max_abs_diff')})")
+    if _bad("floor_round_crosscheck_max_rel_diff", 1e-9):
+        issues.append(f"the counterfactual's own solves do not reproduce floor_round.json, "
+                      f"the file finding 2 is computed from (worst relative difference "
+                      f"{inv.get('floor_round_crosscheck_max_rel_diff')})")
+    if not inv.get("published_leave_one_out_reproduced"):
+        issues.append("the magnitude and analytic corner of the counterfactual does not "
+                      "reproduce the published leave-one-out rows, so the two tables are "
+                      "not comparable and neither may be published beside the other")
+    if not inv.get("every_step_count_is_the_budget_division"):
+        issues.append("a counterfactual step count is not the budget divided by a cycle "
+                      "cost, so something other than the cost basis moved")
+    excl = cf.get("numbers", {}).get("excluded", {})
+    if excl.get("state_counts_without_a_traced_price"):
+        issues.append("a state count the problem set uses has no traced price, so the cost "
+                      "counterfactual is priced by extrapolation somewhere: "
+                      f"{excl['state_counts_without_a_traced_price']}")
+    prov = cf.get("numbers", {}).get("provenance", {})
+    if not (prov.get("trace_hash") and prov.get("verifier_hash")):
+        issues.append("the counterfactual carries no trace or verifier hash, so its numbers "
+                      "cannot be tied to the code that produced them")
+    if not str(cf.get("verdict") or "").strip():
+        issues.append("the counterfactual finding carries an empty verdict")
+    issues.extend(_check_dahlquist_final_state(cf))
+    return issues
+
+
+def _check_dahlquist_final_state(cf: dict) -> list[str]:
+    """The dahlquist final states agree with the counterfactual's own analytic rows.
+
+    counterfactual.py already refuses to write a row whose error differs from its solve.
+    This re-reads the written document instead, so a row that went missing or was
+    reordered on the way out fails here too: one row per scored method, the same step
+    count and the same error as that method's analytic dahlquist row, and a distance from
+    the origin that is the largest component of the final state it prints.
+    """
+    issues = []
+    rows = (cf.get("series") or {}).get("dahlquist_final_state") or []
+    names = sorted(m.get("name") for m in cf.get("numbers", {}).get("methods") or [])
+    if sorted(r.get("method") for r in rows) != names:
+        return [f"counterfactual.series.dahlquist_final_state covers "
+                f"{sorted(r.get('method') for r in rows)}, not the scored methods {names}"]
+    ref = {r["method"]: r for r in cf["series"].get("per_method") or []
+           if r.get("problem") == "dahlquist" and r.get("basis") == "analytic"}
+    for r in rows:
+        m = r["method"]
+        want = ref.get(m)
+        if want is None:
+            issues.append(f"{m} has a dahlquist final state and no analytic dahlquist row")
+            continue
+        if r.get("steps") != want.get("steps"):
+            issues.append(f"{m}'s dahlquist final state is at {r.get('steps')} steps and its "
+                          f"analytic row at {want.get('steps')}")
+        if r.get("error") != want.get("error"):
+            issues.append(f"{m}'s dahlquist final-state error {r.get('error')!r} is not its "
+                          f"analytic row's {want.get('error')!r}")
+        q = r.get("final_state_q15") or []
+        if not q or r.get("final_state_lsbs_from_origin") != max(abs(int(v)) for v in q):
+            issues.append(f"{m}'s final_state_lsbs_from_origin does not match its final state")
     return issues
 
 
