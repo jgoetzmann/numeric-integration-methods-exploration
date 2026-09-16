@@ -351,16 +351,30 @@ def _nav(active: str) -> str:
 
 
 def _frozen_banner() -> str:
-    """Publish-2 freeze banner (D45). It shows on every page while the epoch
-    is frozen and retires when the boundary clears the frozen state. A pure
-    function of EPOCH_STATUS.json plus the pinned hash, so rebuilds of the
-    same state are byte-identical."""
-    st = sg.epoch_status_data()
-    if st.get("state") != "frozen" or not st.get("frozen_at"):
+    """Freeze banner for the epoch these pages were scored in (D45).
+
+    A pure function of rk-work/EPOCH.json's newest frozen block, so rebuilds of
+    the same state are byte-identical. It reads that block's own verifier hash
+    rather than rk-harness/VERIFIER_HASH: from the epoch-2 boundary the live pin
+    is 2db0816c, and quoting it here would attribute epoch-1 numbers to the rule
+    that replaced the one they were scored under. Before the boundary the state
+    came from EPOCH_STATUS.json at the work root, which the relocation moved to
+    epochs/1, so keying on it silently dropped the banner.
+
+    The banner stays while this site publishes a frozen epoch's numbers, which
+    is what keeps every one of them labelled. It retires when the overview
+    snapshots to docs/epoch-1/ and the root starts publishing the open epoch,
+    deferred by the work order until epoch 2 has a champion."""
+    frozen = sg.epoch_status_data().get("frozen_epochs") or []
+    if not frozen:
         return ""
-    epoch = st.get("epoch", 1)
-    pin = (WS / "rk-harness" / "VERIFIER_HASH").read_text(encoding="utf-8").split()[0][:8]
-    date = timefmt.fmt_ct(st["frozen_at"])[:10]
+    block = frozen[-1]
+    epoch, frozen_at = block.get("epoch"), block.get("frozen_at")
+    scored_under = block.get("verifier_hash")
+    if not (epoch and frozen_at and scored_under):
+        return ""
+    pin = scored_under[:8]
+    date = timefmt.fmt_ct(frozen_at)[:10]
     return (
         f'<p class="banner">Epoch {epoch}, frozen {date}. Every cycle count and score '
         f"on these pages comes from epoch {epoch}, scored under verifier hash {pin} "
