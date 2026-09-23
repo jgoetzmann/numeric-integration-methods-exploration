@@ -2222,4 +2222,14 @@ lane elites D40 admits to pages were rebuilt from records measured under d99e4d2
 `sidetrack.code_hash` does not move (2b9f0b0f before and after), because `lanesearch.py` is not in
 `SIDETRACK_FILES`.
 
+**Amended 2026-09-23: the logon task is uninstalled.** At the owner's request the run no longer
+starts at sign-in. The "rk-run autostart" task was removed with `autostart.ps1 -Uninstall`; the
+script stays in the workspace, and `-Install` brings the task back. In its place are three
+commands on the PATH in Windows and WSL, `start-integration-harness`,
+`stop-integration-harness` and `watch-integration-harness`, thin wrappers around the workspace's
+`integration-harness.ps1`, which runs `start.ps1` or `stop.ps1` and prints whether the run came up
+or went down. After a reboot the run is started by hand with the first of them. (b) above
+describes the task as installed; that is no longer true. The stop marker `run-stopped.txt`
+still means what (b) says, for anyone who reinstalls the task.
+
 ---
