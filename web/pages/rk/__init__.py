@@ -5,7 +5,7 @@ web.fmt. Every result sentence names its conditions and links its claim id.
 """
 
 from web import fmt
-from web.charts import figure, table
+from web.charts import figure, standalone, table
 from web.fmt import esc
 
 from . import charts
@@ -528,3 +528,11 @@ def build(data):
     ]
     return "\n".join(parts) + "\n"
 
+
+def assets(data):
+    """Standalone copies of two charts, for the README: the Q15 result and its float64 boundary."""
+    rk = data["rk"]
+    return {
+        "rk-frontier.svg": standalone(charts.frontier_chart(rk)),
+        "rk-validation-f64.svg": standalone(charts.validation_f64_chart(rk)),
+    }

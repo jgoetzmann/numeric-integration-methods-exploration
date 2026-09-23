@@ -10,6 +10,11 @@ This repository builds a static site that tells both stories and carries the cla
 
 ## Key findings
 
+![Held-out error against cycles per step for the eight classical methods and the 16 discovered cell elites, in Q15 with floor rounding at a 65,536-cycle budget](docs/assets/rk-frontier.svg)
+
+![Float64 error of the champion and of rk4 on the out-of-sample problems, at the same step counts](docs/assets/rk-validation-f64.svg)
+
+
 - **The Q15 result.** Inside Q15 fixed point with floor rounding, at a 65,536-cycle budget, the searched three-stage method `11e898cb` has 2.95x lower held-out error than midpoint, the best of eight classical methods (analytic cost model, magnitude weighting, four held-out problems). On the traced whole-step cost basis the lead shrinks to 1.01x, and under median-anchor weighting on that basis midpoint leads. Elites were picked on held-out error, so the lead carries winner's-curse bias. Under the same conditions, in all 16 cells the search filled, the discovered method has lower held-out error than every classical method that costs the same or less. ([claim R1](https://jgoetzmann.github.io/numeric-integration-methods-exploration/claims.html#R1), [claim R2](https://jgoetzmann.github.io/numeric-integration-methods-exploration/claims.html#R2))
 - **Out of sample.** On eight problems no optimizer or model saw, chosen by people after the search began, the best discovered method had lower Q15 error than the best classical method on 4 of 5 non-stiff problems. On the stiff `robertson_scaled` problem every discovered method overflowed while midpoint finished. ([claim R4](https://jgoetzmann.github.io/numeric-integration-methods-exploration/claims.html#R4))
 - **Where established methods win.** In float64, at the same step counts, rk4 had the lower error in 56 of 56 cells and the champion was 1,992x to 420,975x less accurate than rk4. The adaptive library solvers, Dormand-Prince (SciPy RK45) among them, were a median 519x more accurate at tolerances matched to one Q15 step. The search optimized for Q15 floor arithmetic on purpose, and this is the boundary of that result. ([claim R5](https://jgoetzmann.github.io/numeric-integration-methods-exploration/claims.html#R5))
