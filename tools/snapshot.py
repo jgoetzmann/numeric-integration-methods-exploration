@@ -25,10 +25,17 @@ DATA = ROOT / "data"
 GITHUB = "https://github.com/jgoetzmann"
 
 
+_HEADS: dict[str, str] = {}
+
+
 def _head(repo: Path) -> str:
-    out = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], check=True,
-                         capture_output=True, text=True).stdout.strip()
-    return out
+    """HEAD of a source repo, read once per run. rk-work commits every cycle, so reading it
+    per block would pin different blocks of one snapshot to different commits."""
+    key = str(repo.resolve())
+    if key not in _HEADS:
+        _HEADS[key] = subprocess.run(["git", "-C", key, "rev-parse", "HEAD"], check=True,
+                                     capture_output=True, text=True).stdout.strip()
+    return _HEADS[key]
 
 
 def _src(repo_name: str, repo: Path, path: str, key: str = "") -> dict:

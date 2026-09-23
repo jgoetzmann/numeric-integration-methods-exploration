@@ -8,9 +8,8 @@ days-per-pixel scale, so bar lengths compare across the break.
 from datetime import date, timedelta
 
 from web import fmt
+from web.charts import bar, dot, figure as chart_figure, legend, num, table, text
 
-FIG_ID = "timeline"
-WIDTH = 720
 LABEL_X = 4
 X0 = 200
 X1 = 704
@@ -18,12 +17,6 @@ GAP = 26
 TOP = 44
 ROW_H = 38
 BAR_H = 14
-RADIUS = 4
-
-RK_FILL = "var(--series-1)"
-ML_FILL = "var(--series-2)"
-STOP_FILL = "var(--series-3)"
-SNAP_FILL = "currentColor"
 
 
 def _date(s):
@@ -36,10 +29,6 @@ def _next_month(d):
     return date(d.year, d.month + 1, 1)
 
 
-def _n(v):
-    return f"{v:.1f}"
-
-
 def _dates_text(ev):
     if ev["end"] is None:
         return fmt.day(ev["start"])
@@ -47,7 +36,8 @@ def _dates_text(ev):
 
 
 def events(data):
-    """The timeline rows, top to bottom. `end` is None for a one-day event."""
+    """The timeline rows, top to bottom. `end` is None for a one-day event; `n` is the
+    series slot, None for the snapshot, which is drawn in currentColor."""
     ml = data["novel"]["repo"]
     ep = data["rk"]["epochs"]
     e1 = ep["epoch1"]
@@ -63,8 +53,7 @@ def events(data):
             "extra": "when its main work was committed",
             "start": ml["active_from"],
             "end": ml["active_to"],
-            "fill": ML_FILL,
-            "kind": "ml2025",
+            "n": 2,
             "source": (ml_repo, "git log"),
         },
         {
@@ -73,8 +62,7 @@ def events(data):
             "extra": f"{fmt.count(e1['cycles_run'])} cycles, {fmt.count(e1['records'])} records",
             "start": e1["started"],
             "end": e1["stopped"],
-            "fill": RK_FILL,
-            "kind": "epoch1",
+            "n": 1,
             "source": (rk_repo, "epochs/1/RUNSTATE.json"),
         },
         {
@@ -83,8 +71,7 @@ def events(data):
             "extra": "archive kept, not rescored",
             "start": e1["frozen_at"],
             "end": None,
-            "fill": RK_FILL,
-            "kind": "freeze",
+            "n": 1,
             "source": (rk_repo, "EPOCH.json"),
         },
         {
@@ -93,8 +80,7 @@ def events(data):
             "extra": f"verifier hash {e2['verifier_hash']}",
             "start": e2["started"],
             "end": None,
-            "fill": RK_FILL,
-            "kind": "epoch2",
+            "n": 1,
             "source": (rk_repo, ""),
         },
         {
@@ -103,8 +89,7 @@ def events(data):
             "extra": "nothing restarted it",
             "start": down["from"],
             "end": down["to"],
-            "fill": STOP_FILL,
-            "kind": "stopped",
+            "n": 3,
             "source": (rk_repo, ""),
         },
         {
@@ -113,8 +98,7 @@ def events(data):
             "extra": "",
             "start": snap,
             "end": None,
-            "fill": SNAP_FILL,
-            "kind": "snapshot",
+            "n": None,
             "source": ("data/sources.json", ""),
         },
     ]
@@ -154,53 +138,9 @@ def _axis(data):
     return x, a_end, b_start, ticks
 
 
-def _svg(data, evs):
+def _inner(data, evs, axis_y):
     x, a_end, b_start, ticks = _axis(data)
-    axis_y = TOP + ROW_H * len(evs)
-    height = axis_y + 28
-    snap_ev = evs[-1]
-    windows = [e for e in evs if e["end"] is not None]
-    points = [e for e in evs if e["end"] is None]
-    title = "Timeline of the 2025 ML project and the rk run's epochs"
-    desc = (
-        "Date axis from "
-        + fmt.day(data["novel"]["repo"].get("first_commit") or data["novel"]["repo"]["active_from"])[:7]
-        + " to "
-        + fmt.day(data["sources"]["snapshot_date"])
-        + ", broken between the two projects, one scale on both sides. Bars: "
-        + "; ".join(f"{e['what']}, {_dates_text(e)}" for e in windows)
-        + ". Points: "
-        + "; ".join(f"{e['what']}, {_dates_text(e)}" for e in points)
-        + "."
-    )
-    out = [
-        f'<svg viewBox="0 0 {WIDTH} {height}" role="img" '
-        f'aria-labelledby="{FIG_ID}-title {FIG_ID}-desc">',
-        f'<title id="{FIG_ID}-title">{fmt.esc(title)}</title>',
-        f'<desc id="{FIG_ID}-desc">{fmt.esc(desc)}</desc>',
-    ]
-
-    # Legend.
-    legend = [
-        ("bar", RK_FILL, "The rk run"),
-        ("bar", ML_FILL, "The 2025 ML project"),
-        ("bar", STOP_FILL, "Run stopped"),
-        ("dot", SNAP_FILL, "Snapshot date"),
-    ]
-    lx = float(LABEL_X)
-    for shape, fill, label in legend:
-        if shape == "bar":
-            out.append(
-                f'<rect class="legend-key" x="{_n(lx)}" y="12" width="12" height="12" fill="{fill}"/>'
-            )
-        else:
-            out.append(
-                f'<circle class="legend-key" cx="{_n(lx + 6)}" cy="18" r="{RADIUS}" fill="{fill}"/>'
-            )
-        out.append(
-            f'<text x="{_n(lx + 18)}" y="22" font-size="12" fill="currentColor">{fmt.esc(label)}</text>'
-        )
-        lx += 18 + len(label) * 6.8 + 22
+    out = [legend([(1, "The rk run"), (2, "The 2025 ML project"), (3, "Run stopped")], X1, 22)]
 
     # Row separators and vertical grid lines at the ticks.
     for i in range(len(evs)):
@@ -211,29 +151,29 @@ def _svg(data, evs):
     for d, _label in ticks:
         tx = x(d)
         out.append(
-            f'<path class="grid" d="M{_n(tx)} {TOP}V{axis_y}" stroke="var(--grid)" stroke-width="1" fill="none"/>'
+            f'<path class="grid" d="M{num(tx)} {TOP}V{axis_y}" stroke="var(--grid)" stroke-width="1" fill="none"/>'
         )
 
     # Snapshot reference line, behind the marks.
-    sx = x(_date(snap_ev["start"]))
+    sx = x(_date(evs[-1]["start"]))
     out.append(
-        f'<path class="ref" d="M{_n(sx)} {TOP}V{axis_y}" stroke="var(--text-2)" stroke-width="1" fill="none"/>'
+        f'<path class="ref" d="M{num(sx)} {TOP}V{axis_y}" stroke="var(--text-2)" stroke-width="1" fill="none"/>'
     )
 
     # Axis in two parts with a break marker between them.
     out.append(
-        f'<path class="axis" d="M{X0} {axis_y}H{_n(a_end)}M{_n(b_start)} {axis_y}H{X1}" '
+        f'<path class="axis" d="M{X0} {axis_y}H{num(a_end)}M{num(b_start)} {axis_y}H{X1}" '
         f'stroke="var(--text-2)" stroke-width="1" fill="none"/>'
     )
     mid = (a_end + b_start) / 2
     out.append(
-        f'<path class="axis-break" d="M{_n(mid - 7)} {axis_y + 6}L{_n(mid - 1)} {axis_y - 6}'
-        f'M{_n(mid + 1)} {axis_y + 6}L{_n(mid + 7)} {axis_y - 6}" '
+        f'<path class="axis-break" d="M{num(mid - 7)} {axis_y + 6}L{num(mid - 1)} {axis_y - 6}'
+        f'M{num(mid + 1)} {axis_y + 6}L{num(mid + 7)} {axis_y - 6}" '
         f'stroke="var(--text-2)" stroke-width="1" fill="none"/>'
     )
     for d, label in ticks:
         out.append(
-            f'<text x="{_n(x(d))}" y="{axis_y + 18}" font-size="12" text-anchor="middle" '
+            f'<text x="{num(x(d))}" y="{axis_y + 18}" font-size="12" text-anchor="middle" '
             f'fill="var(--text-2)">{fmt.esc(label)}</text>'
         )
 
@@ -241,66 +181,56 @@ def _svg(data, evs):
     for i, ev in enumerate(evs):
         yc = TOP + i * ROW_H + 19
         dates = _dates_text(ev)
-        out.append(
-            f'<text x="{LABEL_X}" y="{yc - 2}" font-size="13" fill="currentColor">{fmt.esc(ev["name"])}</text>'
-        )
-        out.append(
-            f'<text x="{LABEL_X}" y="{yc + 13}" font-size="12" fill="var(--text-2)">{fmt.esc(dates)}</text>'
-        )
-        tip = f"{ev['what']}: {dates}"
-        if ev["extra"]:
-            tip += f", {ev['extra']}"
-        if ev["end"] is None:
-            cx = x(_date(ev["start"]))
+        out.append(text(LABEL_X, yc - 2, ev["name"], size=13))
+        out.append(text(LABEL_X, yc + 13, dates, muted=True))
+        tip = f"{ev['what']}: {dates}" + (f", {ev['extra']}" if ev["extra"] else "")
+        xa = x(_date(ev["start"]))
+        if ev["n"] is None:
             out.append(
-                f'<circle class="mark event {ev["kind"]}" cx="{_n(cx)}" cy="{yc + 1}" r="{RADIUS}" '
-                f'fill="{ev["fill"]}"><title>{fmt.esc(tip)}</title></circle>'
+                f'<circle class="mark event snapshot" cx="{num(xa)}" cy="{yc + 1}" r="4" '
+                f'fill="currentColor"><title>{fmt.esc(tip)}</title></circle>'
             )
+        elif ev["end"] is None:
+            out.append(dot(xa, yc + 1, ev["n"], tip))
         else:
-            xa = x(_date(ev["start"]))
-            xb = x(_date(ev["end"]))
-            w = max(xb - xa, 2.0)
-            out.append(
-                f'<rect class="mark window {ev["kind"]}" x="{_n(xa)}" y="{yc + 1 - BAR_H // 2}" '
-                f'width="{_n(w)}" height="{BAR_H}" fill="{ev["fill"]}"><title>{fmt.esc(tip)}</title></rect>'
-            )
-
-    out.append("</svg>")
-    return "\n".join(out)
+            out.append(bar(xa, yc + 1 - BAR_H // 2, max(x(_date(ev["end"])) - xa, 2.0), BAR_H, ev["n"], tip))
+    return "".join(out)
 
 
-def _table(evs):
-    rows = []
-    for ev in evs:
-        start = fmt.day(ev["start"])
-        end = fmt.day(ev["end"]) if ev["end"] is not None else start
-        repo, path = ev["source"]
-        src = f"<code>{fmt.esc(repo)}</code>"
-        if path:
-            src += f" <code>{fmt.esc(path)}</code>"
-        rows.append(
-            f"<tr><td>{fmt.esc(ev['what'])}</td><td>{start}</td><td>{end}</td><td>{src}</td></tr>"
-        )
-    return (
-        '<details class="data"><summary>Data table</summary>\n<table>\n'
-        "<thead><tr><th>Event</th><th>Start</th><th>End</th><th>Source</th></tr></thead>\n"
-        "<tbody>\n" + "\n".join(rows) + "\n</tbody>\n</table>\n</details>"
-    )
+def _source(ev):
+    repo, path = ev["source"]
+    return f"<code>{fmt.esc(repo)}</code>" + (f" <code>{fmt.esc(path)}</code>" if path else "")
 
 
 def figure(data):
     """The complete <figure id="timeline" class="chart"> element."""
     evs = events(data)
+    axis_y = TOP + ROW_H * len(evs)
+    ml = data["novel"]["repo"]
     snap = fmt.day(data["sources"]["snapshot_date"])
+    windows = [e for e in evs if e["end"] is not None]
+    points = [e for e in evs if e["end"] is None]
+    desc = (
+        f"Date axis from {fmt.day(ml.get('first_commit') or ml['active_from'])[:7]} to {snap}, "
+        "broken between the two projects, one scale on both sides. Bars: "
+        + "; ".join(f"{e['what']}, {_dates_text(e)}" for e in windows)
+        + ". Points: "
+        + "; ".join(f"{e['what']}, {_dates_text(e)}" for e in points)
+        + "."
+    )
     caption = (
         "When the 2025 ML project did its main work, and the rk run's two epochs up to the "
         f"snapshot on {snap}. The date axis is broken between October 2025 and late August "
         "2026; both parts share one scale, so bar lengths compare."
     )
-    return (
-        f'<figure id="{FIG_ID}" class="chart">\n'
-        + _svg(data, evs)
-        + f"\n<figcaption>{fmt.esc(caption)}</figcaption>\n"
-        + _table(evs)
-        + "\n</figure>"
-    )
+    rows = [[fmt.esc(ev["what"]), fmt.day(ev["start"]), fmt.day(ev["end"] or ev["start"]), _source(ev)]
+            for ev in evs]
+    return chart_figure({
+        "id": "timeline",
+        "height": axis_y + 28,
+        "title": "Timeline of the 2025 ML project and the rk run's epochs",
+        "desc": desc,
+        "inner": _inner(data, evs, axis_y),
+        "caption": fmt.esc(caption),
+        "table": table(["Event", "Start", "End", "Source"], rows),
+    })
