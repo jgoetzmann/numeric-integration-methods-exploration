@@ -2158,3 +2158,68 @@ guard, no push and no resume until `start.ps1` runs.
 side-track hash moves, and no record re-opens.
 
 ---
+
+## D47 - The lane ledger splits by UTC day, and a logon task starts the run after a reboot (2026-09-23)
+
+**Decision.** The owner closed both items D46 left open, on 2026-09-23.
+
+(a) *Ledger by day.* `lanesearch` writes each ledger line to
+`<lane>_archive/ledger/YYYY-MM-DD.jsonl`, filed under the UTC day of the record's own stamp, the
+same day that names its record file. `load_ledger` reads the pre-split `ledger.jsonl` first, then
+the days in date order. Nothing appends to `ledger.jsonl` any more. The runner stages closed
+ledger days the way it stages closed archive days, together with the pre-split file, in one
+batched `git add`. D46(b)'s once-a-day ledger staging is gone. Editing `lanesearch.py` moved
+`lanesearch_code_hash` from 229c1559 to d99e4d2d, so every lane record measured before the edit
+re-opened, and the lanes are measuring those candidates again under the new hash. The owner
+accepted that cost.
+
+(b) *Start at sign-in.* `autostart.ps1 -Install` registers the Task Scheduler task
+"rk-run autostart". It runs at the owner's sign-in after a one-minute delay, with no elevation,
+and is allowed to start and keep running on battery, because the watchdog owns the battery rule.
+The task waits up to ten minutes for Docker, and launches Docker Desktop once if Docker does not
+answer. Then it runs `start.ps1`, unless `run-stopped.txt` or `rk-work/STOP` exists, or `rk` and a
+watchdog are already up. `stop.ps1` now leaves `run-stopped.txt`, and only `start.ps1` deletes it,
+so a deliberate stop outlasts a reboot. The task logs to `autostart.log` at the workspace root.
+
+**Why.** (a) As one file, the adaptive index grew 4.7 to 10.4 MB a day (D46). It would have
+reached D46's 95 MiB guard in ten to twenty days and then stopped reaching git. A day's file is
+5 to 10 MB and never changes after its day. Rejected: keeping the single file and having the
+runner commit per-day copies of it. That avoids the re-open, but it keeps every line twice on
+disk and in the repository, and it leaves the lane reading one ever-growing file. The owner
+preferred to pay the re-open while it is cheap, 143 cycles into the epoch.
+
+(b) The container may come back with Docker, but the watchdog and the stats writer are host
+processes. A reboot therefore left the run with no guard, no push and no resume until someone
+ran `start.ps1`. Docker Desktop's own sign-in start is off on this machine (`AutoStart: false`),
+which is why the task launches it. Rejected: a restart policy of `always`, which brings back the
+container and nothing else, and a Windows service, which needs elevation that a per-user task
+does not.
+
+**Evidence.** `rk-harness/rk_harness/lanesearch.py`: `ledger_dir` (line 341), `ledger_path`
+(353), `legacy_ledger_path` (358), `ledger_paths` (363), `every_ledger_path` (373),
+`append_record` (1118), `load_ledger` (1148). `rk-harness/rk_harness/runner.py`: `_stage` (819),
+`_closed_days` (843), `_commit_outputs` (848). The workspace `autostart.ps1`, and its copy in
+`scripts/workspace/`, which `hygiene.py` now byte-compares. Tests:
+`test_the_ledger_is_one_file_per_utc_day_read_after_the_pre_split_file` in
+`tests/test_t16_lanesearch.py`, `test_ST29` to `test_ST31` in `tests/test_t13_sidetrack.py`, and
+`test_C44` in `tests/test_t5_config_watch.py`. Deployed 2026-09-23. The run stopped cleanly at
+cycle 143 through `stop.ps1`, which left `run-stopped.txt`. The task, started by hand, logged
+"run-stopped.txt is present ... not starting" and left the container down. With the file removed,
+the same task ran `start.ps1` and the run came up at 05:07:31Z. The watchdog it launched outlived
+the task's own process. Cycle 144 committed the final lines of both pre-split ledgers. Both lanes
+then wrote `ledger/2026-09-23.jsonl` under d99e4d2d, and by 05:14Z the elites held 32 entries
+each, from 223 adaptive and 78 implicit candidates measured again.
+
+**Consequence.** No lane file grows without bound in git. Today's ledger files, like today's
+archive file, reach git the first cycle after 00:00 UTC. After a reboot the run comes back within
+about a minute of sign-in, plus Docker's start time, unless the owner stopped it.
+
+**Closes.** D46's "Still open": the ledger's size ceiling, and the reboot gap.
+
+**Epoch impact.** None on the scored archive. No verifier-pinned file is edited and
+`VERIFIER_HASH` is untouched. `lanesearch_code_hash` moves, which re-opens every lane record: the
+lane elites D40 admits to pages were rebuilt from records measured under d99e4d2d.
+`sidetrack.code_hash` does not move (2b9f0b0f before and after), because `lanesearch.py` is not in
+`SIDETRACK_FILES`.
+
+---
