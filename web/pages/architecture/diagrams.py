@@ -17,6 +17,9 @@ MAX_WIDTH_PX = 440
 RK_ID = "arch-rk"
 NOVEL_ID = "arch-novel"
 
+# Starts the line that marks a part of the 2025 pipeline that broke.
+FLAW = "Flaw:"
+
 
 # ---------------------------------------------------------------- helpers
 
@@ -158,10 +161,10 @@ def _rect(x, y, w, h, cls, fill, stroke, stroke_width, rx=4, extra=""):
 
 
 def _box(x, y, w, title, details=(), audit=None):
-    """A labelled box: bold title line(s), detail lines, optional audit line.
+    """A labelled box: bold title line(s), detail lines, optional flaw line.
 
-    A box with an audit line gets a heavy outline in --series-2; the audit line
-    itself starts with "Audit:" so the mark never rests on color alone.
+    A box with a flaw line gets a heavy outline in --series-2; the flaw line
+    itself starts with FLAW so the mark never rests on color alone.
     Returns (svg, height).
     """
     titles = [title] if isinstance(title, str) else list(title)
@@ -254,7 +257,7 @@ def arch_rk(data):
                       ["written on the host,", "so a dead container", "still gets reported"])
     nodes.append(s)
     s, h_start = _box(x2, row_y, hw, "start command",
-                      ["run by hand after", "a reboot; starts the", "container and watchdog"])
+                      ["run by hand after", "a reboot; starts the", "run and the watchdog"])
     nodes.append(s)
     row_h = max(h_stats, h_start)
     wd_y = row_y + row_h + 16
@@ -387,7 +390,7 @@ def arch_rk(data):
 # ---------------------------------------------------------------- arch-novel
 
 def arch_novel(data):
-    """The 2025 ML project's pipeline, with the audit's breaks labelled in text."""
+    """The 2025 ML project's pipeline, with the parts that broke labelled in text."""
     num = novel_numbers(data["novel"])
     marker = f"{NOVEL_ID}-arrow"
     edges, nodes, labels = [], [], []
@@ -402,14 +405,14 @@ def arch_novel(data):
         (f"generator (trials {num['nn_span']})",
          ["an MLP whose optimizer is never stepped",
           f"fallback: a random table reseeded to {num['seed']}"],
-         "Audit: never trained (N4)"),
+         f"{FLAW} never trained (N4)"),
         (f"evolution (trials {num['evo_span']})",
          ["population seeded with RK4 or",
           "Dormand-Prince and perturbed copies"],
-         "Audit: saved table stays the seed (N2)"),
+         f"{FLAW} saved table stays the seed (N2)"),
         (f"random sampling (trial {num['t16']})",
          ["random tables, no mutation or crossover"],
-         "Audit: fitness read a missing field (N7)"),
+         f"{FLAW} fitness read a missing field (N7)"),
     ]
     y = 8
     mids = []
@@ -434,12 +437,12 @@ def arch_novel(data):
 
     s, h_s = _box(bx, row_y, hw, "stepper",
                   ["fixed step; uses", "only the explicit", "part of a table"],
-                  "Audit: a bug (N5)")
+                  f"{FLAW} a bug (N5)")
     nodes.append(s)
     s, h_r = _box(x2, row_y, hw, "reference solver",
                   ["Dormand-Prince", "(SciPy RK45),",
                    f"{num['ref_families']} of {num['eval_families']} test families"],
-                  "Audit: artifact (N6)")
+                  f"{FLAW} artifact (N6)")
     nodes.append(s)
     row_end = row_y + max(h_s, h_r)
 
@@ -453,21 +456,21 @@ def arch_novel(data):
     s, h_c = _box(bx, c_y, bw, "composite score",
                   ["weighted accuracy, efficiency, stability",
                    f"clipped at {num['clip']}: all {num['logged']} logged scores are {num['clip']}"],
-                  "Audit: nothing left to select on (N2, N3)")
+                  f"{FLAW} nothing left to select on (N2, N3)")
     nodes.append(s)
     c_mid = c_y + h_c // 2
     t_y = c_y + h_c + 18
     edges.append(_edge([(mid_x, c_y + h_c), (mid_x, t_y)], marker))
     s, h_t = _box(bx, t_y, bw, "best-table tracker",
                   ["replaces the saved table only on a", "strictly higher score"],
-                  "Audit: ties keep the seeded table (N2)")
+                  f"{FLAW} ties keep the seeded table (N2)")
     nodes.append(s)
 
     # the surrogate trains on the scores through the right-hand channel; nothing reads it
     u_y = t_y + h_t + 18
     s, h_u = _box(bx, u_y, bw, "surrogate",
                   ["an MLP trained by gradient descent", "on the scored candidates"],
-                  "Audit: nothing reads its output (N4)")
+                  f"{FLAW} nothing reads its output (N4)")
     nodes.append(s)
     c_right = c_y + h_c // 2
     u_mid = u_y + h_u // 2
@@ -481,7 +484,7 @@ def arch_novel(data):
                         fill="var(--text-2)", anchor="middle", rotate=True))
 
     height = u_y + h_u + 10
-    title = "Pipeline of the 2025 ML project, with the audit's findings"
+    title = "Pipeline of the 2025 ML project and where it broke"
     desc = (
         f"Three sources propose Butcher tables: a generator (trials {num['nn_span']}) that is "
         f"never trained and falls back to a random table reseeded to {num['seed']}; evolution "
@@ -492,8 +495,8 @@ def arch_novel(data):
         f"{num['ref_families']} of the {num['eval_families']} test families. The error feeds a "
         f"composite score clipped at {num['clip']}, which feeds a best-table tracker and, "
         "through selection, the evolution loop. The scores also train a surrogate model by "
-        "gradient descent, and nothing reads its output. Labels starting with \"Audit:\" mark "
-        f"breaks at the generator, the evolution seed, trial {num['t16']}'s fitness, the "
+        f"gradient descent, and nothing reads its output. Labels starting with \"{FLAW}\" "
+        f"mark breaks at the generator, the evolution seed, trial {num['t16']}'s fitness, the "
         "stepper, the reference solver's coverage, the clipped score, the tracker and the "
         "surrogate."
     )

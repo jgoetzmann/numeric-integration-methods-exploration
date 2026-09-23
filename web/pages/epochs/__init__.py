@@ -62,8 +62,9 @@ def _cap(s):
     return s[:1].upper() + s[1:]
 
 
-def _claim(cid):
-    return f'<a href="claims.html#{cid}">claim {cid}</a>'
+def _claim(cid, text):
+    """`text` linked to claim `cid` on the claims page."""
+    return f'<a href="claims.html#{cid}">{text}</a>'
 
 
 def _code(s):
@@ -97,12 +98,14 @@ def _trace_row(rk, name):
             return m
 
 
-def _lead():
+def _lead(data):
+    snap = fmt.day(data["sources"]["snapshot_date"])
     return (
-        "<p>The rk run is split into epochs. Every scored record stores the hash of the pinned "
-        f"files that do the scoring ({_claim('R11')}). When one of those files has to change, "
-        "the run starts a new epoch and leaves the old archive as it was. There have been two "
-        "epochs so far.</p>"
+        "<p>The rk run is split into epochs. Every scored record stores "
+        f"{_claim('R11', 'the hash of the pinned files that do the scoring')}. When one of those "
+        "files has to change, the run starts a new epoch and leaves the old archive as it was. "
+        f"The figures below date from {snap}, when the run was in its second epoch; "
+        f'<a href="{FINDINGS_URL}">the run\'s findings site</a> has current ones.</p>'
     )
 
 
@@ -163,9 +166,11 @@ def _epoch1(data):
     setup = rk["setup"]
     n_classical = len(fr["classical"])
     n_heldout = len(setup["heldout_problems"])
+    ran = f"Epoch 1 ran from {fmt.day(e1['started'])} to {fmt.day(e1['stopped'])}"
+    lead = f"{fmt.ratio(ch['lead'])} lower held-out error"
     p1 = (
-        f"<p>Epoch 1 ran from {fmt.day(e1['started'])} to {fmt.day(e1['stopped'])} "
-        f"({_claim('R12')}). It completed {fmt.count(e1['cycles_run'])} search cycles over "
+        f"<p>{_claim('R12', ran)}. "
+        f"It completed {fmt.count(e1['cycles_run'])} search cycles over "
         f"{fmt.count(e1['archive_day_count'])} days of archive and wrote "
         f"{fmt.count(e1['records'])} scored records. {_hash_sentence(e1)} When it stopped, "
         f"the search was in phase {fmt.count(e1['phase_at_stop'])} and "
@@ -174,9 +179,9 @@ def _epoch1(data):
     p_auto = (
         "<p>The run is autonomous in a narrow sense: no person chose what the search tried or "
         "how it scored, and the pinned scorer never changed. It was not free of human "
-        f"operation. The runner started {fmt.count(e1['events']['runner_started'])} times "
-        "during epoch 1 as people deployed changes to the harness code outside the pinned "
-        "files.</p>"
+        f"operation, though. The runner started {fmt.count(e1['events']['runner_started'])} "
+        "times during epoch 1, including restarts to deploy changes to the harness code outside "
+        "the pinned files.</p>"
     )
     found = ch["found_at_cycle"]
     later_orders = sorted(
@@ -186,25 +191,26 @@ def _epoch1(data):
     if later_orders:
         orders = ", including elites of " + _join(f"order {fmt.count(o)}" for o in later_orders)
     p2 = (
-        f"<p>Its main result came early. The champion, {_code(ch['hash'])}, appeared at cycle "
-        f"{fmt.count(found)}, and no later cycle in epoch 1 lowered the best held-out error "
-        f"({_claim('R6')}). The search kept filling and improving other cells: "
-        f"{fmt.count(fr['discovered_first_seen_after_champion'])} of the "
+        f"<p>Its main result came early. The champion, {_code(ch['hash'])}, "
+        f"{_claim('R6', f'appeared at search cycle {fmt.count(found)}')}, and no later cycle in "
+        "epoch 1 lowered the best held-out error. The search kept filling and improving other "
+        f"cells: {fmt.count(fr['discovered_first_seen_after_champion'])} of the "
         f"{fmt.count(fr['cells_held_by_discovered'])} discovered cell elites appeared after "
-        f"cycle {fmt.count(found)}{orders}. The last new cell was filled on "
+        f"that cycle{orders}. The last new cell was filled on "
         f"{fmt.day(e1['last_new_cell_ts'])}, and the last improvement to any cell came on "
         f"{fmt.day(e1['last_improvement_ts'])}.</p>"
     )
     p3 = (
         f"<p>Inside Q15 fixed point with floor rounding, at the {fmt.count(setup['budget_cycles'])}"
-        f"-cycle budget, the champion has {fmt.ratio(ch['lead'])} lower held-out error than "
-        f"{_code(ch['best_classical'])}, the best of the {_word(n_classical)} classical methods "
-        f"({_claim('R1')}). That figure uses the analytic cost model and magnitude weighting over "
-        f"{_word(n_heldout)} held-out problems. It moves in both directions under other cost "
+        f"-cycle budget, the champion has {_claim('R1', lead)} than "
+        f"{_code(ch['best_classical'])}, the best of the {_word(n_classical)} classical methods. "
+        "That figure uses the analytic cost model and magnitude weighting over "
+        f"{_word(n_heldout)} held-out problems, and it moves in both directions under other cost "
         'bases and weightings, as the <a href="#grid">counterfactual grid</a> below shows. It '
-        "is also an epoch-1 figure, on the cost model the trace later found had <code>rk4</code> "
-        "and <code>rk38</code> in the wrong order, and epoch 2 has not re-measured it. The full "
-        'results are on the <a href="rk.html">rk run page</a>.</p>'
+        "is also an epoch-1 figure, on the cost model that "
+        + _claim("R7", "a trace later found had <code>rk4</code> and <code>rk38</code> in the "
+                 "wrong order")
+        + ", and epoch 2 has not re-measured it.</p>"
     )
     table = _archive_table(e1["archive_days"], "Epoch 1 records per archive day")
     return (
@@ -237,7 +243,7 @@ def _froze(data):
         )
     p1 = f"<p>{_prose(ep['why_epoch1_froze'])}</p>"
     p2 = (
-        f"<p>A host-side audit did the compiling and tracing ({_claim('R7')}). Under the "
+        f"<p>{_claim('R7', 'A host-side audit')} did the compiling and tracing. Under the "
         f"epoch-1 rule with the fast multiplier ({_code(model)}), <code>rk4</code> cost "
         f"{fmt.count(rk4['analytic'][model])} cycles per step and <code>rk38</code> "
         f"{fmt.count(rk38['analytic'][model])}. The compiled step, counted over the same scope "
@@ -252,8 +258,8 @@ def _froze(data):
         "<p>With the pinned files changed, the verifier hash moved from "
         f"{_code(e1['verifier_hash'])} over {fmt.count(e1['verifier_files'])} files to "
         f"{_code(e2['verifier_hash'])} over {fmt.count(e2['verifier_files'])}. The run did not "
-        "rescore the epoch-1 archive under the new model. Results on this site come from "
-        "epoch 1 unless they say otherwise.</p>"
+        "rescore the epoch-1 archive under the new model, so epoch 1's results stand as they "
+        "were scored, on the old one.</p>"
     )
     p4 = (
         f"<p>Epoch 1's last cycle ran on {fmt.day(e1['stopped'])}, and epoch 2 started on "
@@ -286,8 +292,8 @@ def _epoch2(data):
     )
     p1 = (
         f"<p>Epoch 2 started at {_utc(e2['started'])} on {fmt.day(e2['started'])} under "
-        f"verifier hash {_code(e2['verifier_hash'])}. As of {fmt.day(e2['as_of'])} it had "
-        f"reached cycle {fmt.count(e2['cycle'])} and written {fmt.count(e2['records'])} records "
+        f"verifier hash {_code(e2['verifier_hash'])}. By {fmt.day(e2['as_of'])} it had "
+        f"reached search cycle {fmt.count(e2['cycle'])} and written {fmt.count(e2['records'])} records "
         "to its own archive. That count comes from the running work tree, so it includes the "
         "day's archive file before the run commits it at the day's close. Its cycles rotate "
         f"among {_word(len(lanes))} lanes: the explicit lane scores candidates in Q15 into the "
@@ -302,15 +308,14 @@ def _epoch2(data):
         f"{_word(len(days))} days so far: {day_text}.</p>"
     )
     p3 = (
-        "<p>Two decisions followed that stop. The watchdog now resumes the stops it makes "
-        "itself, once the condition behind the stop clears (decision D46). Decision D47 added a "
-        "logon task that started the run after a reboot, and that task has since been removed. "
-        "After a reboot the run is started by hand, with one command: "
-        "<code>start-integration-harness</code>.</p>"
+        "<p>Two decisions followed that stop. Under D46 the watchdog resumes the stops it makes "
+        "itself once the condition behind the stop clears. D47 added a logon task to start the "
+        "run after a reboot, and that task has since been removed. After a reboot a person "
+        "starts the run by hand with one command, <code>start-integration-harness</code>.</p>"
     )
     return (
         "<section>\n"
-        '<h2 id="epoch-2">Epoch 2, as of the snapshot</h2>\n'
+        '<h2 id="epoch-2">Epoch 2 so far</h2>\n'
         f"{p1}\n{p2}\n{p3}\n"
         "</section>"
     )
@@ -358,13 +363,14 @@ def _premise(data):
     proceed, kill, neither = _premise_outcomes(pr)
 
     p1 = (
-        "<p>Before the search started, the run tested its own premise. The test ran "
+        f"<p>Before the search started, the run {_claim('R9', 'tested its own premise')}. "
+        "The test ran "
         f"{_join(_code(m) for m in methods)} in Q15 on one problem, {_code(pr['problem'])}, "
         f"under both cost models, {_join(_code(m) for m in models)}. It measured the share of "
         "each step's cycles spent on coefficient arithmetic, and the step size at which "
         "rounding error overtakes truncation error. The thresholds were committed to the "
-        "project's own repository before the test ran, not to an outside registry "
-        f"({_claim('R9')}). The run would proceed if coefficient arithmetic took at least "
+        "project's own repository before the test ran, not to an outside registry. The run "
+        "would proceed if coefficient arithmetic took at least "
         f"{fmt.pct(th['proceed_fraction'], 0)} of a step's cycles and rounding error overtook "
         f"truncation error at a practical step size, between {fmt.sig(th['practical_h_min'])} "
         f"and {fmt.sig(th['practical_h_max'])}. It would stop if coefficient arithmetic took "
@@ -426,9 +432,7 @@ def _ledger():
         "<p>The run keeps a ledger of hypotheses about its own search. Each hypothesis is a "
         "predicate in a small closed grammar that a hand-written parser reads, and code "
         "evaluates the predicate to assign its verdict. No model decides whether a hypothesis "
-        "held. This "
-        "site quotes no counts from the ledger, because it is not among the documents the run "
-        "treats as sources for published numbers.</p>"
+        "held. The run does not count the ledger among its sources for published numbers.</p>"
     )
 
 
@@ -586,7 +590,7 @@ def _grid(data):
     )
     return (
         '<h3 id="grid">The counterfactual grid</h3>\n'
-        f"<p>The run recomputed the headline lead ({_claim('R1')}) under "
+        f"<p>The run recomputed {_claim('R1', 'the headline lead')} under "
         f"{_word(len(weightings))} weightings of the held-out problems and {_word(len(bases))} "
         f"cost bases, {_word(len(cells))} cells in all, and publishes every cell. Each ratio is "
         "the best classical method's held-out error over the champion's, so above 1 the "
@@ -603,22 +607,9 @@ def _practice(data):
     return (
         "<section>\n"
         '<h2 id="research-practice">Research practice</h2>\n'
-        "<p>The run publishes its checks and its negative results next to its headline. The "
-        "four practices below matter for reading its claims.</p>\n"
+        "<p>The run publishes its checks and its negative results next to its headline "
+        "result.</p>\n"
         f"{_premise(data)}\n{_ledger()}\n{_literature()}\n{_grid(data)}\n"
-        "</section>"
-    )
-
-
-def _snapshot(data):
-    snap = fmt.day(data["sources"]["snapshot_date"])
-    return (
-        "<section>\n"
-        '<h2 id="about-this-snapshot">About this snapshot</h2>\n'
-        f"<p>This page was built from data read on {snap}. The run was still going on that "
-        "date, so the epoch 2 counts above will go out of date. For current numbers, see the "
-        f'findings site the run rebuilds every cycle: <a href="{FINDINGS_URL}">'
-        "jgoetzmann.github.io/rk-findings</a>.</p>\n"
         "</section>"
     )
 
@@ -626,12 +617,11 @@ def _snapshot(data):
 def build(data):
     parts = [
         "<h1>Epochs and research</h1>",
-        _lead(),
+        _lead(data),
         _dates(data),
         _epoch1(data),
         _froze(data),
         _epoch2(data),
         _practice(data),
-        _snapshot(data),
     ]
     return "\n".join(parts) + "\n"

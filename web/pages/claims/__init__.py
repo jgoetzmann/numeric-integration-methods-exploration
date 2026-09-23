@@ -7,8 +7,8 @@ from web import fmt
 SLUG = "claims.html"
 TITLE = "Claims audit"
 DESCRIPTION = (
-    "Every claim the other pages cite by id, about the rk run and the 2025 ML project, "
-    "with its verdict, its limits and links to the files that show it."
+    "Every claim about the rk run and the 2025 ML project, with its verdict, its limits "
+    "and links to the files that show it."
 )
 
 VERDICT_LABELS = {
@@ -35,22 +35,20 @@ GROUPS = (
         "The rk run",
         "The rk run's Q15 results come from epoch 1. They hold inside Q15 fixed point "
         "with floor rounding at the run's fixed cycle budget, under the conditions each "
-        "claim lists. In float64, <code>rk4</code> is far more accurate than the champion, "
-        'as <a href="#R5">R5</a> records.',
+        'claim lists. In float64, <a href="#R5"><code>rk4</code> is far more accurate than '
+        "the champion</a>.",
     ),
     (
         "novel",
         "The 2025 ML project",
-        "Where <code>Novel-Numerical-Integration-Methods</code> made a claim itself, "
-        "in its README or its analysis report, this page quotes the original wording "
-        "and gives the correction after it. The audit also credits what the project "
-        "built and measured.",
+        'The project\'s <a href="#N1">benchmark ran</a>, and its <a href="#N9">evaluation '
+        "harness works for explicit tables</a>, both with limits. Its main conclusions from "
+        "2025 did not hold.",
     ),
     (
         "both",
         "Across both projects",
-        "These claims cover both projects. Each rests on claims in the two groups "
-        "above and links to them.",
+        "Each of these draws on both projects and names the claims above that it rests on.",
     ),
 )
 
@@ -70,7 +68,7 @@ def _evidence_item(ev, repos):
         note = ""
     else:
         href = f"{repo['url']}/tree/{repo['commit']}"
-        note = ' <span class="evidence-note">(the link opens the repository at this commit)</span>'
+        note = ' <span class="evidence-note">(opens the repository at this commit)</span>'
     text = f"<code>{fmt.esc(path)}</code>"
     if at:
         text += f" at <code>{fmt.esc(at)}</code>"
@@ -113,7 +111,7 @@ def _article(claim, repos):
         f"{fmt.esc(VERDICT_LABELS[verdict])}</span>"
     )
     if claim.get("headline"):
-        meta += ' <span class="headline-tag">Headline claim on the <a href="index.html">story page</a></span>'
+        meta += ' <span class="headline-tag"><a href="index.html">Headline claim</a></span>'
     parts.append(f'<p class="claim-meta">{meta}</p>')
 
     if verdict in QUOTED_VERDICTS:
@@ -164,24 +162,13 @@ def build(data: dict) -> str:
     repos = {r["name"]: r for r in sources["repos"]}
     claims = claims_doc["claims"]
     verdict_order = [v for v in claims_doc["verdicts"] if v in VERDICT_LABELS]
-    snapshot = fmt.esc(fmt.day(sources["snapshot_date"]))
 
     out = ["<h1>Claims audit</h1>"]
     out.append(
         '<section class="intro">\n'
-        "<p>This page lists every claim the other pages of this site cite by id. Each "
-        "one carries a verdict, the conditions it holds under, and links to the files "
-        "that show it, pinned to the commits named in the footer.</p>\n"
-        "<p>The audit was done in September 2026. It checked the claims about the rk run "
-        f"against that run's code and documents as of the snapshot on {snapshot}, and the "
-        "claims about the 2025 ML project against that project's code and data. Where "
-        "the 2025 project published a claim the files do not support, this page keeps "
-        "its original wording in a block quote beside the correction. Three adversarial "
-        "reviews of the whole site, run before it was published, shaped the limits "
-        "below.</p>\n"
-        "<p>A verdict is always written out in words. Claims marked not supported are "
-        "claims this site does not make; they stay listed so each correction sits next "
-        "to the claim it replaces.</p>\n"
+        "<p>Each claim below has its verdict, the conditions it holds under and links to the "
+        "files that show it. For the 2025 ML project, each corrected claim keeps its original "
+        "wording beside the correction.</p>\n"
         "</section>"
     )
 

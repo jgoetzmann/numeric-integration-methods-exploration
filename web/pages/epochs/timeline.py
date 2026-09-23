@@ -61,7 +61,7 @@ def events(data):
             "what": "Epoch 1 runs",
             "extra": (
                 f"{fmt.count(e1['cycles_run'])} search cycles, {fmt.count(e1['records'])} records, "
-                f"runner started {fmt.count(e1['events']['runner_started'])} times for deploys"
+                f"runner started {fmt.count(e1['events']['runner_started'])} times"
             ),
             "start": e1["started"],
             "end": e1["stopped"],
@@ -97,7 +97,7 @@ def events(data):
         },
         {
             "name": "Snapshot",
-            "what": "Snapshot date of this site's data",
+            "what": "Data snapshot",
             "extra": "",
             "start": snap,
             "end": None,

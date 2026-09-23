@@ -89,19 +89,15 @@ def _footer(data: dict) -> str:
             findings_site = repo["site"]
     lines = [
         '<footer class="site-footer">',
-        f'<p>Snapshot taken <time datetime="{esc(snapshot)}">{esc(snapshot)}</time>. '
-        "Every number on this site comes from <code>data/*.json</code>, read from these "
+        f'<p>Figures as of <time datetime="{esc(snapshot)}">{esc(snapshot)}</time>, from these '
         "repositories at the commits shown:</p>",
         '<ul class="sources">',
         *items,
         "</ul>",
     ]
     lines.append(
-        "<p>The findings site regenerates every cycle, so its numbers can be newer than "
-        f'these: <a href="{esc(findings_site)}">rk-findings site</a>.</p>'
-    )
-    lines.append(
-        "<p>Built by <code>tools/build.py</code> as static HTML with no JavaScript.</p>"
+        f'<p>The run continues; current numbers are on the <a href="{esc(findings_site)}">'
+        "rk-findings site</a>, which it rebuilds every search cycle.</p>"
     )
     lines.append("</footer>")
     return "\n".join(lines)

@@ -60,10 +60,9 @@ def and_list(items):
     return ", ".join(items[:-1]) + " and " + items[-1]
 
 
-def claim_ref(*ids):
-    links = ", ".join(f'<a href="claims.html#{esc(i)}">{esc(i)}</a>' for i in ids)
-    label = "claim" if len(ids) == 1 else "claims"
-    return f"({label} {links})"
+def claim_link(cid, inner):
+    """A key phrase (already escaped HTML) linked to its claim on claims.html."""
+    return f'<a href="claims.html#{esc(cid)}">{inner}</a>'
 
 
 def label_of(mapping, key):
@@ -150,7 +149,7 @@ def frontier_chart(rk):
     worst_disc = max(r["heldout_error"] for r in discovered)
     best_cls = min(r["heldout_error"] for r in classical)
     if worst_disc < best_cls:
-        apart = "Every discovered elite sits below every classical method. "
+        apart = "Every discovered elite has lower error than every classical method. "
     else:
         apart = ""
     caption = (
@@ -158,9 +157,8 @@ def frontier_chart(rk):
         f"methods and the {fmt.count(len(discovered))} discovered cell elites of epoch 1, in Q15 "
         f"with floor rounding at the {fmt.count(setup['budget_cycles'])}-cycle budget, on the "
         f"analytic {code(setup['cost_model'])} cost model with magnitude weighting. Lower is "
-        f"better. {apart}Elites were picked on these errors, so they carry selection bias. The "
-        f"champion {code(champ['hash'])} and {code(best)}, the best classical method, are "
-        f"labelled {claim_ref('R1', 'R2')}." + source_note(fr.get("source"))
+        f"better. {apart}Elites were picked on these errors, so they carry selection bias."
+        + source_note(fr.get("source"))
     )
     return {
         "id": "rk-frontier",
@@ -242,26 +240,30 @@ def counterfactual_chart(rk):
         f"The ratio of the best classical method's held-out error to the champion's, for "
         f"{word(len(weightings))} weightings of the held-out problems and {word(len(bases))} cost "
         f"bases, in Q15 with floor rounding at the {fmt.count(budget)}-cycle budget, epoch 1. "
-        f"Above 1 the champion leads. The published {fmt.ratio(pub['ratio'])} is the analytic, "
-        f"magnitude-weighted cell."
+        f"Above 1 the champion leads."
     )
     pairs = []
-    for w in ("equal_reference_norm", "equal_median_anchor"):
+    for w in ("magnitude", "equal_reference_norm", "equal_median_anchor"):
         a, t = cell(w, "analytic"), cell(w, "traced_whole_step")
         if a and t:
-            pairs.append(f"{label_of(_WEIGHTING, w)} weighting gives {fmt.ratio(a['ratio'])} "
-                         f"analytic and {fmt.ratio(t['ratio'])} traced")
+            name = label_of(_WEIGHTING, w)
+            if w == "magnitude":
+                name += " weighting, the published one,"
+            else:
+                name += " weighting"
+            pairs.append(f"{name} gives {fmt.ratio(a['ratio'])} analytic and "
+                         f"{fmt.ratio(t['ratio'])} traced")
     if pairs:
         joined = "; ".join(pairs)
         caption += " " + joined[0].upper() + joined[1:] + "."
     med_tr = cell("equal_median_anchor", "traced_whole_step")
     if med_tr and med_tr["ratio"] < 1:
-        caption += (f" The source reads the {fmt.ratio(med_tr['ratio'])} cell as that weighting "
-                    f"magnifying the champion's pendulum error, not as the champion losing by "
-                    f"that factor.")
+        caption += (f" The rk-overview analysis reads the {fmt.ratio(med_tr['ratio'])} cell as "
+                    f"that weighting magnifying the champion's pendulum error, not as the "
+                    f"champion losing by that factor.")
     caption += (f" The traced whole-step basis uses the compiled step's cycle count only as the "
-                f"budget denominator, and neither basis is the full cost of a step on a chip "
-                f"{claim_ref('R1')}." + source_note(cf.get("source")))
+                f"budget denominator, and neither basis is the full cost of a step on a chip."
+                + source_note(cf.get("source")))
     return {
         "id": "rk-counterfactual",
         "height": H,
@@ -355,19 +357,19 @@ def validation_q15_chart(rk):
     caption = (
         f"Q15 error with floor rounding at the {fmt.count(budget)}-cycle budget on the "
         f"out-of-sample problems: the champion {code(champ)} against the {best_label}{run_names} "
-        f"on each problem {claim_ref('R4')}. Lower is better. The table adds the best of the "
-        f"{word(val['discovered_methods_run'])} discovered methods tried"
+        f"on each problem. Lower is better."
     )
     other = [p["problem"] for p in plotted
              if p.get("best_discovered_q15") is not None
              and p["best_discovered_q15"] != p["champion_q15"]]
+    n_tried = word(val["discovered_methods_run"])
     if other:
-        caption += (f", which on {and_list([code(n) for n in other])} is not the champion. The "
-                    f"table's last column compares that method with the best classical one.")
-    else:
-        caption += "."
-    caption += (f" {over_names} is not plotted because the champion overflowed there; "
-                f"its row is in the table.")
+        caption += (f" On {and_list([code(n) for n in other])} the best of the {n_tried} "
+                    f"discovered methods tried is not the champion; the data table gives its "
+                    f"error beside the others.")
+    if over:
+        rows_word = "that problem has" if len(over) == 1 else "those problems have"
+        caption += f" The champion overflowed on {over_names}, so {rows_word} no points."
     caption += source_note(val.get("source"))
     return {
         "id": "rk-validation-q15",
@@ -431,15 +433,16 @@ def validation_f64_chart(rk):
             f"{fmt.ratio(gap['champion_over_rk4_max'])} that of rk4.")
     ch = rk["champion"]
     caption = (
-        f"Error in float64 of the champion {code(champ)} and of {code('rk4')} on the "
+        f"Float64 error of the champion {code(champ)} and of {code('rk4')} on the "
         f"out-of-sample problems where both finish, each at the step count the "
         f"{fmt.count(budget)}-cycle budget gives it, so the cheaper champion takes more steps "
-        f"than {code('rk4')} {claim_ref('R5')}. Lower is better. The champion is order "
+        f"than {code('rk4')}. Lower is better. The champion is order "
         f"{fmt.count(ch['order'])} and {code('rk4')} order {fmt.count(RK4_ORDER)}."
     )
     if over:
-        caption += (f" {over_names} is not plotted: at their budgeted step sizes neither the "
-                    f"champion nor {code('rk4')} finished it, in Q15 or in float64.")
+        rows_word = "it has" if len(over) == 1 else "they have"
+        caption += (f" At their budgeted step sizes neither the champion nor {code('rk4')} "
+                    f"finished {over_names}, in Q15 or in float64, so {rows_word} no points.")
     caption += source_note(gap["source"])
     return {
         "id": "rk-validation-f64",
@@ -504,11 +507,13 @@ def floor_round_chart(rk):
 
     desc = (f"Grouped bar chart of search-set RMS error for {len(names)} classical methods under "
             f"{' and '.join(label_of(_MODE, m) for m in modes)}.")
+    model = fvr.get("cost_model") or rk["setup"]["cost_model"]
     caption = (
         f"Search-set RMS error of {word(len(names))} classical methods in Q15 at the "
-        f"{fmt.count(budget)}-cycle budget, under floor rounding and under round-to-nearest. Lower "
-        f"is better. The table adds the held-out errors, which are not plotted "
-        f"{claim_ref('R8')}." + source_note(fvr.get("source"))
+        f"{fmt.count(budget)}-cycle budget on the {code(model)} cost model, under floor rounding "
+        f"and under round-to-nearest, with no extra cycles charged for round-to-nearest. Lower "
+        f"is better. The held-out errors of the same runs are in the data table only."
+        + source_note(fvr.get("source"))
     )
     return {
         "id": "rk-floor-round",
@@ -593,11 +598,11 @@ def archive_chart(rk):
             f"{len(e2)} days of epoch 2 ending at {fmt.count(e2[-1]['cumulative'])}.")
     caption = (
         f"Cumulative scored records in the explicit archive at the end of each archive day, on a "
-        f"log scale {claim_ref('R12')}. Epoch 1 and epoch 2 are separate series because they "
-        f"were scored under different verifier hashes and cost models."
+        f"log scale. Epoch 1 and epoch 2 were scored under different verifier hashes and cost "
+        f"models, so they are separate series."
     )
-    caption += (f" The shaded band is the window from {esc(fmt.day(down['from']))} to "
-                f"{esc(fmt.day(down['to']))} when the run was stopped.")
+    caption += (f" The shaded band marks {esc(fmt.day(down['from']))} to "
+                f"{esc(fmt.day(down['to']))}, when the run was stopped.")
     caption += source_note(ep.get("source"))
     return {
         "id": "rk-archive-growth",

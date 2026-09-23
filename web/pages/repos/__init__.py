@@ -2,17 +2,16 @@
 
 One card per repository in sources.json (name, role, snapshot commit, links), how the
 repositories fit together, the private-workspace sentence (stated, never linked), and
-how to rebuild this site from fresh clones. Every data string goes through fmt.esc.
+how to rebuild the pages from fresh clones. Every data string goes through fmt.esc.
 """
 from web import fmt
 
 SLUG = "repos.html"
 TITLE = "Repositories"
-DESCRIPTION = ("Where the code and data behind both projects live, the commit this "
-               "snapshot read from each, and how to rebuild this site.")
+DESCRIPTION = ("The repositories behind the rk run and the 2025 ML project, the commit "
+               "each was read at, and the commands to rebuild from them.")
 
 THIS_REPO_URL = "https://github.com/jgoetzmann/numeric-integration-methods-exploration"
-FINDINGS_SITE = "https://jgoetzmann.github.io/rk-findings/"
 
 
 def _bare(url: str) -> str:
@@ -83,10 +82,7 @@ def build(data: dict) -> str:
     out = [
         "<h1>The repositories behind both projects</h1>",
         '<p class="lead">The rk run lives in four repositories on GitHub and the 2025 ML '
-        "project in one. Each card gives the repository's role and the commit at its head "
-        f"when this site's snapshot was taken on {snap}. Every block of figures in that "
-        "snapshot also records the repository, commit, file and key it was read from, and the "
-        '<a href="claims.html">claims audit</a> links each claim to the files that back it.</p>',
+        f"project in one. Each commit shown was the repository's head on {snap}.</p>",
 
         "<section>",
         '<h2 id="repositories">The repositories</h2>',
@@ -98,55 +94,53 @@ def build(data: dict) -> str:
         "<section>",
         '<h2 id="fit">How they fit together</h2>',
         f"<p>{harness} is the code: the runner, the search, the pinned verifier, the site "
-        f"generator and a test suite that collected {tests} tests on {tests_on}. A host "
-        "watchdog starts a container that mounts the harness read-only, so the search cannot "
-        'change the code that scores it (<a href="claims.html#R11">claim R11</a>).</p>',
+        f"generator and a test suite that collected {tests} tests on {tests_on}. One command "
+        "on the host brings up the container and a watchdog. The container mounts the harness "
+        'read-only, so <a href="claims.html#R11">the search cannot change the code that scores '
+        "it</a>.</p>",
         f"<p>Each cycle the container appends scored records to {work}, regenerates "
-        f"{findings} (the findings site) and commits both. It never pushes: the host "
-        "watchdog does, so no GitHub credential enters the container. The one credential "
-        "inside is the language model's sign-in file, mounted read-only. "
-        f"{work} also keeps epoch 1 frozen under "
-        "<code>epochs/1/</code>, with the validation, benchmark and trace documents this site "
-        'quotes. <a href="claims.html#R7">Claim R7</a> covers why epoch 1 froze.</p>',
-        f"<p>{overview} is built by hand from {work}. Its tools recompute the analysis into "
+        f"{findings} (the findings site) and commits both. It never pushes: the watchdog "
+        "does, so no GitHub credential enters the container. The one credential inside is the "
+        "language model's sign-in file, mounted read-only. "
+        f"{work} also keeps epoch 1 frozen under <code>epochs/1/</code>, with its validation, "
+        "benchmark and trace documents. Epoch 1 froze after "
+        '<a href="claims.html#R7">a trace found an error in its cost model</a>.</p>',
+        f"<p>{overview} is rebuilt by hand from {work}. Its tools recompute the analysis into "
         "<code>tools/key_findings.json</code> and generate the explainer pages. One of them "
-        "is a browser demo that reimplements the Q15 solver in JavaScript and reproduces the "
-        f"Python evaluator in {demo} fixture cases "
-        '(<a href="claims.html#R14">claim R14</a>). The overview is a snapshot that goes '
-        "stale between refreshes, while the findings site rebuilds every cycle.</p>",
-        f"<p>{ml} stands alone. It shares no code or data with the rk run. What the two "
-        "projects have in common is the question they asked, and this site.</p>",
-        "<p>The four rk repositories sit side by side in one private workspace, where the run "
-        "is started and stopped.</p>",
-        f'<p class="private-workspace">{fmt.esc(sources["private_workspace"])}.</p>',
-        "<p>Every file the claims audit cites is in one of the public repositories above. The "
-        '<a href="architecture.html">architecture page</a> draws both systems.</p>',
+        "is a browser demo that reimplements the Q15 solver in JavaScript and "
+        '<a href="claims.html#R14">reproduces the Python evaluator in '
+        f"{demo} fixture cases</a>. The overview goes stale between refreshes, while the "
+        "findings site rebuilds every cycle.</p>",
+        f"<p>{ml} stands alone and shares no code or data with the rk run. What the two "
+        "projects share is the question they asked.</p>",
+        '<p class="private-workspace">The four rk repositories sit side by side in one private '
+        "workspace, where the run is started and stopped. "
+        f"{fmt.esc(sources['private_workspace'])}. Every file cited as evidence for a "
+        '<a href="claims.html">claim</a> is in one of the public repositories above, and the '
+        '<a href="architecture.html">architecture</a> diagrams show how the parts connect.</p>',
         "</section>",
 
         "<section>",
-        '<h2 id="rebuild">How to rebuild this site</h2>',
-        "<p>The source of this site is "
+        '<h2 id="rebuild">Rebuilding from the repositories</h2>',
+        "<p>Clone "
         + _link(THIS_REPO_URL, "<code>numeric-integration-methods-exploration</code>")
-        + ". The build never reads the source repositories. It reads the snapshot in "
-        "<code>data/*.json</code> and writes static pages with the Python standard library "
-        "only. The same data gives byte-identical pages.</p>",
-        "<p>To refresh the numbers and rebuild:</p>",
+        + ", then run from its root:</p>",
         '<pre style="overflow-x: auto"><code>python tools/snapshot.py \\\n'
         "  --rk-workspace RK_WORKSPACE \\\n"
         "  --novel ML_2025_CLONE\n"
         "python tools/build.py</code></pre>",
         "<p><code>RK_WORKSPACE</code> is a directory holding clones of "
         f"{harness}, {work}, {findings} and {overview} side by side, and "
-        f"<code>ML_2025_CLONE</code> is a clone of {ml}. The snapshot rewrites "
-        "<code>data/rk.json</code>, <code>data/novel.json</code> and "
-        "<code>data/sources.json</code>, recording the repository, commit, file and key behind "
-        "each block of figures.</p>",
-        "<p><code>data/claims.json</code>, the audit, is written by hand and the snapshot leaves "
-        "it alone, so its claims need checking against the new numbers before a rebuild is "
-        "published. <code>python tools/build.py --out DIR</code> writes somewhere other than "
-        "<code>docs/</code>, and <code>python -m pytest tests</code> runs the checks.</p>",
-        f"<p>The numbers on this site are the snapshot of {snap}. The rk run keeps going, and "
-        f'<a href="{FINDINGS_SITE}">its findings site</a> has current numbers.</p>',
+        f"<code>ML_2025_CLONE</code> is a clone of {ml}. <code>tools/snapshot.py</code> "
+        "rewrites <code>data/rk.json</code>, <code>data/novel.json</code> and "
+        "<code>data/sources.json</code> from those clones, recording the repository, commit, "
+        "file and key behind each block of figures. <code>tools/build.py</code> reads only "
+        "<code>data/*.json</code> and writes static pages to <code>docs/</code> with the "
+        "Python standard library. The same data gives byte-identical pages.</p>",
+        "<p><code>tools/snapshot.py</code> leaves <code>data/claims.json</code> alone, since that "
+        "file is written by hand. Check its claims against the new numbers before publishing a rebuild. Pass "
+        "<code>--out DIR</code> to <code>tools/build.py</code> to write somewhere other than "
+        "<code>docs/</code>, and run <code>python -m pytest tests</code> for the checks.</p>",
         "</section>",
     ]
     return "\n".join(out) + "\n"

@@ -3,7 +3,7 @@
  "verdicts": {
   "supported": "The cited files show it, as stated.",
   "supported-with-limits": "The cited files show it, but only under the conditions named in its limits. Quote it with them.",
-  "not-supported": "The cited files do not show it, or show something else. The site does not make this claim.",
+  "not-supported": "The cited files do not show it, or show something else.",
   "artifact": "The number is real, but it measures a bug or a setup quirk rather than the thing it was labelled as."
  },
  "claims": [
@@ -101,7 +101,7 @@
    "id": "R11", "project": "rk", "headline": true, "title": "A scorer the search cannot edit",
    "claim": "The scorer is out of the search's reach: the harness is mounted read-only, and a sha256 over the pinned files (10 in epoch 1, 14 since epoch 2) is checked at every start and stored in every record. 91 golden and canary cases must pass before any cycle runs, and the suite collects 1,908 tests.",
    "verdict": "supported",
-   "limits": "No GitHub credential enters the container: it commits and the host pushes. The one credential inside is the model's sign-in file, mounted read-only. The counts are from the snapshot date in data/rk.json.",
+   "limits": "No GitHub credential enters the container: it commits and the host pushes. The one credential inside is the model's sign-in file, mounted read-only. The counts are as of 2026-09-23.",
    "evidence": [
     {"repo": "rk-harness", "path": "VERIFIER_FILES.txt; VERIFIER_HASH; entrypoint.sh; tests/golden_gate.txt; scripts/run.ps1", "at": ""},
     {"repo": "rk-harness", "path": "tests/", "at": "pytest --collect-only"}

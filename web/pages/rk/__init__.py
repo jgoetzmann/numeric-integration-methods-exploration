@@ -1,8 +1,9 @@
 """The rk run page (rk.html).
 
 Every number is read from data["rk"] or data["sources"] and rendered through
-web.fmt. Every result sentence names its conditions and links its claim id
-(data/claims.json is the authority for what the page may say).
+web.fmt. Every result sentence names its conditions, and each claim id is
+linked from a key phrase where the claim first comes up (data/claims.json is
+the authority for what may be said).
 """
 
 import re
@@ -12,7 +13,7 @@ from web.charts import figure, standalone, table
 from web.fmt import esc
 
 from . import charts
-from .charts import RK4_ORDER, and_list, claim_ref, code, word
+from .charts import RK4_ORDER, and_list, claim_link, code, word
 
 SLUG = "rk.html"
 TITLE = "The rk run"
@@ -36,6 +37,10 @@ def _budget(rk):
     return fmt.count(rk["setup"]["budget_cycles"])
 
 
+def _cap(s):
+    return s[:1].upper() + s[1:]
+
+
 def _frac(s):
     s = str(s)
     if s.endswith("/1"):
@@ -53,6 +58,23 @@ def _trap_cases(rk):
     """How many of the trace cross-check cases are overflow traps, read from trace.crosscheck."""
     m = re.search(r"(\d[\d,]*) of them are cases where", rk["trace"].get("crosscheck", ""))
     return int(m.group(1).replace(",", "")) if m else None
+
+
+def _round_both(rk):
+    """The classical methods run under both rounding modes, and those whose round-to-nearest
+    held-out error is below the champion's floor-rounding error."""
+    rn = rk["floor_vs_round"]["heldout_rms"]["round_to_nearest"]
+    below = sorted(n for n, v in rn.items() if v < rk["champion"]["heldout_error"])
+    return rn, below
+
+
+def _one_of(names, n_both):
+    """R1's wording for who reaches below the champion under round-to-nearest."""
+    who = and_list([code(n) for n in names])
+    if len(names) == 1:
+        return f"{who}, one of the {word(n_both)} classical methods run under both rounding modes,"
+    return (f"{who}, {word(len(names))} of the {word(n_both)} classical methods run under both "
+            "rounding modes,")
 
 
 def _tableau(ch):
@@ -79,30 +101,38 @@ def _tableau(ch):
 # ---------------------------------------------------------------- lead
 
 
-def _lead(rk):
+def _lead(rk, sources):
     ch = rk["champion"]
     gap = rk["float64_gap"]
     n_cls = len(rk["frontier"]["classical"])
     model = rk["setup"]["cost_model"]
+    n_held = len(rk["setup"]["heldout_problems"])
     return (
         '<section class="lead" aria-label="Summary">'
         "<p>The rk run is an autonomous search for Runge-Kutta coefficients that give the lowest "
         f"error in Q15 fixed point with floor rounding, at a fixed budget of {_budget(rk)} cycles "
-        "on a modeled Cortex-M0+. Inside that frame, on the analytic "
+        "on a modeled Cortex-M0+. Under those conditions, on the analytic "
         f"{code(model)} cost model with magnitude weighting, it found a "
         f"{word(ch['stages'])}-stage method, {code(ch['hash'])}, whose held-out error is "
-        f"{fmt.ratio(ch['lead'])} lower than that of {code(ch['best_classical'])}, the best of the "
-        f"{word(n_cls)} classical methods {claim_ref('R1')}.</p>"
-        "<p>That figure comes from epoch 1, scored on the cost model that a later audit found had "
-        f"{code('rk4')} and {code('rk38')} in the wrong order, and it has not been re-measured "
-        "under the corrected epoch-2 model. It also moves with how a step's cost is counted and "
-        "how the four held-out problems are weighted, and it holds only under floor rounding. "
-        "The sections below give each of those conditions with its numbers.</p>"
-        "<p>Outside that frame the result does not carry over. In float64, at the step count the "
-        f"budget gives each method, the champion's error was "
-        f"{fmt.ratio(gap['champion_over_rk4_min'])} to {fmt.ratio(gap['champion_over_rk4_max'])} "
-        f"that of {code('rk4')} {claim_ref('R5')}. Every cycle count on this page comes from a "
-        "cost model or an emulator; nothing was measured on a physical chip.</p>"
+        + claim_link("R1", f"{fmt.ratio(ch['lead'])} lower than that of "
+                           f"{code(ch['best_classical'])}")
+        + f", the best of the {word(n_cls)} classical methods.</p>"
+        "<p>That is an epoch-1 figure. It was scored on the cost model that a later trace found "
+        f"had {code('rk4')} and {code('rk38')} in the wrong order, and epoch 2 has not "
+        "re-measured it under the corrected model. Elites were picked on that held-out error, "
+        "so the lead carries winner's-curse bias. It also moves with how a step's cost is "
+        f"counted and how the {word(n_held)} held-out problems are weighted, and it is a "
+        "floor-rounding result.</p>"
+        "<p>" + claim_link("U1", "Outside Q15 the result does not carry over")
+        + ". In float64, at the step count the "
+        "budget gives each method, the champion's error was "
+        + claim_link("R5", f"{fmt.ratio(gap['champion_over_rk4_min'])} to "
+                           f"{fmt.ratio(gap['champion_over_rk4_max'])} that of {code('rk4')}")
+        + ". All the cycle counts come from a cost model or an emulator; none were measured on a "
+        "physical chip.</p>"
+        f"<p>These numbers were read on {esc(fmt.day(sources['snapshot_date']))}. The run "
+        f'continues, and the <a href="{esc(FINDINGS_URL)}">rk-findings site</a> rebuilds with '
+        "current numbers every cycle.</p>"
         "</section>"
     )
 
@@ -134,19 +164,26 @@ def _premise(rk):
                 met_kill.append(item)
             else:
                 met_neither.append(item)
+    total = len(met_proceed) + len(met_kill) + len(met_neither)
 
     def pairs(items):
         return and_list([f"{code(n)} on {code(mo)} ({fmt.pct(f)})" for n, mo, f in items])
+
+    def met(items, bar):
+        if len(items) == total:
+            return f" All {word(total)} method and model pairs met the {bar} bar: {pairs(items)}."
+        return (f" {_cap(word(len(items)))} of the {word(total)} method and model pairs met the "
+                f"{bar} bar: {pairs(items)}.")
 
     def of(s):
         a, _, b = str(s).partition("/")
         return f"{esc(a)} of {esc(b)}"
 
     p = (
-        "<p>The project tested that premise before the search began, against thresholds "
-        "committed to its own repository before the test ran, not to an outside registry. On "
-        f"{code(pr['problem'])} it measured what share of each step's cycles goes to coefficient "
-        "arithmetic rather than the derivative, for "
+        "<p>Before the search began, the run tested whether that cost is large enough to matter. "
+        "Its thresholds were committed to the project's own repository ahead of the test, not to "
+        f"an outside registry. On {code(pr['problem'])} it measured what share of each step's "
+        "cycles goes to coefficient arithmetic rather than the derivative, for "
         f"{and_list([code(n) for n in sorted(pr['methods'])])} under both cost models, "
         f"{_models_phrase(pr)}, and whether "
         "Q15 roundoff overtakes truncation error at a practical step size, between "
@@ -154,12 +191,12 @@ def _premise(rk):
         f"proceed if every share reached {fmt.pct(proceed, 0)} and roundoff took over at a "
         f"practical step size, and to stop if every share was under {fmt.pct(kill, 0)} and it "
         f"never did.</p>"
-        f"<p>The verdict was {esc(pr['stored_verdict'])} {claim_ref('R9')}."
+        f"<p>The {claim_link('R9', 'verdict was ' + esc(pr['stored_verdict']))}."
     )
     if met_proceed:
-        p += f" The proceed bar was met by {pairs(met_proceed)}."
+        p += met(met_proceed, "proceed")
     if met_kill:
-        p += f" The stop bar was met by {pairs(met_kill)}."
+        p += met(met_kill, "stop")
     for name, model, f in met_neither:
         practical = bool(pr["methods"][name].get("crossover_practical"))
         if f < kill and practical:
@@ -169,8 +206,10 @@ def _premise(rk):
             why = f"its share falls between {fmt.pct(kill, 0)} and {fmt.pct(proceed, 0)}"
         else:
             why = "roundoff never took over at a practical step size"
-        p += f" Neither bar was met by {code(name)} on {code(model)} ({fmt.pct(f)}): {why}."
-    p += (" A later comparison of four classical methods on the seven search and held-out "
+        p += f" On {code(model)}, {code(name)} ({fmt.pct(f)}) met neither bar: {why}."
+    n_bench = len(rk["libraries"].get("best_library_per_problem", {}))
+    seven = word(n_bench) if n_bench else "the"
+    p += (f" A later comparison of four classical methods on the {seven} search and held-out "
           f"problems, made after the search began, found {code('rk4')} best on "
           f"{of(pr['rk4_best_under_floor'])} under floor rounding and "
           f"{of(pr['rk4_best_under_round_to_nearest'])} under round-to-nearest.</p>")
@@ -197,8 +236,7 @@ def _question(rk):
         "more.</p>"
         "<p>The cycle counts come from an analytic model of the Cortex-M0+, "
         f"{code(setup['cost_model'])}, which prices the stage and weight combinations of a step. "
-        "Every epoch-1 score was computed under it. The counts are modeled, not measured on a "
-        "chip.</p>"
+        "Every epoch-1 score was computed under it.</p>"
         + _premise(rk)
     )
     return _section("question", "The question", body)
@@ -216,27 +254,29 @@ def _scoring(rk):
         "checks the order conditions exactly, in rational arithmetic, and rejects a tableau that "
         "is not explicit, breaks the row-sum conditions, would overflow Q15 with a two-times "
         "margin, or falls outside the coefficient and stability limits.</p>"
-        "<p>A language model proposes each search cycle's direction as a JSON directive. The "
-        "directive can only narrow the search, and an unknown key sends the runner to a fixed "
-        "fallback. The scorer, the verifier and every hypothesis verdict are code "
-        f"{claim_ref('R13')}.</p>"
+        "<p>A "
+        + claim_link("R13", "language model proposes each search cycle's direction")
+        + " as a JSON directive. The directive can only narrow the search, and an unknown key "
+        "sends the runner to a fixed fallback. The scorer, the verifier and every hypothesis "
+        "verdict are code.</p>"
         "<p>A tableau that passes is run in Q15 with floor rounding on a set of search problems, "
         f"each at the {_budget(rk)}-cycle budget. The optimizer, CMA-ES, is scored on the search "
         "problems only. The archive sorts methods into cells by order, stage count and cost "
         "band, and keeps in each cell the method with the lowest RMS error on "
         f"{word(len(held))} held-out problems: {and_list([code(h) for h in held])}. No "
         "optimizer reads the held-out problems, but elites are picked on them and the language "
-        "model is shown their errors, so they act as a selection set rather than an independent "
-        f"test {claim_ref('U2')}.</p>"
-        "<p>The scorer is out of the search's reach. The harness is mounted read-only, and a "
+        "model is shown their errors, so they act as a "
+        + claim_link("U2", "selection set rather than an independent test")
+        + ".</p>"
+        "<p>" + claim_link("R11", "The scorer is out of the search's reach")
+        + '. The <a href="architecture.html">harness</a> is mounted read-only, and a '
         f"sha256 over the pinned files ({fmt.count(ep1['verifier_files'])} in epoch 1, "
         f"{fmt.count(eng['verifier_files'])} since epoch 2) is checked at every start and stored "
         f"in every record. Before any search cycle runs, {fmt.count(eng['golden_gate_cases'])} "
-        f"golden and canary cases must pass {claim_ref('R11')}. No GitHub credential enters the "
-        "container: it commits, and the host pushes. The one credential inside is the model's "
-        "sign-in file, mounted read-only. On "
-        f"{esc(fmt.day(eng['tests_collected_on']))} the test suite collected "
-        f"{fmt.count(eng['tests_collected'])} tests.</p>"
+        "golden and canary cases must pass. No GitHub credential enters the container: it "
+        "commits, and the host pushes. The one credential inside is the model's sign-in file, "
+        f"mounted read-only. On {esc(fmt.day(eng['tests_collected_on']))} the test suite "
+        f"collected {fmt.count(eng['tests_collected'])} tests.</p>"
     )
     return _section("scoring", "How a candidate is scored and verified", body)
 
@@ -309,16 +349,15 @@ def _results(rk):
         f"{fmt.count(ch['order'])}, and costs {fmt.count(ch['cycles_per_step'])} cycles per step "
         "on the analytic model. Every coefficient is a dyadic fraction.</p>"
         + _tableau(ch)
-        + f"<p>Inside Q15 with floor rounding, at the {budget}-cycle budget, on the analytic "
+        + f"<p>In Q15 with floor rounding, at the {budget}-cycle budget, on the analytic "
         f"{code(model)} cost model with magnitude weighting, the champion's held-out RMS error is "
         f"{fmt.sig(ch['heldout_error'])} against {fmt.sig(ch['best_classical_heldout_error'])} "
-        f"for {code(best)}, the best classical method: a lead of {fmt.ratio(ch['lead'])} "
-        f"{claim_ref('R1')}. Elites were picked on held-out error from "
-        f"{fmt.count(fr['unique_tableaus'])} archived tableaus, so the four held-out problems act "
-        "as a selection set and the lead carries winner's-curse bias. It is also an epoch-1 "
-        f"figure: the trace later found this cost model had {code('rk4')} and {code('rk38')} in "
-        "the wrong order, and epoch 2, which scores under a corrected model, has not re-measured "
-        "it.</p>"
+        f"for {code(best)}, the best classical method: a lead of {fmt.ratio(ch['lead'])}. "
+        f"Elites were picked on held-out error from {fmt.count(fr['unique_tableaus'])} archived "
+        "tableaus, so the four held-out problems act as a selection set and the lead carries "
+        "winner's-curse bias. It is also an epoch-1 figure: the trace later found this cost "
+        f"model had {code('rk4')} and {code('rk38')} in the wrong order, and epoch 2, which "
+        "scores under a corrected model, has not re-measured it.</p>"
         f"<p>The {fmt.ratio(ch['lead'])} is an RMS over {word(len(held))} problems, and it hides a "
         f"split. The champion has lower error than {code(best)} on "
         f"{and_list([code(p) for p in wins])}"
@@ -337,22 +376,25 @@ def _results(rk):
     body += "</p>" + _per_problem_table(rk)
 
     body += (
-        f"<p>Dropping any one of the {word(len(loo))} held-out problems leaves the champion "
-        f"ahead, by {fmt.ratio(lo_row['ratio'])} to {fmt.ratio(hi_row['ratio'])} on the same "
-        f"basis {claim_ref('R3')}. The low end, {fmt.ratio(lo_row['ratio'])}, comes from "
-        f"dropping {code(lo_row['dropped'])}. Magnitude weighting lets problems with small errors "
-        "count for little, so this check cannot show a loss on one of them"
+        "<p>"
+        + claim_link("R3", f"Dropping any one of the {word(len(loo))} held-out problems leaves "
+                           "the champion ahead")
+        + f", by {fmt.ratio(lo_row['ratio'])} to {fmt.ratio(hi_row['ratio'])} on the same basis. "
+        f"The low end, {fmt.ratio(lo_row['ratio'])}, comes from dropping "
+        f"{code(lo_row['dropped'])}. Magnitude weighting lets problems with small errors count "
+        "for little, so this check cannot show a loss on one of them"
     )
     if losses:
         body += f", and the champion does lose to {code(best)} on {and_list([code(p) for p in losses])}"
     body += ".</p>" + _loo_table(ch)
 
     body += (
-        f"<p>The champion appeared at search cycle {fmt.count(ch['found_at_cycle'])}, and no "
-        f"later cycle in epoch 1's {fmt.count(ch['cycles_run'])} lowered the best held-out error "
-        f"{claim_ref('R6')}. The search kept filling and improving other cells after that: "
-        f"{fmt.count(len(later))} of the {fmt.count(len(fr['discovered']))} discovered cell elites "
-        "appeared later"
+        "<p>The champion "
+        + claim_link("R6", f"appeared at search cycle {fmt.count(ch['found_at_cycle'])}")
+        + f", and no later cycle in epoch 1's {fmt.count(ch['cycles_run'])} lowered the best "
+        "held-out error. The search kept filling and improving other cells after that: "
+        f"{fmt.count(len(later))} of the {fmt.count(len(fr['discovered']))} discovered cell "
+        "elites appeared later"
     )
     if later_orders:
         body += (", elites of order "
@@ -372,13 +414,15 @@ def _results(rk):
         "selection bias, "
     )
     if n_ahead_all == n_disc:
-        body += (f"the discovered method in each of those {fmt.count(n_disc)} cells has lower "
-                 f"held-out error than all {word(len(fr['classical']))} classical methods, "
-                 f"whatever their cost {claim_ref('R2')}.")
+        body += (f"the discovered method in each of those {fmt.count(n_disc)} cells has "
+                 + claim_link("R2", f"lower held-out error than all "
+                                    f"{word(len(fr['classical']))} classical methods")
+                 + ", whatever their cost.")
     else:
         body += (f"{fmt.count(n_ahead_all)} of those {fmt.count(n_disc)} discovered methods have "
-                 f"lower held-out error than all {word(len(fr['classical']))} classical methods "
-                 f"{claim_ref('R2')}.")
+                 + claim_link("R2", f"lower held-out error than all "
+                                    f"{word(len(fr['classical']))} classical methods")
+                 + ".")
     body += (f" The closest, a {word(closest['stages'])}-stage elite at "
              f"{fmt.count(closest['cycles'])} cycles per step, has "
              f"{fmt.sig(closest['heldout_error'])} against {code(best)}'s "
@@ -420,16 +464,15 @@ def _lead_conditions(rk):
         "prices every instruction it executes with the Cortex-M0+ timing table: loop control, "
         "the h times k products and the call into the derivative, but not the derivative's own "
         f"code. It uses that count only to decide how many steps fit in {budget} cycles. Neither "
-        "basis is the full cost of a step on a chip. The analytic model prices less than the "
-        "traced count, and the traced count prices less than a real application step, so the "
-        "two bracket the cost rather than correct each other.</p>"
+        "basis is the full cost of a step on a chip: the analytic model prices less than the "
+        "traced count, and the traced count leaves out the derivative's own code.</p>"
         "<p>Magnitude weighting, the published one, is an unweighted RMS of the four problems' "
         "errors, so a problem's influence grows with the square of its error. Median-anchor "
         "weighting divides each error by the median error of the eight classical methods on that "
         "problem before the RMS, which weights the four problems equally. Reference-norm "
-        "weighting divides by each problem's zero-state error instead. The source publishes it "
-        "as a counterexample, because it concentrates weight on rc_thermal rather than "
-        "equalizing it.</p>"
+        "weighting divides by each problem's zero-state error instead. The rk-overview analysis "
+        f"publishes it as a counterexample, because it concentrates weight on {code('rc_thermal')} "
+        "rather than equalizing it.</p>"
     )
     p = []
     if still and all(c["basis"] == "analytic" for c in still) and pub in still and ref_a in still:
@@ -446,16 +489,16 @@ def _lead_conditions(rk):
              f"({loo(ref_t)}).")
     p.append(f"Under median-anchor weighting it is {fmt.ratio(med_a['ratio'])} on the analytic "
              f"basis ({loo(med_a)}) and {fmt.ratio(med_t['ratio'])} on the traced one, where a "
-             f"classical method is far ahead {claim_ref('R1')}.")
+             "classical method is far ahead.")
     sub += "<p>" + " ".join(p) + "</p>"
     if med_t["ratio"] < 1:
         sub += (
-            f"<p>That last cell needs reading. Median-anchor weighting divides by each problem's "
-            f"median classical error, which is smallest on {code('pendulum')}, so it magnifies "
-            f"any rise in a method's {code('pendulum')} error. The traced basis leaves the "
-            f"champion fewer steps, and its {code('pendulum')} error rises. The source reads the "
-            f"{fmt.ratio(med_t['ratio'])} cell as the weighting magnifying one problem, not as "
-            "the champion losing by that factor.</p>"
+            f"<p>The rk-overview analysis reads the {fmt.ratio(med_t['ratio'])} cell as the "
+            "weighting magnifying one problem, not as the champion losing by that factor. "
+            "Median-anchor weighting divides by each problem's median classical error, which is "
+            f"smallest on {code('pendulum')}, so it magnifies any rise in a method's "
+            f"{code('pendulum')} error. The traced basis leaves the champion fewer steps, and its "
+            f"{code('pendulum')} error rises.</p>"
         )
     rr = cf.get("archive_reranking") or {}
     if rr:
@@ -473,8 +516,8 @@ def _lead_conditions(rk):
         )
         if none_ahead:
             sub += (f" Under all {word(len(order))}, no classical method ranks above it, so a "
-                    "discovered method holds the top place each time")
-        sub += f" {claim_ref('R2')}.</p>"
+                    "discovered method holds the top place each time.")
+        sub += "</p>"
     sub += figure(charts.counterfactual_chart(rk))
     return sub
 
@@ -503,11 +546,11 @@ def _validation(rk):
         f"<p>In Q15 with floor rounding at the {budget}-cycle budget, the best of the "
         f"{word(n_disc)} discovered methods tried had lower Q15 error than the best of the "
         f"{word(len(run))} classical methods run on "
-        f"{fmt.count(val['practical_won_by_discovered'])} of {fmt.count(val['practical_total'])} "
-        "non-stiff problems, with a median error ratio of "
-        f"{fmt.sig(val['practical_median_ratio'])} (discovered over classical) across those "
-        f"{word(val['practical_total'])} {claim_ref('R4')}. The fixed champion alone had the "
-        f"lower error on {fmt.count(champ_wins)} of the {fmt.count(len(non_stiff))}.</p>"
+        + claim_link("R4", f"{fmt.count(val['practical_won_by_discovered'])} of "
+                           f"{fmt.count(val['practical_total'])} non-stiff problems")
+        + f", with a median error ratio of {fmt.sig(val['practical_median_ratio'])} (discovered "
+        f"over classical) across those {word(val['practical_total'])}. The fixed champion alone "
+        f"had the lower error on {fmt.count(champ_wins)} of the {fmt.count(len(non_stiff))}.</p>"
     )
 
     won = [p for p in stiff if p.get("winner_kind") == "discovered"]
@@ -563,30 +606,35 @@ def _float64(rk):
                         f"{code('rk4')}'s {fmt.count(r_steps)} on {word(n_pair)} of the "
                         f"{word(len(val['problems']))} problems.")
 
-    best_lib = sorted(set(lib.get("best_library_per_problem", {}).values()))
+    per_problem = lib.get("best_library_per_problem", {})
+    best_lib = sorted(set(per_problem.values()))
+    n_bench = len(per_problem)
+    bench_set = (f"the {word(n_bench)} search and held-out problems" if n_bench
+                 else "the search and held-out problems")
     if len(best_lib) == 1:
-        best_lib_txt = (f"the most accurate library solver, {code(best_lib[0])} on all "
-                        f"{fmt.count(len(lib['best_library_per_problem']))} problems,")
+        best_lib_txt = (f"the most accurate library solver, {code(best_lib[0])} on each of "
+                        "those problems,")
     else:
-        best_lib_txt = "the most accurate library solver on each problem"
+        best_lib_txt = "the most accurate library solver on each of those problems"
 
     body = (
         "<p>The search optimized for Q15 floor arithmetic on purpose. The like-for-like test of "
         f"its coefficients in ordinary arithmetic is the champion against {code('rk4')}, both "
         "run in float64 on the out-of-sample problems, each at the step count the "
         f"{budget}-cycle budget gives it." + steps_clause
-        + f" Its float64 error was still {fmt.ratio(gap['champion_over_rk4_min'])} to "
-        f"{fmt.ratio(gap['champion_over_rk4_max'])} that of {code('rk4')} on the "
-        f"{fmt.count(gap['problems'])} problems where both finish {claim_ref('R5')}. The "
+        + " Its float64 error was still "
+        + claim_link("R5", f"{fmt.ratio(gap['champion_over_rk4_min'])} to "
+                           f"{fmt.ratio(gap['champion_over_rk4_max'])} that of {code('rk4')}")
+        + f" on the {fmt.count(gap['problems'])} out-of-sample problems where both finish. The "
         f"champion is order {fmt.count(ch['order'])} and {code('rk4')} order "
         f"{fmt.count(RK4_ORDER)}, and the classical order-{fmt.count(ch['order'])} methods trail "
         f"float64 {code('rk4')} by a similar margin in the same runs.</p>"
-        "<p>Two wider comparisons measure the arithmetic rather than the coefficients. Float64 "
-        f"{code('rk4')}, run as an arithmetic control, had lower error than every Q15 run, "
-        f"classical and discovered alike, in {fmt.count(rk4_lower)} of {fmt.count(n_cells)} "
-        "fixed-step cells at identical step counts; the benchmark reads that gap as the cost of "
-        "16-bit floor arithmetic, not of the tableaus. At tolerances of one Q15 least "
-        f"significant bit, {best_lib_txt} was a median "
+        "<p>Two wider comparisons measure the arithmetic rather than the coefficients. Both ran "
+        f"on {bench_set}, not on the out-of-sample set. Float64 {code('rk4')}, run as an "
+        "arithmetic control, had lower error than every Q15 run, classical and discovered alike, "
+        f"in {fmt.count(rk4_lower)} of {fmt.count(n_cells)} fixed-step cells at identical step "
+        "counts. The benchmark attributes that gap to 16-bit floor arithmetic, not to the "
+        f"tableaus. At tolerances of one Q15 least significant bit, {best_lib_txt} was a median "
         f"{fmt.ratio(lib['median_ratio_q15_over_library_at_matched_tolerance'])} more accurate "
         "than the most accurate Q15 run."
     )
@@ -596,14 +644,10 @@ def _float64(rk):
     if "RK45" in libs and "RK45" not in best_lib:
         body += (f" Dormand-Prince (SciPy {code('RK45')}) was among them but was never the most "
                  "accurate, and it was never run against the champion in the same "
-                 "arithmetic.")
-    body += (
-        "</p>"
-        f"<p>This is where the Q15 result stops applying {claim_ref('U1')}. Nothing on this page "
-        f"says the champion is more accurate than {code('rk4')} or Dormand-Prince outside Q15 "
-        "with floor rounding.</p>"
-        + figure(charts.validation_f64_chart(rk))
-    )
+                 "arithmetic.</p>")
+    else:
+        body += "</p>"
+    body += figure(charts.validation_f64_chart(rk))
     return _section("float64", "In float64, rk4 is far more accurate", body)
 
 
@@ -622,15 +666,16 @@ def _rounding(rk):
     lowest = min(names, key=lambda n: fl[n])
     highest = max(names, key=lambda n: fl[n])
 
-    p1 = ("<p>Floor rounding changes which classical method does best. On the search "
-          f"problems, in Q15 at the {budget}-cycle budget, {code(lowest)} has the lowest RMS error "
-          f"under floor rounding ({fmt.sig(fl[lowest])}) of the {word(len(names))} classical "
-          f"methods compared ({and_list([code(n) for n in names])}), and {code(highest)} the "
-          f"highest ({fmt.sig(fl[highest])})")
+    p1 = ("<p>Floor rounding "
+          + claim_link("R8", "changes which classical method does best")
+          + f". On the search problems, in Q15 at the {budget}-cycle budget, {code(lowest)} has "
+          f"the lowest RMS error under floor rounding ({fmt.sig(fl[lowest])}) of the "
+          f"{word(len(names))} classical methods compared ({and_list([code(n) for n in names])}), "
+          f"and {code(highest)} the highest ({fmt.sig(fl[highest])})")
     if rn[highest] < rn[lowest]:
         p1 += (f". Under round-to-nearest, {code(highest)} ({fmt.sig(rn[highest])}) is back ahead "
                f"of {code(lowest)} ({fmt.sig(rn[lowest])})")
-    p1 += f" {claim_ref('R8')}.</p>"
+    p1 += ".</p>"
 
     hf = held["floor"]
     hr = held["round_to_nearest"]
@@ -646,13 +691,16 @@ def _rounding(rk):
                "round-to-nearest.</p>")
 
     p3 = ""
-    if hr[br] < ch["heldout_error"]:
+    _, below = _round_both(rk)
+    if below:
+        vals = and_list([fmt.sig(hr[n]) for n in below])
+        verb = "reaches" if len(below) == 1 else "reach"
         p3 = (
-            "<p>That bears on the champion. Under round-to-nearest, at the same budget and cost "
-            f"model, {code(br)} alone reaches {fmt.sig(hr[br])} held-out error, below the "
-            f"champion's {fmt.sig(ch['heldout_error'])} under floor rounding. The champion's lead "
-            f"is a floor-rounding result {claim_ref('R1')}. This page has no round-to-nearest "
-            "figure for the champion itself.</p>"
+            "<p>The champion's lead is a floor-rounding result. Under round-to-nearest, at the "
+            "same budget and cost model and with no extra cycles charged for the rounding, "
+            f"{_one_of(below, len(names))} {verb} {vals} held-out error, below the champion's "
+            f"{fmt.sig(ch['heldout_error'])} under floor rounding. That comparison did not include "
+            "the champion.</p>"
         )
     body = p1 + p2 + p3 + figure(charts.floor_round_chart(rk))
     return _section("rounding", "Rounding reorders the classical methods", body)
@@ -670,35 +718,37 @@ def _trace_table(rk):
                      fmt.count(m["analytic"][model]),
                      fmt.count(m["matched_scope"][model]),
                      fmt.count(m["whole_step"][model])])
-    caption = (f"Cycles per step on the {code(model)} model at one state. Compare analytic with "
-               "matched scope only, since matched scope counts the same work the analytic model "
-               "prices. Whole step adds the derivative call, the h times k product, loop control "
-               "and the stack frame; the counterfactual grid uses it only as a budget denominator.")
+    caption = (f"Cycles per step on the {code(model)} model at one state. Matched scope counts "
+               "the same work the analytic model prices, so those two columns compare directly. "
+               "Whole step adds the derivative call, the h times k product, loop control and the "
+               "stack frame; the counterfactual grid uses it only as a budget denominator.")
     return (table(["Method", "Analytic", "Matched scope (traced)", "Whole step (traced)"],
                   rows, caption=caption)
             + "<p>" + charts.source_note(tr["source"]).strip() + "</p>")
 
 
-def _cost_model(rk):
+def _cost_model(rk, sources):
     lib = rk["libraries"]
     sp = lib["speedup"]
     tr = rk["trace"]
     eng = rk["engineering"]
     model = rk["setup"]["cost_model"]
     by = {m["name"]: m for m in tr["methods"]}
+    overview = _site(sources, "rk-overview")
 
     p1 = (
-        "<p>Every Q15 result above rests on a cost model, so the run checked the model against "
+        "<p>Every Q15 result rests on a cost model, so the run checked the model against "
         "measurement. Measured in Python on the same solver path, the champion's step ran "
         f"{fmt.ratio(sp['measured_geomean_rk4_over_champion'])} faster than {code('rk4')}'s "
         "(geometric mean over problems), against a model prediction of "
-        f"{fmt.ratio(sp['predicted_geomean_rk4_over_champion'])}, and analytic cycles tracked "
-        f"measured time with Pearson r = {fmt.sig(lib['cycle_model_pearson_r'], 2)} over "
-        f"{fmt.count(lib['cycle_model_points'])} runs {claim_ref('R10')}. That is Python "
-        f"wall-clock time. It agrees with the model's ordering of the champion and {code('rk4')}, "
-        "not with its absolute cycle counts on a Cortex-M0+. The benchmark did not include "
-        f"{code('rk38')}, and the audit below found the model had {code('rk4')} and "
-        f"{code('rk38')} in the wrong order.</p>"
+        f"{fmt.ratio(sp['predicted_geomean_rk4_over_champion'])}, and "
+        + claim_link("R10", "analytic cycles tracked measured time")
+        + f" with Pearson r = {fmt.sig(lib['cycle_model_pearson_r'], 2)} over "
+        f"{fmt.count(lib['cycle_model_points'])} runs. That is Python wall-clock time, so it "
+        "speaks to ordering, not to absolute cycle counts on a Cortex-M0+, and only as far as "
+        f"Python mirrors the chip. Python timed {code('rk4')} slightly faster than "
+        f"{code('rk38')}, as the analytic model predicts, while the compiled trace found "
+        f"{code('rk38')} cheaper on a Cortex-M0+.</p>"
     )
     traps = _trap_cases(rk)
     trap_clause = (f", {fmt.count(traps)} of them overflow cases where both stop at the same "
@@ -709,25 +759,30 @@ def _cost_model(rk):
     m38 = by["rk38"]["matched_scope"][model]
     p2 = (
         "<p>A host-side audit then compiled the step with GCC 13.2.1 for the Cortex-M0+ and "
-        f"traced it under the {code('unicorn')} emulator. The compiled step agreed with the "
-        f"Python evaluator bit for bit in {esc(eng['trace_crosscheck'])} cases{trap_clause} "
-        f"{claim_ref('R7')}. It also showed that {code(model)}, the cost model the epoch-1 "
-        f"archive was scored under, put {code('rk4')} and {code('rk38')} in the wrong order: it "
-        f"prices {code('rk4')} at {fmt.count(a4)} cycles per step and {code('rk38')} at "
+        f"traced it under the {code('unicorn')} emulator. The compiled step "
+        + claim_link("R7", "agreed with the Python evaluator bit for bit in "
+                           f"{esc(eng['trace_crosscheck'])} cases")
+        + f"{trap_clause}. It also showed that {code(model)}, the cost model the epoch-1 archive "
+        f"was scored under, put {code('rk4')} and {code('rk38')} in the wrong order: it prices "
+        f"{code('rk4')} at {fmt.count(a4)} cycles per step and {code('rk38')} at "
         f"{fmt.count(a38)}, while the traced count at matched scope, which covers the same work, "
         f"is {fmt.count(m4)} and {fmt.count(m38)}.</p>"
     )
+    demo_site = (f'<a href="{esc(overview)}">rk-overview site</a>' if overview
+                 else "rk-overview site")
     p3 = (
-        "<p>The rk-overview site's browser demo is a second, independent check on the solver. It "
-        "reimplements the Q15 solver in JavaScript and reproduces the Python evaluator in "
-        f"{esc(eng['demo_crosscheck'])} fixture cases {claim_ref('R14')}.</p>"
+        f"<p>The browser demo on the {demo_site} is an independent check on the solver. It "
+        "reimplements the Q15 solver in JavaScript and "
+        + claim_link("R14", "reproduces the Python evaluator in "
+                            f"{esc(eng['demo_crosscheck'])} fixture cases")
+        + ".</p>"
     )
     p4 = (
         "<p>The emulator is instruction-accurate, not cycle-accurate: its cycle counts come from "
         "a timing table applied to the executed instructions, and nothing was measured on a "
-        "physical chip. Rather than rescore the old archive, the run froze epoch 1 and started "
-        "epoch 2 under a corrected cost model that prices each coefficient by the instructions "
-        'GCC emits for it. <a href="epochs.html">Epochs and research</a> covers that decision.</p>'
+        "physical chip. Rather than rescore the old archive, the run "
+        '<a href="epochs.html">froze epoch 1 and started epoch 2</a> under a corrected cost '
+        "model that prices each coefficient by the instructions GCC emits for it.</p>"
     )
     body = p1 + p2 + p3 + p4 + _trace_table(rk)
     return _section("cost-model", "Speed and the cost model", body)
@@ -740,46 +795,43 @@ def _not_shown(rk):
     ch = rk["champion"]
     cells = rk["counterfactual"]["cells"]
     still = [c for c in cells if c["champion_still_leads"]]
-    rn = rk["floor_vs_round"]["heldout_rms"]["round_to_nearest"]
-    below = sorted(n for n, v in rn.items() if v < ch["heldout_error"])
-    if len(below) == 1:
-        rtn_who = f"{code(below[0])} alone has"
-    elif below:
-        rtn_who = f"{and_list([code(n) for n in below])} have"
-    else:
-        rtn_who = ""
+    budget = _budget(rk)
+    _, below = _round_both(rk)
+    n_both = len(charts._floor_round_methods(rk, rk["floor_vs_round"]["search_rms"])[1])
+    both_analytic = bool(still) and all(c["basis"] == "analytic" for c in still)
     items = [
-        "It measured nothing on hardware. Cycle counts come from an analytic model, checked "
-        "against Python timing and an instruction-accurate emulator "
-        f"{claim_ref('R7', 'R10')}.",
+        "It measured nothing on hardware. All cycle counts come from an analytic model, checked "
+        "against Python timing and an instruction-accurate emulator.",
         "It did not show the champion ahead outside Q15. In float64, "
         f"{code('rk4')} was far more accurate than the champion, and Dormand-Prince was never "
-        f"run against the champion in the same arithmetic {claim_ref('R5')}.",
+        "run against the champion in the same arithmetic.",
         "Its held-out errors are not independent of the search. Elites are chosen on them and "
         f"the model that proposes directions is shown them, so the {fmt.ratio(ch['lead'])} lead "
-        "(Q15 with floor rounding, analytic basis, magnitude weighting) carries winner's-curse "
-        f"bias {claim_ref('R1', 'U2')}.",
+        f"(Q15 with floor rounding, {budget}-cycle budget, analytic basis, magnitude weighting) "
+        "carries winner's-curse bias.",
         "Its validation is an out-of-sample check, not an independent benchmark. No optimizer "
-        "or model saw the validation problems, but people chose them after the search began "
-        f"{claim_ref('R4')}.",
+        "or model saw the validation problems, but people chose them after the search began.",
         "Its lead depends on the cost basis and the weighting. Of the "
-        f"{word(len(cells))} cells in the grid above, the champion keeps its lead on every "
-        f"leave-one-out subset in {word(len(still))} {claim_ref('R1')}.",
+        f"{word(len(cells))} cost-basis and weighting cells, the champion keeps its lead on "
+        f"every leave-one-out subset in {word(len(still))}"
+        + (", both analytic." if both_analytic and len(still) == 2 else "."),
         "It has not re-measured the lead under the corrected epoch-2 cost model. Epoch 2 has no "
-        "validation, benchmark or trace results of its own yet, so every result on this page "
-        "comes from epoch 1.",
+        "validation, benchmark or trace results of its own yet, so all of these results are "
+        "from epoch 1.",
     ]
-    if rtn_who:
-        items.append(f"Its lead needs floor rounding. Under round-to-nearest {rtn_who} lower "
-                     "held-out error than the champion has under floor rounding "
-                     f"{claim_ref('R1')}.")
+    if below:
+        verb = "has" if len(below) == 1 else "have"
+        items.append("Its lead was measured only under floor rounding. Under round-to-nearest, "
+                     f"with no extra cycles charged for the rounding, {_one_of(below, n_both)} "
+                     f"{verb} lower held-out error than the champion has under floor rounding.")
     items += [
-        f"Explicit methods did not handle every stiff problem. On {code('robertson_scaled')} "
-        f"every discovered method overflowed in Q15, and so did {code('rk4')} and {code('rk38')} "
-        f"{claim_ref('R4')}.",
+        "Its discovered methods did not handle every stiff problem. On "
+        f"{code('robertson_scaled')} every one of them overflowed in Q15, and so did "
+        f"{code('rk4')} and {code('rk38')}.",
         f"It did not map the search space. The plateau after search cycle "
-        f"{fmt.count(ch['found_at_cycle'])} describes one search, not a field of local minima "
-        f"{claim_ref('U3')}.",
+        f"{fmt.count(ch['found_at_cycle'])} "
+        + claim_link("U3", "describes one search")
+        + ", not a field of local minima.",
     ]
     body = "<ul>" + "".join(f"<li>{i}</li>" for i in items) + "</ul>"
     return _section("not-shown", "What the run did not show", body)
@@ -798,19 +850,21 @@ def _archive(rk):
     starts = e1.get("events", {}).get("runner_started")
 
     p1 = (
-        f"<p>Epoch 1 ran from {esc(fmt.day(e1['started']))} to {esc(fmt.day(e1['stopped']))}: "
-        f"{fmt.count(e1['cycles_run'])} search cycles over {fmt.count(e1['archive_day_count'])} "
-        f"days of archive and {fmt.count(e1['records'])} scored records, all under verifier hash "
-        f"{code(e1['verifier_hash'])}"
+        "<p>"
+        + claim_link("R12", f"Epoch 1 ran from {esc(fmt.day(e1['started']))} to "
+                            f"{esc(fmt.day(e1['stopped']))}")
+        + f": {fmt.count(e1['cycles_run'])} search cycles over "
+        f"{fmt.count(e1['archive_day_count'])} days of archive and {fmt.count(e1['records'])} "
+        f"scored records, all under verifier hash {code(e1['verifier_hash'])}"
     )
     if pre_pin:
         p1 += f" apart from {fmt.count(pre_pin)} written minutes before that pin was set"
-    p1 += f" {claim_ref('R12')}. No person chose candidates or scores, and the pinned scorer never changed"
+    p1 += ". No person chose candidates or scores, and the pinned scorer never changed"
     if starts:
-        p1 += (f", though the runner started {fmt.count(starts)} times as people deployed changes "
-               "to the unpinned harness code")
-    p1 += (". That is what autonomous means here: no person chooses what the search tries or "
-           "how it scores, which is not the same as running free of human operation.</p>")
+        p1 += (f", though the runner started {fmt.count(starts)} times, including restarts to "
+               "deploy changes to the unpinned harness code")
+    p1 += (". Autonomous here means that no person chooses what the search tries or how it "
+           "scores. It does not mean free of human operation.</p>")
 
     p2 = (
         f"<p>Epoch 2 started on {esc(fmt.day(e2['started']))} under a new verifier hash, "
@@ -818,46 +872,28 @@ def _archive(rk):
         f"{esc(fmt.day(down['to']))}. The watchdog now resumes the stops it makes itself; after a "
         "reboot the run is started by hand with one command. "
         f"As of {esc(fmt.day(e2['as_of']))}, epoch 2 had reached search cycle "
-        f"{fmt.count(e2['cycle'])} with {fmt.count(e2['records'])} records. Its records are "
-        "scored under the corrected cost model, so they are not comparable with epoch 1's, and "
-        "the chart keeps the two epochs as separate series. "
-        '<a href="epochs.html">Epochs and research</a> has the timeline.</p>'
+        f"{fmt.count(e2['cycle'])} with {fmt.count(e2['records'])} records. They are scored "
+        "under the corrected cost model, so they are not comparable with epoch 1's.</p>"
     )
     body = p1 + p2 + figure(charts.archive_chart(rk))
     return _section("archive-growth", "Archive growth", body)
 
 
-def _snapshot(data):
-    sources = data["sources"]
-    overview = _site(sources, "rk-overview")
-    body = (
-        f"<p>This page is a snapshot of data read on {esc(fmt.day(sources['snapshot_date']))}. "
-        f'The rk run keeps going: the <a href="{esc(FINDINGS_URL)}">rk-findings site</a> '
-        "rebuilds every cycle and has the current numbers. The "
-        f'<a href="{esc(overview)}">rk-overview site</a> explains the run at more length and '
-        "reruns the Q15 solver in the browser.</p>"
-        "<p>Every claim on this page is listed with its verdict, limits and evidence in the "
-        '<a href="claims.html">claims audit</a>, and <a href="architecture.html">Architecture</a> '
-        "shows how the run is put together.</p>"
-    )
-    return _section("snapshot-note", "Snapshot", body)
-
-
 def build(data):
     rk = data["rk"]
+    sources = data["sources"]
     parts = [
         f"<h1>{esc(TITLE)}</h1>",
-        _lead(rk),
+        _lead(rk, sources),
         _question(rk),
         _scoring(rk),
         _results(rk),
         _validation(rk),
         _float64(rk),
         _rounding(rk),
-        _cost_model(rk),
+        _cost_model(rk, sources),
         _not_shown(rk),
         _archive(rk),
-        _snapshot(data),
     ]
     return "\n".join(parts) + "\n"
 
