@@ -95,7 +95,7 @@ def _projects(rk, novel):
         '<article class="card project-card">\n'
         "<h3>The rk run</h3>\n"
         f'<p class="card-dates">{fmt.day(e1["started"])} onward</p>\n'
-        "<p>An unattended search, run in a container, for Runge-Kutta coefficients that do "
+        "<p>It searches unattended, inside a container, for Runge-Kutta coefficients that do "
         "best in Q15 fixed point with floor rounding on a modeled Cortex-M0+. Epoch 1 ran "
         f"from {fmt.day(e1['started'])} to {fmt.day(e1['stopped'])} and wrote "
         f"{fmt.count(e1['records'])} scored records over {fmt.count(e1['cycles_run'])} "
@@ -163,8 +163,8 @@ def _card_texts(data):
             f"{_word(len(frontier['classical']))} classical methods, on the analytic cost "
             "model with magnitude weighting.</p>\n"
             "<p>On the traced whole-step cost basis the lead falls to "
-            f"{fmt.ratio(traced_mag['ratio'])}, and with median-anchor weighting on that basis "
-            f"<code>midpoint</code> leads at {fmt.ratio(traced_med['ratio'])}. Elites were "
+            f"{fmt.ratio(traced_mag['ratio'])}. With median-anchor weighting on that basis the "
+            f"ratio is {fmt.ratio(traced_med['ratio'])} and <code>midpoint</code> leads. Elites were "
             "picked on held-out error, so these figures carry selection bias.</p>",
         ),
         "R2": (
@@ -178,17 +178,17 @@ def _card_texts(data):
         ),
         "R4": (
             "Out-of-sample problems",
-            f"<p>On {_word(len(val['problems']))} problems that no optimizer or model saw, but "
-            "that people chose after the search began, the best discovered method had lower "
-            "error than the best classical method in Q15 with floor rounding on "
-            f"{fmt.count(val['practical_won_by_discovered'])} of "
+            f"<p>People chose these {_word(len(val['problems']))} problems after the search "
+            "began, and no optimizer or model saw them. In Q15 with floor rounding, the best "
+            "discovered method had lower error than the best classical method on "
+            f"{fmt.count(val['practical_won_by_discovered'])} of the "
             f"{fmt.count(val['practical_total'])} non-stiff problems. The champion alone had "
             f"the lower error on {fmt.count(champ_alone)}. On the stiff "
             f"{_code(over['problem'])} problem every discovered method overflowed while "
             f"{_code(over['best_classical'])} finished.</p>",
         ),
         "R5": (
-            "Float64 belongs to established methods",
+            "In float64, established methods lead",
             "<p>At the same step counts, float64 <code>rk4</code> had lower error than the Q15 "
             f"methods in {fmt.count(rk4_lower)} of {fmt.count(compared)} cells, and in float64 "
             f"the champion was {fmt.ratio(gap['champion_over_rk4_min'])} to "
@@ -231,23 +231,23 @@ def _card_texts(data):
             rejected("N2")
             + "<p>The audit found both tables placed in the starting population. Every one "
             f"of the {fmt.count(log['rows'])} logged scores sits at the clip ceiling of "
-            f"{fmt.sig(clip)}. No candidate could replace the seed.</p>",
+            f"{fmt.sig(clip)}, so no candidate could replace the seed.</p>",
         ),
         "N4": (
             "No gradient step was taken",
             rejected("N4")
-            + "<p>The audit found the generator's optimizer created and never stepped, so no "
-            "gradient step was taken. Every empty slot was filled by a random generator "
-            f"that resets its seed to {fmt.count(seed)}. Trials 8 and 9 saved the same "
-            "table for that reason.</p>",
+            + "<p>The audit found that the generator's optimizer was created and never "
+            "stepped. A random generator that resets its seed to "
+            f"{fmt.count(seed)} filled every empty slot, which is why trials 8 and 9 saved "
+            "the same table.</p>",
         ),
         "U1": (
             "The arithmetic decides which methods lead",
             "<p>In float64, established methods such as <code>rk4</code> and Dormand-Prince "
             f"came out on top in both projects ({_claims('R5', 'N1')}). Inside Q15 with "
             "floor rounding at a fixed cycle budget, the searched method leads the classical "
-            f"fixed-step methods ({_claim('R1')}), the one place the rk run set out to "
-            "look.</p>",
+            f"fixed-step methods ({_claim('R1')}), which is the one place the rk run set out "
+            "to look.</p>",
         ),
     }
 
@@ -342,8 +342,7 @@ def _scoring(rk, novel):
     )
     return (
         '<h2 id="scoring">How each project scored candidates</h2>\n'
-        "<p>The two projects judged candidates in different ways. The table lists what "
-        "each one did.</p>\n"
+        "<p>The table sets out what each project did, one aspect per row.</p>\n"
         '<table class="compare">\n'
         '<thead><tr><th scope="col">Aspect</th><th scope="col">The 2025 ML project</th>'
         '<th scope="col">The rk run</th></tr></thead>\n'

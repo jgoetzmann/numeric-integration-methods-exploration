@@ -266,6 +266,8 @@ def rk(ws: Path) -> dict:
         "epoch2": {"verifier_hash": "2db0816c", "verifier_files": 14,
                    "started": "2026-09-17T17:54Z",
                    "as_of": now,
+                   "counted_from": "the running work tree at as_of, which includes the current UTC "
+                                   "day's archive file before the run commits it at the day's close",
                    "cycle": runstate.get("cycle_id"),
                    "records": total2,
                    "lane_cycles": {lane: sum(1 for c in cycles if c.get("lane") == lane)

@@ -6,8 +6,8 @@ from . import charts
 SLUG = "novel.html"
 TITLE = "The 2025 ML project"
 DESCRIPTION = (
-    "What the 2025 ML project built, what its benchmark measured, and which of its "
-    "conclusions a September 2026 audit did not support."
+    "What the 2025 ML project built and measured, and which of its conclusions a "
+    "September 2026 audit did not support."
 )
 
 VERDICT_LABELS = {
@@ -144,21 +144,21 @@ def _audit_extra(cid, novel):
         d_rk4 = max(by_trial[t]["max_abs_diff_from_rk4"] for t in eq_rk4)
         d_dp = max(by_trial[t]["max_abs_diff_from_dormand_prince"] for t in eq_dp)
         return (
-            f"<p>The saved tables bear this out. The largest coefficient difference from RK4 "
+            f"<p>The saved tables confirm it. The largest coefficient difference from RK4 "
             f"is {fmt.sig(d_rk4)} for {_trials(eq_rk4)}, and the largest difference from "
-            f"Dormand-Prince is {fmt.sig(d_dp)} for {_trials(eq_dp)}. The comparison with the "
-            f"textbook tables was not blind, and neither project ran a blind test "
-            f"({_claim('U2')}).</p>"
+            f"Dormand-Prince is {fmt.sig(d_dp)} for {_trials(eq_dp)}. The search started from "
+            f"the textbook tables, so the match was not blind, and neither project ran a blind "
+            f"test ({_claim('U2')}).</p>"
         )
     if cid == "N3":
         return (
-            '<p>The <a href="#training-log">training log</a> below shows the same thing '
-            "from the other side: every logged candidate has the same composite score.</p>"
+            '<p>The <a href="#training-log">training log</a> below shows the same problem '
+            "in the raw rows: every logged candidate has the same composite score.</p>"
         )
     if cid == "N4":
         return (
-            "<p>The table below lists what each trial saved. Every row compares the saved "
-            "table with the textbook table of the same stage count.</p>"
+            "<p>The table below compares what each trial saved with the textbook table of "
+            "the same stage count.</p>"
             + _trials_table(novel)
         )
     if cid == "N5":
@@ -179,17 +179,18 @@ def _audit_extra(cid, novel):
         clip = log["composite_score_distinct_values"][0]
         return (
             f"<p>Trial {fmt.count(16)} used its own training loop, and its score is the only "
-            f"one in the project that is not clipped at {fmt.sig(clip)}. The highest best score "
-            f"in its {fmt.count(len(hist))}-epoch history, {fmt.sig(top['best_score'])}, is at "
-            f"epoch {fmt.count(top['epoch'])}, and the saved table is that epoch's random draw. "
-            f"The trial ran for {fmt.sig(t16['training_time_s'])} seconds.</p>"
+            f"one in the project that is not clipped at {fmt.sig(clip)}. Over its "
+            f"{fmt.count(len(hist))}-epoch history the best score peaked at "
+            f"{fmt.sig(top['best_score'])} in epoch {fmt.count(top['epoch'])}, and the saved "
+            f"table is that epoch's random draw. The trial ran for "
+            f"{fmt.sig(t16['training_time_s'])} seconds.</p>"
         )
     if cid == "N8":
         return (
             f"<p>Each training set held {fmt.count(audit['training_set_odes'])} ODEs drawn "
             f"from {fmt.count(audit['training_ode_family_count'])} families. The reference "
             f"solver handles {fmt.count(audit['reference_solver_family_count'])} of those "
-            f"families, so ODEs from the others could not be scored during training.</p>"
+            f"families, so training could not score ODEs from the others.</p>"
         )
     return ""
 
@@ -253,10 +254,9 @@ def build(data):
         f'<p class="lead"><code>{fmt.esc(repo_name)}</code> was a 2025 attempt to find new '
         f"explicit Runge-Kutta tables with machine learning: a neural generator, a surrogate "
         f"model and an evolutionary search, scored on generated ODEs. It built a working "
-        f"evaluation harness and ran a real benchmark of {fmt.count(bench['methods'])} methods "
-        f"on {fmt.count(bench['odes'])} ODEs. Its main conclusions did not hold up when its "
-        f"code and committed results were audited in September 2026. This page covers both "
-        f"parts.</p>"
+        f"evaluation harness and ran a benchmark of {fmt.count(bench['methods'])} methods "
+        f"on {fmt.count(bench['odes'])} ODEs. When an audit checked its code and committed "
+        f"results in September 2026, its main conclusions did not hold up.</p>"
     )
 
     # What it set out to do
@@ -272,9 +272,9 @@ def build(data):
     )
     parts.append(
         f"<p>The repository has {fmt.count(repo['commits'])} commits. The earliest is dated "
-        f"{fmt.day(repo['first_commit'])}, the working period ran from "
+        f"{fmt.day(repo['first_commit'])}, the work itself ran from "
         f"{fmt.day(repo['active_from'])} to {fmt.day(repo['active_to'])}, and the last "
-        f"commit, on {fmt.day(repo['last_commit'])}, edits comments and docstrings only.</p>"
+        f"commit, on {fmt.day(repo['last_commit'])}, touches only comments and docstrings.</p>"
     )
     parts.append("</section>")
 
@@ -282,13 +282,13 @@ def build(data):
     parts.append("<section>")
     parts.append(_h2("built", "What it built"))
     parts.append(
-        f"<p>The harness is real ({_claim('N9')}). It has a generic Butcher-table stepper "
+        f"<p>The evaluation harness works ({_claim('N9')}). It has a generic Butcher-table stepper "
         f"for explicit methods, an ODE generator with "
         f"{fmt.count(audit['training_ode_family_count'])} families that include stiff "
         f"problems such as Robertson, Oregonator and Van der Pol, a SciPy reference solver, "
         f"parallel scoring, JSON checkpoints and an SQLite results layer. Each of the "
         f"{fmt.count(repo['trial_folders'])} trials has its own configuration, script and "
-        f"seed, with its artifacts committed. The source tree holds "
+        f"seed, and its artifacts are committed. The source tree holds "
         f"{fmt.count(repo['src_python_lines'])} lines of Python in "
         f"{fmt.count(repo['src_python_files'])} files.</p>"
     )
@@ -318,8 +318,8 @@ def build(data):
         f"<p>The lowest mean error, {fmt.sig(dp['mean_max_error'])}, belongs to the "
         f"Dormand-Prince table and to {_trials(eq_dp)}, which saved that same table. The "
         f"next, {fmt.sig(rk4['mean_max_error'])}, belongs to RK4 and to {_trials(eq_rk4)}, "
-        f"which saved RK4 ({_claim('N1')}). The error is the mean over the scorable ODEs of "
-        f"each ODE's largest absolute error against the reference.</p>"
+        f"which saved RK4 ({_claim('N1')}). For each scorable ODE the benchmark takes the "
+        f"largest absolute error against the reference, then averages those maxima.</p>"
     )
     parts.append(f"<p><strong>Limits.</strong> {fmt.esc(claims['N1']['limits'])}</p>")
     bench_src = charts.source_link(bench["source"], sources)
@@ -340,7 +340,7 @@ def build(data):
         f"<p>Runtime is wall time for all {fmt.count(bench['odes'])} ODEs with the reference "
         f"solves included, so it measures more than the stepper. RK4 and {_trials(eq_rk4)} "
         f"ran the same table, yet their runtimes span {fmt.sig(rt_lo)} to {fmt.sig(rt_hi)} "
-        f"seconds, which gives the size of the timing noise. {fmt.esc(fastest['label'])} had "
+        f"seconds; that spread is the timing noise. {fmt.esc(fastest['label'])} had "
         f"the shortest runtime, {fmt.sig(fastest['runtime_s'])} seconds, because it ran as a "
         f"truncated explicit method with {fmt.count(fastest['stages'])} stages "
         f"({_claim('N5')}).</p>"
@@ -357,16 +357,16 @@ def build(data):
     parts.append("<section>")
     parts.append(_h2("audit", "What an audit in September 2026 found"))
     parts.append(
-        f"<p>In September 2026 the repository's code and committed results were checked "
-        f"against each claim in its README and in <code>results/analysis_report.md</code>. "
-        f'The full list with evidence is on the <a href="claims.html#novel">claims audit '
-        f"page</a>. Three main conclusions did not hold: the evolutionary search kept the "
-        f"tables it was seeded with ({_claim('N2', 'N2')}), no gradient descent ran "
+        f"<p>In September 2026 an audit checked each claim in the README and in "
+        f"<code>results/analysis_report.md</code> against the repository's code and "
+        f'committed results. The full list with evidence is on the <a href="claims.html#novel">'
+        f"claims audit page</a>. Three main conclusions did not hold: the evolutionary search "
+        f"kept the tables it was seeded with ({_claim('N2', 'N2')}), no gradient descent ran "
         f"({_claim('N4', 'N4')}), and nothing in the project tests whether a table is the "
-        f"best possible ({_claim('N3', 'N3')}). Two numbers measure bugs rather than methods "
-        f"({_claim('N5', 'N5')}, {_claim('N6', 'N6')}), and two more claims needed "
-        f"correcting ({_claim('N7', 'N7')}, {_claim('N8', 'N8')}). Each item below gives the "
-        f"claim, the project's own wording, and what the files show.</p>"
+        f"best possible ({_claim('N3', 'N3')}). Two numbers describe the harness rather than "
+        f"the methods ({_claim('N5', 'N5')}, {_claim('N6', 'N6')}), and two more claims "
+        f"needed correcting ({_claim('N7', 'N7')}, {_claim('N8', 'N8')}). Each item below "
+        f"quotes the claim and the project's own wording, then says what the files show.</p>"
     )
     for cid in AUDIT_ORDER:
         parts.append(_audit_item(cid, claims[cid], novel))
@@ -379,8 +379,8 @@ def build(data):
     parts.append(
         f"<p><code>metrics_log.csv</code> records one training run: "
         f"{fmt.count(len(per_epoch))} epochs of {fmt.count(per_epoch_candidates)} four-stage "
-        f"candidates, {fmt.count(log['rows'])} rows in all. It has no trial column, so the "
-        f"run it belongs to is not recorded. Every logged composite score is "
+        f"candidates, {fmt.count(log['rows'])} rows in all. It has no trial column, so it "
+        f"does not say which trial produced it. Every logged composite score is "
         f"{fmt.sig(clip)}, the ceiling the score is clipped to, so the score gave the search "
         f"nothing to select on ({_claim('N2')}).</p>"
     )
@@ -408,10 +408,10 @@ def build(data):
     parts.append("<section>")
     parts.append(_h2("what-holds", "What still holds"))
     parts.append(
-        f"<p>The harness holds up as built ({_claim('N9')}). A stepper that takes any "
-        f"explicit Butcher table, a generator of stiff and non-stiff test problems with a "
-        f"reference solver, per-trial configurations and saved artifacts are what a search "
-        f"like this needs, and the project had them working. The benchmark itself ran "
+        f"<p>The harness works as built ({_claim('N9')}). A search like this needs a stepper "
+        f"that takes any explicit Butcher table, a generator of stiff and non-stiff test "
+        f"problems with a reference solver, per-trial configurations and saved artifacts, and "
+        f"the project had all of them working. The benchmark ran "
         f"{fmt.count(bench['methods'])} methods over {fmt.count(bench['odes'])} ODEs to "
         f"completion.</p>"
     )
@@ -424,17 +424,17 @@ def build(data):
         f"covers what it found there.</p>"
     )
     parts.append(
-        f"<p>The author corrected some claims before this audit. Trials {fmt.count(6)} and "
-        f"{fmt.count(7)} put the coefficients that earlier trials kept producing on a "
-        f"forbidden list, so the repeated table had been noticed even though its cause had "
-        f"not been found. Commit <code>d148c43</code> changed <q>competitive performance</q> "
+        f"<p>The author had already corrected some claims before the audit. Trials "
+        f"{fmt.count(6)} and {fmt.count(7)} put the coefficients that earlier trials kept "
+        f"producing on a forbidden list, so the author had noticed the repeated table, though "
+        f"not its cause. Commit <code>d148c43</code> changed <q>competitive performance</q> "
         f"to <q>significantly worse accuracy</q> once the {fmt.count(bench['odes'])}-ODE "
         f"results came in, and commit <code>8c7cdd7</code> removed the README's CUDA speedup "
         f"claim and its <q>outperform</q> claims ({_claim('N8')}).</p>"
     )
     parts.append(
-        '<p>The pipeline, and the points where the audit found it broke, are drawn on the '
-        '<a href="architecture.html#arch-novel">architecture page</a>. Every number on this '
+        '<p>The <a href="architecture.html#arch-novel">architecture page</a> draws the '
+        "pipeline and marks where the audit found it broke. Every number on this "
         f"page is read from the repository at commit <code>{fmt.esc(repo_commit)}</code> "
         f'(<a href="{fmt.esc(repo_url)}/tree/{fmt.esc(repo_commit)}">browse it</a>).</p>'
     )

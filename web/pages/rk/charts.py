@@ -321,8 +321,8 @@ def validation_q15_chart(rk):
         f"out-of-sample problems: the champion {code(champ)} against the best classical method "
         f"for each problem {claim_ref('R4')}. Lower is better."
     )
-    caption += (f" {over_names} is not plotted because the champion hit an overflow there; "
-                f"it is in the table.")
+    caption += (f" {over_names} is not plotted because the champion overflowed there; "
+                f"its row is in the table.")
     caption += source_note(val.get("source"))
     return {
         "id": "rk-validation-q15",
@@ -378,8 +378,8 @@ def validation_f64_chart(rk):
         f"counts, on the out-of-sample problems where both finish {claim_ref('R5')}. Lower is "
         f"better."
     )
-    caption += (f" {over_names} is not plotted: the champion hit an overflow there in Q15, "
-                f"so it has no float64 comparison.")
+    caption += (f" {over_names} is not plotted: the champion overflowed there in Q15, "
+                f"so there is no float64 comparison.")
     caption += source_note(gap["source"])
     return {
         "id": "rk-validation-f64",

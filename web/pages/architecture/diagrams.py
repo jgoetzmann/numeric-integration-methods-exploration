@@ -322,17 +322,18 @@ def arch_rk(data):
     height = o_end + 6
     title = "Architecture of the rk run"
     desc = (
-        "Three groups stacked top to bottom. Host machine: a stats file written on the host, "
-        "a logon task that restarts the run after a reboot, and a watchdog with a pause guard "
-        "that can kill, stop, pause and resume the container and pushes the outputs to GitHub. "
-        f"Container: the harness is mounted read-only, the verifier's sha256 over {num['files']} "
-        f"pinned files is checked at start, {num['gate']} golden and canary cases must pass, and "
-        "then the runner repeats one cycle: a directive from a model or a fixed fallback, a search "
-        "by enumeration or CMA-ES, verification with exact rational order conditions, scoring in "
-        f"Q15 with floor rounding at a {num['budget']}-cycle budget, and an append to the archive, "
-        "after which the next cycle starts. Beside the runner sit the lanes and side tracks, the "
-        "hypothesis ledger and the literature digests. Outputs: the rk-work archive, from which "
-        "the findings site is rebuilt every cycle and the overview site is built by hand."
+        "Three groups, stacked top to bottom. The host machine holds a stats file written on "
+        "the host, a logon task that restarts the run after a reboot, and a watchdog with a "
+        "pause guard. The watchdog can kill, stop, pause and resume the container, and it pushes "
+        "the outputs to GitHub. In the container, the harness is mounted read-only, the "
+        f"verifier's sha256 over {num['files']} pinned files is checked at start, and "
+        f"{num['gate']} golden and canary cases must pass. The runner then repeats one cycle: a "
+        "directive from a model or a fixed fallback, a search by enumeration or CMA-ES, "
+        "verification with exact rational order conditions, scoring in Q15 with floor rounding "
+        f"at a {num['budget']}-cycle budget, and an append to the archive. Beside the runner sit "
+        "the lanes and side tracks, the hypothesis ledger and the literature digests. The "
+        "outputs are the rk-work archive, the findings site rebuilt from it every cycle, and the "
+        "overview site built from it by hand."
     )
     return _svg(RK_ID, height, title, desc, marker, back + edges + nodes + labels)
 
@@ -387,7 +388,7 @@ def arch_novel(data):
 
     s, h_s = _box(bx, row_y, hw, "stepper",
                   ["fixed step, explicit", "ignores the implicit", "part of a table"],
-                  "Audit: broke (N5)")
+                  "Audit: a bug (N5)")
     nodes.append(s)
     s, h_r = _box(x2, row_y, hw, "reference solver",
                   ["Dormand-Prince", "(SciPy RK45),",
@@ -431,7 +432,7 @@ def arch_novel(data):
         f"solver, Dormand-Prince (SciPy RK45), which handles {num['ref_families']} of the "
         f"{num['eval_families']} test families. The error feeds a composite score clipped at "
         f"{num['clip']}, which feeds a best-table tracker and, through selection, the evolution "
-        "loop. Labels starting with Audit mark breaks at the generator, the evolution seed, "
+        "loop. Labels starting with \"Audit:\" mark breaks at the generator, the evolution seed, "
         f"trial {num['t16']}'s fitness, the stepper, the reference solver's coverage, the clipped "
         "score and the tracker."
     )

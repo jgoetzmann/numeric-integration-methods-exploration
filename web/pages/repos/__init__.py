@@ -97,17 +97,17 @@ def build(data: dict) -> str:
         "generator and the tests. A host watchdog starts a container that mounts the harness "
         "read-only, so the search cannot change the code that scores it "
         '(<a href="claims.html#R11">claim R11</a>).</p>',
-        f"<p>Each cycle the container appends scored records to {work} and regenerates "
-        f"{findings}, the findings site, and commits both. The host watchdog does the pushing, "
+        f"<p>Each cycle the container appends scored records to {work}, regenerates "
+        f"{findings} (the findings site) and commits both. The host watchdog does the pushing, "
         f"so no credential enters the container. {work} also keeps epoch 1 frozen under "
         "<code>epochs/1/</code>, with the validation, benchmark and trace documents this site "
-        'quotes (<a href="claims.html#R7">why epoch 1 froze: claim R7</a>).</p>',
+        'quotes. <a href="claims.html#R7">Claim R7</a> covers why epoch 1 froze.</p>',
         f"<p>{overview} is built by hand from {work}. Its tools recompute the analysis into "
         "<code>tools/key_findings.json</code> and generate the explainer pages, including a "
         "browser demo that reruns the Q15 solver. It is a snapshot that goes stale between "
         "refreshes, while the findings site rebuilds every cycle.</p>",
-        f"<p>{ml} stands alone. It shares no code or data with the rk run; the two projects "
-        "share the question they asked, and this site.</p>",
+        f"<p>{ml} stands alone. It shares no code or data with the rk run. What the two "
+        "projects have in common is the question they asked, and this site.</p>",
         "<p>The four rk repositories sit side by side in one private workspace, where the run "
         "is started and stopped.</p>",
         f'<p class="private-workspace">{fmt.esc(sources["private_workspace"])}.</p>',
@@ -121,7 +121,7 @@ def build(data: dict) -> str:
         + _link(THIS_REPO_URL, "<code>numeric-integration-methods-exploration</code>")
         + ". The build never reads the source repositories. It reads the snapshot in "
         "<code>data/*.json</code> and writes static pages with the Python standard library "
-        "only, and the same data gives byte-identical pages.</p>",
+        "only. The same data gives byte-identical pages.</p>",
         "<p>To refresh the numbers and rebuild:</p>",
         '<pre style="overflow-x: auto"><code>python tools/snapshot.py \\\n'
         "  --rk-workspace RK_WORKSPACE \\\n"

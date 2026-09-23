@@ -61,7 +61,7 @@ def benchmark_chart(rows, notes, caption_html):
             parts.append(dot(xs(v), y, slot, f'{r["label"]}: {fmt.sig(v)}'))
 
     off_desc = "; ".join(
-        f'{r["label"]} is marked off scale at {fmt.sig(r["mean_max_error"])} because that number is an artifact'
+        f'{r["label"]} is marked off scale at {fmt.sig(r["mean_max_error"])} because that number comes from a stepper bug'
         for r in off
     )
     desc = (
@@ -116,8 +116,8 @@ def runtime_chart(rows, odes, caption_html):
     slowest = max(rows, key=lambda r: r["runtime_s"])
     desc = (
         f"Horizontal bar chart of runtime in seconds for {len(rows)} benchmark entries, "
-        f"baselines and trial entries as two series. Shortest: {fastest['label']} at "
-        f"{fmt.sig(fastest['runtime_s'])} s. Longest: {slowest['label']} at "
+        f"baselines and trial entries as two series. The shortest is {fastest['label']} at "
+        f"{fmt.sig(fastest['runtime_s'])} s and the longest is {slowest['label']} at "
         f"{fmt.sig(slowest['runtime_s'])} s."
     )
     return figure({

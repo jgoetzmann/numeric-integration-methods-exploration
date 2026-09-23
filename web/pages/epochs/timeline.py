@@ -221,7 +221,7 @@ def figure(data):
     caption = (
         "When the 2025 ML project did its main work, and the rk run's two epochs up to the "
         f"snapshot on {snap}. The date axis is broken between October 2025 and late August "
-        "2026; both parts share one scale, so bar lengths compare."
+        "2026. Both parts share one scale, so bar lengths can be compared across the break."
     )
     rows = [[fmt.esc(ev["what"]), fmt.day(ev["start"]), fmt.day(ev["end"] or ev["start"]), _source(ev)]
             for ev in evs]

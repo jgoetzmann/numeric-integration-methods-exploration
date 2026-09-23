@@ -69,11 +69,10 @@ def _trace_row(rk, name):
 
 def _lead():
     return (
-        "<p>The rk run is divided into epochs. Every scored record stores the hash of the pinned "
-        f"files that do the scoring ({_claim('R11')}), so when one of those files has to change, "
+        "<p>The rk run is split into epochs. Every scored record stores the hash of the pinned "
+        f"files that do the scoring ({_claim('R11')}). When one of those files has to change, "
         "the run starts a new epoch and leaves the old archive as it was. There have been two "
-        "epochs so far. This page gives their dates, what each one did, why epoch 1 froze, and "
-        "the practices the run uses to check its own claims.</p>"
+        "epochs so far.</p>"
     )
 
 
@@ -122,7 +121,7 @@ def _epoch1(data):
         "archive grid held an elite.</p>"
     )
     p2 = (
-        f"<p>Its main result came early. The champion, {_code(ch['hash'])}, appeared at cycle "
+        f"<p>Its main result came early: the champion, {_code(ch['hash'])}, appeared at cycle "
         f"{fmt.count(ch['found_at_cycle'])}, and nothing in the remaining "
         f"{fmt.count(ch['cycles_since_last_improvement'])} cycles improved on it ({_claim('R6')}). "
         "Most of epoch 1's later work went into checking that result.</p>"
@@ -132,9 +131,9 @@ def _epoch1(data):
         f"-cycle budget, the champion has {fmt.ratio(ch['lead'])} lower held-out error than "
         f"{_code(ch['best_classical'])}, the best of the {_word(n_classical)} classical methods "
         f"({_claim('R1')}). That figure uses the analytic cost model and magnitude weighting over "
-        f"{_word(n_heldout)} held-out problems, and it narrows under other cost bases and "
-        'weightings (see the <a href="#grid">counterfactual grid</a> below). The '
-        '<a href="rk.html">rk run page</a> has the full results.</p>'
+        f"{_word(n_heldout)} held-out problems. It narrows under other cost bases and "
+        'weightings (see the <a href="#grid">counterfactual grid</a> below). The full results '
+        'are on the <a href="rk.html">rk run page</a>.</p>'
     )
     table = _archive_table(e1["archive_days"], "Epoch 1 records per archive day")
     return (
@@ -155,7 +154,7 @@ def _froze(data):
     rk38 = _trace_row(rk, "rk38")
     p1 = f"<p>{_prose(ep['why_epoch1_froze'])}</p>"
     p2 = (
-        f"<p>The ordering in question: under the epoch-1 rule with the fast multiplier "
+        f"<p>Under the epoch-1 rule with the fast multiplier "
         f"({_code(model)}), <code>rk4</code> cost {fmt.count(rk4['analytic'][model])} cycles per "
         f"step and <code>rk38</code> {fmt.count(rk38['analytic'][model])}. The compiled step, "
         "counted over the same scope the model prices, took "
@@ -167,13 +166,13 @@ def _froze(data):
         "applied to the executed instructions, and nothing was measured on a physical chip.</p>"
     )
     p3 = (
-        "<p>Pricing coefficients by the compiled instructions meant editing a pinned file. The "
-        f"verifier hash moved from {_code(e1['verifier_hash'])} over "
-        f"{fmt.count(e1['verifier_files'])} files to {_code(e2['verifier_hash'])} over "
-        f"{fmt.count(e2['verifier_files'])}. The run did not rescore the epoch-1 archive under the "
-        f"new model. It froze epoch 1 on {fmt.day(e1['frozen_at'])}, kept its archive and "
-        "documents in <code>rk-work</code> under <code>epochs/1/</code>, and started epoch 2 with "
-        "a new archive. Results on this site come from epoch 1 unless they say otherwise.</p>"
+        "<p>With the pinned files changed, the verifier hash moved from "
+        f"{_code(e1['verifier_hash'])} over {fmt.count(e1['verifier_files'])} files to "
+        f"{_code(e2['verifier_hash'])} over {fmt.count(e2['verifier_files'])}. The run did not "
+        "rescore the epoch-1 archive under the new model. It froze epoch 1 on "
+        f"{fmt.day(e1['frozen_at'])}, kept its archive and documents in <code>rk-work</code> "
+        "under <code>epochs/1/</code>, and started epoch 2 with a new archive. Results on this "
+        "site come from epoch 1 unless they say otherwise.</p>"
     )
     return (
         "<section>\n"
@@ -190,8 +189,8 @@ def _epoch2(data):
     days = e2["archive_days"]
     down_days = (_stamp(down["to"]) - _stamp(down["from"])).total_seconds() / 86400
     lane_text = (
-        f"explicit {fmt.count(lanes['explicit'])} cycles, adaptive "
-        f"{fmt.count(lanes['adaptive'])} and implicit {fmt.count(lanes['implicit'])}"
+        f"explicit {fmt.count(lanes['explicit'])}, adaptive "
+        f"{fmt.count(lanes['adaptive'])}, implicit {fmt.count(lanes['implicit'])}"
     )
     day_text = " and ".join(
         f"{fmt.count(d['records'])} on {fmt.day(d['day'])}" for d in days
@@ -202,8 +201,8 @@ def _epoch2(data):
         f"{fmt.count(e2['cycle'])} and written {fmt.count(e2['records'])} records to its own "
         f"archive. Its cycles rotate among {_word(len(lanes))} lanes: the explicit lane scores "
         "candidates in Q15 into the archive, while the adaptive and implicit lanes measure how "
-        "many cycles a float64 solve needs to reach a tolerance and are kept apart from the "
-        f"archive. By lane: {lane_text}.</p>"
+        "many cycles a float64 solve needs to reach a tolerance, and their results stay out of "
+        f"the archive. Cycles per lane so far: {lane_text}.</p>"
     )
     p2 = (
         f"<p>From {fmt.day(down['from'])} to {fmt.day(down['to'])} the run was down for about "
@@ -211,8 +210,8 @@ def _epoch2(data):
         f"records from only {_word(len(days))} days so far: {day_text}.</p>"
     )
     p3 = (
-        "<p>Two changes followed. The watchdog now resumes stops it made itself once the "
-        "condition that caused them clears (decision D46), and a logon task restarts the run "
+        "<p>Two changes followed. The watchdog now restarts the run after its own stops, once "
+        "the condition behind the stop clears (decision D46). A logon task restarts the run "
         "after a reboot (decision D47).</p>"
     )
     return (
@@ -231,7 +230,7 @@ def _premise(data):
     near_won, near_of = (int(v) for v in pr["rk4_best_under_round_to_nearest"].split("/"))
     return (
         '<h3 id="premise">A premise test set before the search</h3>\n'
-        "<p>Before the search ran, the project pre-registered thresholds that would count "
+        "<p>Before the search started, the run pre-registered thresholds that would count "
         "against its premise: that in Q15 with floor rounding, at practical step sizes, rounding "
         "error outweighs truncation error, so the textbook coefficients are not the ones that do "
         f"best. The stored verdict is {_code(pr['stored_verdict'])} ({_claim('R9')}): the "
@@ -247,8 +246,9 @@ def _ledger():
     return (
         '<h3 id="ledger">A hypothesis ledger scored by code</h3>\n'
         "<p>The run keeps a ledger of hypotheses about its own search. Each hypothesis is a "
-        "predicate in a small closed grammar, read by a hand-written parser, and code evaluates "
-        "the predicate to assign its verdict. No model decides whether a hypothesis held. This "
+        "predicate in a small closed grammar that a hand-written parser reads, and code "
+        "evaluates the predicate to assign its verdict. No model decides whether a hypothesis "
+        "held. This "
         "site quotes no counts from the ledger, because it is not among the documents the run "
         "treats as sources for published numbers.</p>"
     )
@@ -308,9 +308,9 @@ def _grid(data):
     n_other = len(cells) - len(leading)
     return (
         '<h3 id="grid">The counterfactual grid</h3>\n'
-        f"<p>The headline lead was recomputed under {_word(len(weightings))} weightings of the "
-        f"held-out problems and {_word(len(bases))} cost bases, {_word(len(cells))} cells in all, "
-        f"and every cell is published. {_cap(_prose(cf['note']))}</p>\n"
+        f"<p>The run recomputed the headline lead under {_word(len(weightings))} weightings of "
+        f"the held-out problems and {_word(len(bases))} cost bases, {_word(len(cells))} cells in "
+        f"all, and publishes every cell. {_cap(_prose(cf['note']))}</p>\n"
         f"{table}\n"
         f"<p>The stored check says the champion still leads in {_word(len(leading))} of the "
         f"{_word(len(cells))} cells{both}. In the other {_word(n_other)}, either the ratio is "
@@ -323,8 +323,8 @@ def _practice(data):
     return (
         "<section>\n"
         '<h2 id="research-practice">Research practice</h2>\n'
-        "<p>The run publishes its checks and its negative results next to its headline. Four "
-        "practices shape how its claims should be read.</p>\n"
+        "<p>The run publishes its checks and its negative results next to its headline. The "
+        "four practices below matter for reading its claims.</p>\n"
         f"{_premise(data)}\n{_ledger()}\n{_literature()}\n{_grid(data)}\n"
         "</section>"
     )
@@ -336,7 +336,7 @@ def _snapshot(data):
         "<section>\n"
         '<h2 id="about-this-snapshot">About this snapshot</h2>\n'
         f"<p>This page was built from data read on {snap}. The run was still going on that "
-        "date, so the epoch 2 counts above will fall behind. For current numbers, see the "
+        "date, so the epoch 2 counts above will go out of date. For current numbers, see the "
         f'findings site the run rebuilds every cycle: <a href="{FINDINGS_URL}">'
         "jgoetzmann.github.io/rk-findings</a>.</p>\n"
         "</section>"

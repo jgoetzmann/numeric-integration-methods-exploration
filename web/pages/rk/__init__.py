@@ -88,9 +88,8 @@ def _question(rk):
         "<p>Q15 stores each value as a signed 16-bit integer that stands for a fraction between "
         "minus one and one. A Cortex-M0+ has no floating-point unit, so it multiplies two Q15 "
         "values as integers and shifts the product right by fifteen bits. The shift is "
-        "arithmetic, which rounds toward minus infinity, as the ARM "
-        f"{code('ASRS')} instruction does: every product loses part of its last bit, always in "
-        "the same direction.</p>"
+        f"arithmetic, and like the ARM {code('ASRS')} instruction it rounds toward minus "
+        "infinity, so every product loses part of its last bit, always in the same direction.</p>"
         f"<p>Textbook coefficients such as those of {code('rk4')} were derived for exact "
         "arithmetic. The run asks which coefficients give the lowest error once that downward "
         "rounding is part of every step.</p>"
@@ -120,8 +119,8 @@ def _scoring(rk):
         f"each at the {_budget(rk)}-cycle budget. The archive sorts methods into cells by order, "
         "stage count and cost band, and keeps in each cell the method with the lowest RMS error "
         f"on {word(len(held))} held-out problems: {and_list([code(h) for h in held])}. No "
-        "optimizer reads the held-out problems, but the model that proposes search directions "
-        "sees one held-out error per cell, and elites are chosen on those errors, so the "
+        "optimizer reads the held-out problems. The model that proposes search directions does "
+        "see one held-out error per cell, though, and elites are picked on those errors, so the "
         f"held-out numbers are not independent of the search {claim_ref('U2')}.</p>"
         "<p>The scorer is out of the search's reach. The harness is mounted read-only, a sha256 "
         f"over {fmt.count(eng['verifier_files'])} files ({fmt.count(ep1['verifier_files'])} in "
@@ -180,12 +179,12 @@ def _results(rk):
         "cost model with magnitude weighting, the champion's held-out RMS error is "
         f"{fmt.sig(ch['heldout_error'])} against {fmt.sig(ch['best_classical_heldout_error'])} "
         f"for {code(ch['best_classical'])}, the best classical method: a lead of "
-        f"{fmt.ratio(ch['lead'])} {claim_ref('R1')}. Elites are chosen on held-out error from "
-        "tens of thousands of candidates, so that lead carries winner's-curse bias.</p>"
+        f"{fmt.ratio(ch['lead'])} {claim_ref('R1')}. Elites are picked from the archive by "
+        "held-out error, so that lead carries winner's-curse bias.</p>"
         f"<p>It appeared at cycle {fmt.count(ch['found_at_cycle'])}. Nothing in the remaining "
         f"{fmt.count(ch['cycles_since_last_improvement'])} of epoch 1's "
-        f"{fmt.count(ch['cycles_run'])} cycles improved on it {claim_ref('R6')}, so most of the "
-        "run's later work went into checking this result rather than improving it.</p>"
+        f"{fmt.count(ch['cycles_run'])} cycles improved on it {claim_ref('R6')}. From then on, "
+        "the run's value lay mostly in checking this result rather than in improving it.</p>"
         "<p>The champion is not the only discovered method ahead of the classical ones. Epoch 1 "
         f"filled {fmt.count(n_total)} cells in the archive, {fmt.count(n_disc)} with a discovered "
         f"method and {fmt.count(n_cls)} with a classical one. Under the same conditions, "
@@ -264,8 +263,8 @@ def _validation(rk):
                 f"on {code(p['problem'])} {code(p['best_classical'])} had the lower error, "
                 f"{fmt.sig(p['best_classical_q15'], 4)} against "
                 f"{fmt.sig(p['best_discovered_q15'], 4)} for the best discovered method")
-    stiff_sentence = (f"<p>The stiff problems went less well, under the same Q15 floor rounding "
-                      f"and budget. A discovered method had the "
+    stiff_sentence = (f"<p>Under the same Q15 floor rounding and budget, the stiff problems went "
+                      f"less well. A discovered method had the "
                       f"lower error on {fmt.count(val['stiff_won_by_discovered'])} of the "
                       f"{fmt.count(val['stiff_total'])}")
     if stiff_parts:
@@ -275,9 +274,9 @@ def _validation(rk):
     body = (
         f"<p>The run then scored the champion on {word(len(probs))} further problems from "
         f"embedded domains, {word(len(non_stiff))} non-stiff and {word(len(stiff))} stiff. No "
-        "optimizer or model saw these problems and the champion was fixed before they ran, but "
-        "people chose the problems after the search began, so this is an out-of-sample check "
-        "rather than an independent benchmark.</p>"
+        "optimizer or model saw these problems, and the champion was fixed before they ran. "
+        "People chose the problems after the search began, though, so this is an out-of-sample "
+        "check rather than an independent benchmark.</p>"
         f"<p>In Q15 with floor rounding at the {budget}-cycle budget, the best discovered method "
         "had lower error than the best classical method on "
         f"{fmt.count(val['practical_won_by_discovered'])} of {fmt.count(val['practical_total'])} "
@@ -315,7 +314,7 @@ def _float64(rk):
              "float64 through SciPy.")
     body += (
         "</p>"
-        "<p>This is the boundary of the Q15 result, not a flaw in it. Nothing on this page says "
+        "<p>This is where the Q15 result stops applying. Nothing on this page says "
         f"the champion is more accurate than {code('rk4')} or Dormand-Prince outside Q15 with "
         "floor rounding.</p>"
         + figure(charts.validation_f64_chart(rk))
@@ -427,9 +426,9 @@ def _cost_model(rk):
     p3 = (
         "<p>The emulator is instruction-accurate, not cycle-accurate: its cycle counts come from "
         "a timing table applied to the executed instructions, and nothing was measured on a "
-        "physical chip. The run froze epoch 1 and started epoch 2 under a corrected cost model, "
-        "which prices each coefficient by the instructions GCC emits for it, instead of rescoring "
-        'the old archive. <a href="epochs.html">Epochs and research</a> covers that decision.</p>'
+        "physical chip. Rather than rescore the old archive, the run froze epoch 1 and started "
+        "epoch 2 under a corrected cost model that prices each coefficient by the instructions "
+        'GCC emits for it. <a href="epochs.html">Epochs and research</a> covers that decision.</p>'
     )
     body = p1 + p2 + p3 + _trace_table(rk)
     return _section("cost-model", "Speed and the cost model", body)
@@ -449,11 +448,11 @@ def _not_shown(rk):
         f"the model that proposes directions sees them, so the {fmt.ratio(ch['lead'])} lead (Q15 "
         "with floor rounding, analytic basis, magnitude weighting) carries winner's-curse bias "
         f"{claim_ref('R1', 'U2')}.",
-        "Its validation is out-of-sample and no more than that. No optimizer or model saw the "
-        "validation problems, but people chose them after the search began "
+        "Its validation is an out-of-sample check, not an independent benchmark. No optimizer "
+        "or model saw the validation problems, but people chose them after the search began "
         f"{claim_ref('R4')}.",
     ]
-    items.append("Its lead does not survive every cost basis unchanged. On the traced "
+    items.append("Its lead depends on the cost basis. On the traced "
                  "whole-step basis with magnitude weighting, in Q15 with floor rounding, it "
                  f"is {fmt.ratio(mag_tr['ratio'])} {claim_ref('R1')}.")
     items.append("Its methods do not handle every stiff problem. Every discovered method "

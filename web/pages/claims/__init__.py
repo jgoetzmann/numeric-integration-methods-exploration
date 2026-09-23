@@ -25,23 +25,22 @@ GROUPS = (
     (
         "rk",
         "The rk run",
-        "Claims about the rk run. Its Q15 results hold inside Q15 fixed point "
-        "with floor rounding at the run's fixed cycle budget, under the conditions "
-        "each claim lists. In float64 the established methods win, as "
-        '<a href="#R5">R5</a> records.',
+        "The rk run's Q15 results hold inside Q15 fixed point with floor rounding "
+        "at the run's fixed cycle budget, under the conditions each claim lists. "
+        'In float64 the established methods win, as <a href="#R5">R5</a> records.',
     ),
     (
         "novel",
         "The 2025 ML project",
-        "Claims about <code>Novel-Numerical-Integration-Methods</code>. Where the "
-        "2025 ML project made a claim itself, in its README or its analysis report, "
-        "the original wording is quoted and the correction follows it. The audit "
-        "also credits what the project built and measured.",
+        "Where <code>Novel-Numerical-Integration-Methods</code> made a claim itself, "
+        "in its README or its analysis report, this page quotes the original wording "
+        "and gives the correction after it. The audit also credits what the project "
+        "built and measured.",
     ),
     (
         "both",
         "Across both projects",
-        "Claims that cover both projects. Each rests on claims from the two groups "
+        "These claims cover both projects. Each rests on claims in the two groups "
         "above and links to them.",
     ),
 )
@@ -152,11 +151,11 @@ def build(data: dict) -> str:
         "one carries a verdict, the conditions it holds under, and links to the files "
         "that show it, pinned to the commits named in the footer. Other pages link "
         "here by claim id.</p>\n"
-        "<p>Every claim was checked against the source repositories as of the "
-        f"snapshot on {snapshot}. The claims about the 2025 ML project were audited in "
+        "<p>The audit checked every claim against the source repositories as of the "
+        f"snapshot on {snapshot}. It checked the claims about the 2025 ML project in "
         "September 2026 against that project's code and data. Where the 2025 project "
-        "published a claim the files do not support, its original wording is kept in "
-        "a block quote beside the correction.</p>\n"
+        "published a claim the files do not support, this page keeps its original "
+        "wording in a block quote beside the correction.</p>\n"
         "<p>A verdict is always written out in words. Claims marked not supported are "
         "claims this site does not make; they stay listed so each correction sits next "
         "to the claim it replaces.</p>\n"
