@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Story | Numeric integration methods</title>
+<meta name="description" content="Two searches for better Runge-Kutta coefficients: what each one found, and where established methods still lead.">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="site-header">
+<a class="site-name" href="index.html">Numeric integration methods</a>
+<nav class="site-nav" aria-label="Pages">
+<ul>
+<li><a href="index.html" aria-current="page">Story</a></li>
+<li><a href="rk.html">The rk run</a></li>
+<li><a href="novel.html">The 2025 ML project</a></li>
+<li><a href="architecture.html">Architecture</a></li>
+<li><a href="epochs.html">Epochs and research</a></li>
+<li><a href="claims.html">Claims audit</a></li>
+<li><a href="repos.html">Repositories</a></li>
+</ul>
+</nav>
+</header>
+<main id="content">
+<h1>Two searches for better Runge-Kutta coefficients</h1>
+<p class="lead">Both projects asked whether a search can find Runge-Kutta coefficients that do better than the textbook ones. In float64, <a href="claims.html#U1">established methods were more accurate in both</a>, though the 2025 half of that is weak evidence. Inside Q15 fixed point with floor rounding, at a 65,536-cycle budget on the analytic cost model with magnitude weighting, the rk run found a three-stage method with <a href="claims.html#R1">2.95x lower held-out error</a> than the best of eight classical methods. That figure comes from the epoch-1 cost model, which a later trace found <a href="claims.html#R7">had <code>rk4</code> and <code>rk38</code> in the wrong order</a>; epoch 2 has not re-measured it, and it moves with the cost basis and the weighting.</p>
+<p class="note">Figures date from 2026-09-23; the rk run has kept going, and <a href="https://jgoetzmann.github.io/rk-findings/">its findings site</a> has current numbers.</p>
+<h2 id="terms">Terms</h2>
+<dl class="terms">
+<dt>Q15</dt>
+<dd>A sixteen-bit fixed-point fraction between minus one and one, for chips without a floating-point unit.</dd>
+<dt>Floor rounding</dt>
+<dd>Each Q15 multiply rounds toward minus infinity, so every product errs the same way.</dd>
+<dt>Cycle budget</dt>
+<dd>65,536 modeled clock cycles per method per problem, so a cheaper step buys more steps.</dd>
+<dt>Analytic and traced cost</dt>
+<dd>The analytic model prices coefficient arithmetic only; the traced count prices the compiled step, minus the derivative routine's body.</dd>
+<dt>Held-out problems</dt>
+<dd>Four problems that elites are picked on and the optimizer never reads: a selection set, not a test set.</dd>
+<dt>Cell and elite</dt>
+<dd>The archive sorts methods into cells by order, stage count and cost band; a cell's elite is its method with the lowest held-out error.</dd>
+<dt>Weighting</dt>
+<dd>How the four held-out errors become one number. Magnitude weighting, which the archive uses, is their RMS, so small errors count for little; median-anchor weighting counts the four equally.</dd>
+<dt>Epoch</dt>
+<dd>A stretch of the rk run under one set of pinned scoring files.</dd>
+</dl>
+<h2 id="projects">The two projects</h2>
+<div class="cards projects">
+<article class="card project-card">
+<h3><a href="rk.html">The rk run</a></h3>
+<p class="card-dates">2026-08-29 onward</p>
+<p>An autonomous search, run in a container, for coefficients that do well in Q15 on a modeled Cortex-M0+. A language model <a href="claims.html#R13">steers it through a JSON directive that can only narrow the search</a>, and code does the scoring. <a href="epochs.html">Epoch 1</a> ran until 2026-09-10: 3,931 search cycles and 141,364 scored records. No person chose candidates or scores, though <a href="claims.html#R12">the runner started 24 times</a>, including restarts to deploy changes to unpinned code. Epoch 2 started on 2026-09-17 under a corrected cost model, stopped late that day, and stayed down until 2026-09-23.</p>
+</article>
+<article class="card project-card">
+<h3><a href="novel.html">The 2025 ML project</a></h3>
+<p class="card-dates">Active 2025-09-13 to 2025-09-21</p>
+<p><code>Novel-Numerical-Integration-Methods</code> tried to generate new explicit Runge-Kutta tables with a neural generator, a surrogate model and evolutionary search, in float64. <a href="claims.html#N9">Its evaluation harness runs end to end</a> for explicit tables. Its main conclusions from 2025 did not hold.</p>
+</article>
+</div>
+<p>The same author built both, and audited the 2025 project in September 2026, after the rk run began. The code and data for both are in <a href="repos.html">five repositories</a>.</p>
+<h2 id="results">Results</h2>
+<div class="cards claims">
+<article class="card claim-card">
+<h3><a href="claims.html#R1">The Q15 lead</a></h3>
+<p>The champion, <code>11e898cb</code>, was picked on held-out error from 141,364 archived tableaus, so its lead over <code>midpoint</code>, the best classical method, carries selection bias. It has higher error than <code>midpoint</code> on <code>pendulum</code>, and much of the gap comes from <code>rc_thermal</code>, where every classical method stalls near a quantization floor.</p>
+<p>On the traced whole-step basis the lead falls to 1.01x, which dropping one held-out problem overturns. With the four problems weighted equally it is 1.1x on the analytic basis, and dropping one can reverse that too (lowest 0.814x). Under round-to-nearest, at the same budget and cost model and with no extra cycles charged for the rounding, <code>rk38</code>, one of the four classical methods run under both rounding modes, reaches 0.0263 held-out error, below the champion's 0.0286 under floor rounding.</p>
+<p class="card-foot"><span class="verdict verdict-supported-with-limits">Supported with limits</span></p>
+</article>
+<article class="card claim-card">
+<h3><a href="claims.html#R2">Discovered elites lead in every cell they hold</a></h3>
+<p>In Q15 with floor rounding at the 65,536-cycle budget, on the analytic cost model with magnitude weighting and with the same selection bias, all 16 discovered methods that hold one of the 18 occupied archive cells have lower held-out error than every classical method, whatever its cost. The closest is 0.0836 against <code>midpoint</code>'s 0.0844.</p>
+<p class="card-foot"><span class="verdict verdict-supported-with-limits">Supported with limits</span></p>
+</article>
+<article class="card claim-card">
+<h3><a href="claims.html#R4">Out-of-sample problems</a></h3>
+<p>On eight problems chosen after the search began, the best of three discovered methods had lower Q15 error than the best of five classical ones on 4 of 5 non-stiff problems, the champion by itself on 3. On the stiff <code>robertson_scaled</code>, every discovered method overflowed, as did <code>rk4</code> and <code>rk38</code>.</p>
+<p class="card-foot"><span class="verdict verdict-supported-with-limits">Supported with limits</span></p>
+</article>
+<article class="card claim-card">
+<h3><a href="claims.html#R5">In float64, rk4 is far more accurate</a></h3>
+<p>At the step count the 65,536-cycle budget gives each method, the champion's float64 error was 1,992x to 420,975x that of <code>rk4</code> on the seven validation problems where both finish, second order against fourth. Dormand-Prince never ran against the champion in the same arithmetic.</p>
+<p class="card-foot"><span class="verdict verdict-supported-with-limits">Supported with limits</span></p>
+</article>
+<article class="card claim-card">
+<h3><a href="claims.html#R7">A trace caught the cost model&#x27;s error</a></h3>
+<p>The compiled step matched the Python evaluator in 144 of 144 cases, 25 of them overflow cases, on an emulator that is instruction-accurate but not cycle-accurate. Once the trace found <code>rk4</code> and <code>rk38</code> in the wrong order, the run froze epoch 1 instead of rescoring it.</p>
+<p class="card-foot"><span class="verdict verdict-supported">Supported</span></p>
+</article>
+<article class="card claim-card">
+<h3><a href="claims.html#N1">The 2025 benchmark ran</a></h3>
+<p>In float64, over 12 entries and 10,000 ODEs (8,113 scorable), Dormand-Prince had the lowest mean error (0.0791) and RK4 the next (0.14). The other entries were copies of those two, random tables or truncated methods, and the reference solver was itself Dormand-Prince.</p>
+<p class="card-foot"><span class="verdict verdict-supported-with-limits">Supported with limits</span></p>
+</article>
+<article class="card claim-card">
+<h3><a href="claims.html#N2">The saved tables never left the seeds</a></h3>
+<p><q>Evolutionary search independently rediscovered RK4 and Dormand-Prince.</q></p>
+<p>The genetic operators ran, but RK4 and Dormand-Prince were seeded in and every score tied at the clip of 1, so the saved table never changed.</p>
+<p class="card-foot"><span class="verdict verdict-not-supported">Not supported</span></p>
+</article>
+<article class="card claim-card">
+<h3><a href="claims.html#N4">The generator was never trained</a></h3>
+<p><q>Gradient descent collapsed into local minima.</q></p>
+<p>The generator's optimizer was never stepped. Gradient descent trained only a surrogate model, and nothing in training reads its predictions.</p>
+<p class="card-foot"><span class="verdict verdict-not-supported">Not supported</span></p>
+</article>
+</div>
+<h2 id="scoring">How each project scored candidates</h2>
+<table class="compare">
+<thead><tr><th scope="col">Aspect</th><th scope="col">The 2025 ML project</th><th scope="col">The rk run</th></tr></thead>
+<tbody>
+<tr><th scope="row">What a candidate is scored on</th><td>A composite clipped at 1. <a href="claims.html#N2">All 10,000 rows</a> of the one training log (100 epochs of 100 candidates) score 1.</td><td>Search-set error for the optimizer and held-out error for choosing elites, both in Q15 at the cycle budget.</td></tr>
+<tr><th scope="row">Order conditions</th><td>None enforced. <a href="claims.html#N10">Its order-4 test labels RK4 as order 3</a>.</td><td>Exact rational order conditions, checked before a candidate is scored.</td></tr>
+<tr><th scope="row">Where the search starts</th><td>RK4 and Dormand-Prince in the starting populations, and <a href="claims.html#N4">a random generator reseeded to 42</a> for empty slots.</td><td>An exhaustive lattice of dyadic coefficients, then CMA-ES over the stage matrix.</td></tr>
+<tr><th scope="row">Guarding the scorer</th><td><a href="claims.html#N11">No automated test suite</a>.</td><td>A <a href="architecture.html">read-only harness</a>, <a href="claims.html#R11">a sha256 over the pinned files</a> (10 in epoch 1, 14 since epoch 2) checked at every start and stored in every record, and 91 gate cases that must pass before any search cycle.</td></tr>
+<tr><th scope="row">Problems outside the search</th><td>A <a href="claims.html#N1">final benchmark on 10,000 generated ODEs</a>.</td><td>Four held-out problems, then <a href="claims.html#R4">eight out-of-sample ones</a>.</td></tr>
+<tr><th scope="row">What gets published</th><td>Every benchmark entry, the weakest included.</td><td>Negative results too: <a href="claims.html#R9">a mixed premise test</a> and <a href="claims.html#R5">the float64 gap</a>.</td></tr>
+</tbody>
+</table>
+<p>Neither project isolated any of these differences, so none of them can be tied to a particular result.</p>
+<h2 id="untested">What neither project tested</h2>
+<p><a href="claims.html#U2">Neither project kept its comparisons hidden from the search</a>. The language model that steers the rk run sees held-out errors, and elites are picked on them, so the nearest independent check is the <a href="claims.html#R4">out-of-sample suite</a>. The 2025 search started from the tables it was said to rediscover.</p>
+<p><a href="claims.html#U3">Neither search measured whether large local minima exist</a>. The 2025 project's results stayed flat because of its clipped score, untrained generator and reseeded random fallback. The rk run's best held-out error <a href="claims.html#R6">stopped improving after search cycle 33</a> while other cells kept improving, which describes one search, not the space it searched.</p>
+
+</main>
+<footer class="site-footer">
+<p>Figures as of <time datetime="2026-09-23">2026-09-23</time>, from these repositories at the commits shown:</p>
+<ul class="sources">
+<li><code><a href="https://github.com/jgoetzmann/rk-harness/tree/d1e41d5976a4">rk-harness@d1e41d5976a4</a></code></li>
+<li><code><a href="https://github.com/jgoetzmann/rk-work/tree/59a43b36953c">rk-work@59a43b36953c</a></code></li>
+<li><code><a href="https://github.com/jgoetzmann/rk-findings/tree/9ff318dc5236">rk-findings@9ff318dc5236</a></code></li>
+<li><code><a href="https://github.com/jgoetzmann/rk-overview/tree/1a8e0a739ce4">rk-overview@1a8e0a739ce4</a></code></li>
+<li><code><a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/tree/d89c2c809ee0">Novel-Numerical-Integration-Methods@d89c2c809ee0</a></code></li>
+</ul>
+<p>The run continues; current numbers are on the <a href="https://jgoetzmann.github.io/rk-findings/">rk-findings site</a>, which it rebuilds every search cycle.</p>
+</footer>
+</body>
+</html>

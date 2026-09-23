@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Epochs and research | Numeric integration methods</title>
+<meta name="description" content="When the rk run&#x27;s two epochs ran, what happened between them, what stopped epoch 2 for five days, and how the run checks its own claims.">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="site-header">
+<a class="site-name" href="index.html">Numeric integration methods</a>
+<nav class="site-nav" aria-label="Pages">
+<ul>
+<li><a href="index.html">Story</a></li>
+<li><a href="rk.html">The rk run</a></li>
+<li><a href="novel.html">The 2025 ML project</a></li>
+<li><a href="architecture.html">Architecture</a></li>
+<li><a href="epochs.html" aria-current="page">Epochs and research</a></li>
+<li><a href="claims.html">Claims audit</a></li>
+<li><a href="repos.html">Repositories</a></li>
+</ul>
+</nav>
+</header>
+<main id="content">
+<h1>Epochs and research</h1>
+<p>The rk run is split into epochs. Every scored record stores <a href="claims.html#R11">the hash of the pinned files that do the scoring</a>. When one of those files has to change, the run starts a new epoch and leaves the old archive as it was. The figures below date from 2026-09-23, when the run was in its second epoch; <a href="https://jgoetzmann.github.io/rk-findings/">the run's findings site</a> has current ones.</p>
+<section>
+<h2 id="dates">Timeline</h2>
+<p>The 2025 ML project, <code>Novel-Numerical-Integration-Methods</code>, committed its main work between 2025-09-13 and 2025-09-21. The rk run started almost a year later, on 2026-08-29.</p>
+<figure id="timeline" class="chart"><svg viewBox="0 0 720 300" role="img" aria-labelledby="timeline-title timeline-desc"><title id="timeline-title">Timeline of the 2025 ML project and the rk run&#x27;s epochs</title><desc id="timeline-desc">Date axis from 2025-08 to 2026-09-23, broken between the two projects, one scale on both sides. Bars: The 2025 ML project&#x27;s active window, 2025-09-13 to 2025-09-21; Epoch 1 runs, 2026-08-29 to 2026-09-10; The run stopped, 2026-09-17 to 2026-09-23. Points: Epoch 1 frozen, 2026-09-15; Epoch 2 starts, 2026-09-17; Data snapshot, 2026-09-23.</desc><rect class="rk-swatch rk-s1" x="354" y="13" width="10" height="10" rx="2" fill="var(--series-1)"/><text x="368" y="22" font-size="12" text-anchor="start" fill="currentColor">The rk run</text><rect class="rk-swatch rk-s2" x="454" y="13" width="10" height="10" rx="2" fill="var(--series-2)"/><text x="468" y="22" font-size="12" text-anchor="start" fill="currentColor">The 2025 ML project</text><rect class="rk-swatch rk-s3" x="615.2" y="13" width="10" height="10" rx="2" fill="var(--series-3)"/><text x="629.2" y="22" font-size="12" text-anchor="start" fill="currentColor">Run stopped</text><path class="grid" d="M4 44H704" stroke="var(--grid)" stroke-width="1" fill="none"/><path class="grid" d="M4 82H704" stroke="var(--grid)" stroke-width="1" fill="none"/><path class="grid" d="M4 120H704" stroke="var(--grid)" stroke-width="1" fill="none"/><path class="grid" d="M4 158H704" stroke="var(--grid)" stroke-width="1" fill="none"/><path class="grid" d="M4 196H704" stroke="var(--grid)" stroke-width="1" fill="none"/><path class="grid" d="M4 234H704" stroke="var(--grid)" stroke-width="1" fill="none"/><path class="grid" d="M200 44V272" stroke="var(--grid)" stroke-width="1" fill="none"/><path class="grid" d="M361.07 44V272" stroke="var(--grid)" stroke-width="1" fill="none"/><path class="grid" d="M579.3 44V272" stroke="var(--grid)" stroke-width="1" fill="none"/><path class="grid" d="M652.04 44V272" stroke="var(--grid)" stroke-width="1" fill="none"/><path class="ref" d="M693.61 44V272" stroke="var(--text-2)" stroke-width="1" fill="none"/><path class="axis" d="M200 272H516.93M542.93 272H704" stroke="var(--text-2)" stroke-width="1" fill="none"/><path class="axis-break" d="M522.93 278L528.93 266M530.93 278L536.93 266" stroke="var(--text-2)" stroke-width="1" fill="none"/><text x="200" y="290" font-size="12" text-anchor="middle" fill="var(--text-2)">2025-08</text><text x="361.07" y="290" font-size="12" text-anchor="middle" fill="var(--text-2)">2025-09</text><text x="579.3" y="290" font-size="12" text-anchor="middle" fill="var(--text-2)">2026-09-01</text><text x="652.04" y="290" font-size="12" text-anchor="middle" fill="var(--text-2)">2026-09-15</text><text x="4" y="61" font-size="13" text-anchor="start" fill="currentColor">2025 ML project</text><text x="4" y="76" font-size="12" text-anchor="start" class="rk-muted" fill="var(--text-2)">2025-09-13 to 2025-09-21</text><rect class="mark rk-s2" x="423.41" y="57" width="41.57" height="14" fill="var(--series-2)"><title>The 2025 ML project&#x27;s active window: 2025-09-13 to 2025-09-21, when its main work was committed</title></rect><text x="4" y="99" font-size="13" text-anchor="start" fill="currentColor">Epoch 1 runs</text><text x="4" y="114" font-size="12" text-anchor="start" class="rk-muted" fill="var(--text-2)">2026-08-29 to 2026-09-10</text><rect class="mark rk-s1" x="563.72" y="95" width="62.35" height="14" fill="var(--series-1)"><title>Epoch 1 runs: 2026-08-29 to 2026-09-10, 3,931 search cycles, 141,364 records, runner started 24 times</title></rect><text x="4" y="137" font-size="13" text-anchor="start" fill="currentColor">Epoch 1 frozen</text><text x="4" y="152" font-size="12" text-anchor="start" class="rk-muted" fill="var(--text-2)">2026-09-15</text><circle class="mark rk-s1" cx="652.04" cy="140" r="4" fill="var(--series-1)"><title>Epoch 1 frozen: 2026-09-15, archive kept, not rescored</title></circle><text x="4" y="175" font-size="13" text-anchor="start" fill="currentColor">Epoch 2 starts</text><text x="4" y="190" font-size="12" text-anchor="start" class="rk-muted" fill="var(--text-2)">2026-09-17</text><circle class="mark rk-s1" cx="662.43" cy="178" r="4" fill="var(--series-1)"><title>Epoch 2 starts: 2026-09-17, verifier hash 2db0816c</title></circle><text x="4" y="213" font-size="13" text-anchor="start" fill="currentColor">Epoch 2 stopped</text><text x="4" y="228" font-size="12" text-anchor="start" class="rk-muted" fill="var(--text-2)">2026-09-17 to 2026-09-23</text><rect class="mark rk-s3" x="662.43" y="209" width="31.17" height="14" fill="var(--series-3)"><title>The run stopped: 2026-09-17 to 2026-09-23, the watchdog&#x27;s system-drive guard stopped it and nothing restarted it (fixed by D46)</title></rect><text x="4" y="251" font-size="13" text-anchor="start" fill="currentColor">Snapshot</text><text x="4" y="266" font-size="12" text-anchor="start" class="rk-muted" fill="var(--text-2)">2026-09-23</text><circle class="mark event snapshot" cx="693.61" cy="254" r="4" fill="currentColor"><title>Data snapshot: 2026-09-23</title></circle></svg><figcaption>When the 2025 ML project did its main work, and the rk run&#x27;s two epochs up to the snapshot on 2026-09-23. The date axis is broken between October 2025 and late August 2026. Both parts share one scale, so bar lengths can be compared across the break.</figcaption><details class="data"><summary>Data table</summary><table><thead><tr><th scope="col">Event</th><th scope="col">Start</th><th scope="col">End</th><th scope="col">Source</th></tr></thead><tbody><tr><td>The 2025 ML project&#x27;s active window</td><td>2025-09-13</td><td>2025-09-21</td><td><code>Novel-Numerical-Integration-Methods</code> <code>git log</code></td></tr><tr><td>Epoch 1 runs</td><td>2026-08-29</td><td>2026-09-10</td><td><code>rk-work</code> <code>epochs/1/RUNSTATE.json</code></td></tr><tr><td>Epoch 1 frozen</td><td>2026-09-15</td><td>2026-09-15</td><td><code>rk-work</code> <code>EPOCH.json</code></td></tr><tr><td>Epoch 2 starts</td><td>2026-09-17</td><td>2026-09-17</td><td><code>rk-work</code></td></tr><tr><td>The run stopped</td><td>2026-09-17</td><td>2026-09-23</td><td><code>rk-work</code></td></tr><tr><td>Data snapshot</td><td>2026-09-23</td><td>2026-09-23</td><td><code>data/sources.json</code></td></tr></tbody></table></details></figure>
+</section>
+<section>
+<h2 id="epoch-1">Epoch 1</h2>
+<p><a href="claims.html#R12">Epoch 1 ran from 2026-08-29 to 2026-09-10</a>. It completed 3,931 search cycles over 13 days of archive and wrote 141,364 scored records. All but 21 of them carry verifier hash <code>de5bec22</code>. Those 21 were written minutes before that pin was set and carry <code>2411e83f</code>. When it stopped, the search was in phase 3 and 18 cells of the archive grid held an elite.</p>
+<p>The run is autonomous in a narrow sense: no person chose what the search tried or how it scored, and the pinned scorer never changed. It was not free of human operation, though. The runner started 24 times during epoch 1, including restarts to deploy changes to the harness code outside the pinned files.</p>
+<p>Its main result came early. The champion, <code>11e898cb</code>, <a href="claims.html#R6">appeared at search cycle 33</a>, and no later cycle in epoch 1 lowered the best held-out error. The search kept filling and improving other cells: 11 of the 16 discovered cell elites appeared after that cycle, including elites of order 3 and order 4. The last new cell was filled on 2026-09-05, and the last improvement to any cell came on 2026-09-09.</p>
+<p>Inside Q15 fixed point with floor rounding, at the 65,536-cycle budget, the champion has <a href="claims.html#R1">2.95x lower held-out error</a> than <code>midpoint</code>, the best of the eight classical methods. That figure uses the analytic cost model and magnitude weighting over four held-out problems, and it moves in both directions under other cost bases and weightings, as the <a href="#grid">counterfactual grid</a> below shows. It is also an epoch-1 figure, on the cost model that <a href="claims.html#R7">a trace later found had <code>rk4</code> and <code>rk38</code> in the wrong order</a>, and epoch 2 has not re-measured it.</p>
+<details class="archive-days"><summary>Epoch 1 records per archive day</summary>
+<div class="table-wrap" style="overflow-x:auto">
+<table>
+<thead><tr><th>Day</th><th>Records</th><th>Cumulative</th></tr></thead>
+<tbody>
+<tr><td>2026-08-29</td><td>22</td><td>22</td></tr>
+<tr><td>2026-08-30</td><td>21,138</td><td>21,160</td></tr>
+<tr><td>2026-08-31</td><td>12,540</td><td>33,700</td></tr>
+<tr><td>2026-09-01</td><td>11,958</td><td>45,658</td></tr>
+<tr><td>2026-09-02</td><td>740</td><td>46,398</td></tr>
+<tr><td>2026-09-03</td><td>9,735</td><td>56,133</td></tr>
+<tr><td>2026-09-04</td><td>11,652</td><td>67,785</td></tr>
+<tr><td>2026-09-05</td><td>13,059</td><td>80,844</td></tr>
+<tr><td>2026-09-06</td><td>16,130</td><td>96,974</td></tr>
+<tr><td>2026-09-07</td><td>5,108</td><td>102,082</td></tr>
+<tr><td>2026-09-08</td><td>17,177</td><td>119,259</td></tr>
+<tr><td>2026-09-09</td><td>13,601</td><td>132,860</td></tr>
+<tr><td>2026-09-10</td><td>8,504</td><td>141,364</td></tr>
+</tbody>
+</table>
+</div>
+</details>
+</section>
+<section>
+<h2 id="why-epoch-1-froze">Why epoch 1 froze</h2>
+<p>Compiling and tracing the step showed the epoch-1 analytic cost rule mis-ordered <code>rk4</code> and <code>rk38</code>, so epoch 2 prices each coefficient by the instructions GCC 13.2.1 emits for it. That edits a pinned file, which forces a new epoch (DECISIONS D42, D45).</p>
+<p><a href="claims.html#R7">A host-side audit</a> did the compiling and tracing. Under the epoch-1 rule with the fast multiplier (<code>m0plus_fast</code>), <code>rk4</code> cost 33 cycles per step and <code>rk38</code> 36. The compiled step, counted over the same scope the model prices, took 59 cycles for <code>rk38</code> and 67 for <code>rk4</code>. The traced step matched the Python evaluator bit for bit in 144 of 144 cases, 25 of them overflow cases where both stop at the same operation. The emulator is instruction-accurate, not cycle-accurate: its cycle counts come from a timing table applied to the executed instructions, and nothing was measured on a physical chip.</p>
+<p>With the pinned files changed, the verifier hash moved from <code>de5bec22</code> over 10 files to <code>2db0816c</code> over 14. The run did not rescore the epoch-1 archive under the new model, so epoch 1's results stand as they were scored, on the old one.</p>
+<p>Epoch 1's last cycle ran on 2026-09-10, and epoch 2 started on 2026-09-17. The week between went to the boundary work: the trace, the change to the cost model and the pinned files, and the move of epoch 1's archive and documents under <code>epochs/1/</code> in <code>rk-work</code>, where they stay as they were. Epoch 1 was frozen on 2026-09-15, and epoch 2 began a new archive.</p>
+</section>
+<section>
+<h2 id="epoch-2">Epoch 2 so far</h2>
+<p>Epoch 2 started at 17:54 UTC on 2026-09-17 under verifier hash <code>2db0816c</code>. By 2026-09-23 it had reached search cycle 259 and written 10,850 records to its own archive. That count comes from the running work tree, so it includes the day's archive file before the run commits it at the day's close. Its cycles rotate among three lanes: the explicit lane scores candidates in Q15 into the archive, while the adaptive and implicit lanes measure how many cycles a float64 solve needs to reach a tolerance, and their results stay out of the archive. Cycles per lane so far: explicit 86, adaptive 87, implicit 86.</p>
+<p>From 22:09 UTC on 2026-09-17 to 02:19 UTC on 2026-09-23 the run was down for about five days: the watchdog&#x27;s system-drive guard stopped it and nothing restarted it (fixed by D46). Epoch 2's archive therefore has records from only two days so far: 5,439 on 2026-09-17 and 5,411 on 2026-09-23.</p>
+<p>Two decisions followed that stop. Under D46 the watchdog resumes the stops it makes itself once the condition behind the stop clears. D47 added a logon task to start the run after a reboot, and that task has since been removed. After a reboot a person starts the run by hand with one command, <code>start-integration-harness</code>.</p>
+</section>
+<section>
+<h2 id="research-practice">Research practice</h2>
+<p>The run publishes its checks and its negative results next to its headline result.</p>
+<h3 id="premise">A premise test with thresholds set in advance</h3>
+<p>Before the search started, the run <a href="claims.html#R9">tested its own premise</a>. The test ran <code>rk4</code> and <code>heun2</code> in Q15 on one problem, <code>damped_osc</code>, under both cost models, <code>m0plus_fast</code> and <code>m0plus_slow</code>. It measured the share of each step's cycles spent on coefficient arithmetic, and the step size at which rounding error overtakes truncation error. The thresholds were committed to the project's own repository before the test ran, not to an outside registry. The run would proceed if coefficient arithmetic took at least 30% of a step's cycles and rounding error overtook truncation error at a practical step size, between 0.001 and 1. It would stop if coefficient arithmetic took under 15% and no practical step size was rounding-dominated.</p>
+<p>The stored verdict is <code>mixed</code>: <code>rk4</code> on both cost models and <code>heun2</code> on <code>m0plus_fast</code> met the proceed criterion. On <code>m0plus_slow</code>, <code>heun2</code> spent 14.8% of its cycles on coefficient arithmetic, below both the 30% and the 15% lines, but it still had a rounding-dominated regime at a practical step size, so it met neither criterion.</p>
+<p>A later comparison is separate from the premise test, and it was made after the search began. It compared four classical methods (<code>euler</code>, <code>heun2</code>, <code>rk4</code> and <code>rk38</code>) on the seven search and held-out problems at the 65,536-cycle budget on <code>m0plus_fast</code>. Among them, <code>rk4</code> had the lowest error on 0 of 7 under floor rounding, and on 1 of 7 under round-to-nearest.</p>
+<h3 id="ledger">A hypothesis ledger scored by code</h3>
+<p>The run keeps a ledger of hypotheses about its own search. Each hypothesis is a predicate in a small closed grammar that a hand-written parser reads, and code evaluates the predicate to assign its verdict. No model decides whether a hypothesis held. The run does not count the ledger among its sources for published numbers.</p>
+<h3 id="literature">Literature digests, labelled as model-written</h3>
+<p>The run searches the web for related work and writes digests that feed later prompts. A language model writes them, and the run publishes them labelled as model-written, so a reader can keep them apart from results the code computed.</p>
+<h3 id="grid">The counterfactual grid</h3>
+<p>The run recomputed <a href="claims.html#R1">the headline lead</a> under three weightings of the held-out problems and two cost bases, six cells in all, and publishes every cell. Each ratio is the best classical method's held-out error over the champion's, so above 1 the champion leads.</p>
+<dl class="grid-terms">
+<dt>Magnitude weighting</dt>
+<dd>The published weighting: an RMS of the four problems' raw errors, so a problem's influence grows with the square of its error.</dd>
+<dt>Median-anchor weighting (equal weight)</dt>
+<dd>Each problem's error is divided by the median error of the eight classical methods on that problem before the RMS, which gives the four problems equal weight.</dd>
+<dt>Reference-norm weighting</dt>
+<dd>Each problem's error is divided by that problem's zero-state error before the RMS. The run publishes it as a counterexample: it puts most of the weight on <code>rc_thermal</code> instead of equalizing it.</dd>
+<dt>Analytic basis</dt>
+<dd>The cost model every archived score was computed under. It prices only the stage and weight combinations of a step.</dd>
+<dt>Traced whole-step basis</dt>
+<dd>Cycles for every instruction the compiled step executes, priced from the Cortex-M0+ timing table, leaving out the derivative routine's own body. The grid uses it only to decide how many steps fit in the budget.</dd>
+</dl>
+<p>Neither basis is the full cost of a step on a chip: the analytic model prices less than the traced count, and the traced count prices less than a real application step.</p>
+<div class="table-wrap" style="overflow-x:auto">
+<table class="grid-table">
+<thead><tr><th>Weighting</th><th>Cost basis</th><th>Ratio</th><th>Lowest ratio, one problem dropped</th><th>Ahead with any one problem dropped</th></tr></thead>
+<tbody>
+<tr><td>magnitude</td><td>analytic</td><td>2.95x</td><td>1.92x</td><td>yes</td></tr>
+<tr><td>magnitude</td><td>traced whole step</td><td>1.01x</td><td>0.614x</td><td>no</td></tr>
+<tr><td>median anchor (equal weight)</td><td>analytic</td><td>1.1x</td><td>0.814x</td><td>no</td></tr>
+<tr><td>median anchor (equal weight)</td><td>traced whole step</td><td>0.0494x</td><td>0.0314x</td><td>no</td></tr>
+<tr><td>reference norm</td><td>analytic</td><td>3.36x</td><td>1.92x</td><td>yes</td></tr>
+<tr><td>reference norm</td><td>traced whole step</td><td>1.84x</td><td>0.604x</td><td>no</td></tr>
+</tbody>
+</table>
+</div>
+<p>The champion stays ahead with any one problem dropped in two of the six cells, both on the analytic basis: 2.95x under magnitude weighting and 3.36x under reference-norm weighting. In the other four, either the ratio is below 1 or it falls below 1 when one held-out problem is dropped.</p>
+<p>On the traced whole-step basis the ratio is 1.01x under magnitude weighting, and dropping one problem takes it to 0.614x. Under reference-norm weighting on that basis it is 1.84x (lowest 0.604x). Under median-anchor weighting it is 1.1x on the analytic basis (lowest 0.814x) and 0.0494x on the traced one, where a classical method is far ahead. The source reads that last cell as the weighting magnifying one problem, not as the champion losing by that factor. Of the held-out problems, <code>pendulum</code> has the smallest median classical error, so dividing by it amplifies the champion's error there, and that error rises when the traced basis leaves the champion fewer steps.</p>
+<p>Which archived method ranks highest also depends on the weighting. Re-ranking all 141,364 archived tableaus on the analytic basis puts the champion at rank 1 under magnitude weighting, rank 15 under reference-norm weighting and rank 9,974 under median-anchor weighting. Under all three, no classical method ranks above it, so a discovered method holds the top place each time.</p>
+</section>
+
+</main>
+<footer class="site-footer">
+<p>Figures as of <time datetime="2026-09-23">2026-09-23</time>, from these repositories at the commits shown:</p>
+<ul class="sources">
+<li><code><a href="https://github.com/jgoetzmann/rk-harness/tree/d1e41d5976a4">rk-harness@d1e41d5976a4</a></code></li>
+<li><code><a href="https://github.com/jgoetzmann/rk-work/tree/59a43b36953c">rk-work@59a43b36953c</a></code></li>
+<li><code><a href="https://github.com/jgoetzmann/rk-findings/tree/9ff318dc5236">rk-findings@9ff318dc5236</a></code></li>
+<li><code><a href="https://github.com/jgoetzmann/rk-overview/tree/1a8e0a739ce4">rk-overview@1a8e0a739ce4</a></code></li>
+<li><code><a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/tree/d89c2c809ee0">Novel-Numerical-Integration-Methods@d89c2c809ee0</a></code></li>
+</ul>
+<p>The run continues; current numbers are on the <a href="https://jgoetzmann.github.io/rk-findings/">rk-findings site</a>, which it rebuilds every search cycle.</p>
+</footer>
+</body>
+</html>

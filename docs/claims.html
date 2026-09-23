@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claims audit | Numeric integration methods</title>
+<meta name="description" content="Every claim about the rk run and the 2025 ML project, with its verdict, its limits and links to the files that show it.">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="site-header">
+<a class="site-name" href="index.html">Numeric integration methods</a>
+<nav class="site-nav" aria-label="Pages">
+<ul>
+<li><a href="index.html">Story</a></li>
+<li><a href="rk.html">The rk run</a></li>
+<li><a href="novel.html">The 2025 ML project</a></li>
+<li><a href="architecture.html">Architecture</a></li>
+<li><a href="epochs.html">Epochs and research</a></li>
+<li><a href="claims.html" aria-current="page">Claims audit</a></li>
+<li><a href="repos.html">Repositories</a></li>
+</ul>
+</nav>
+</header>
+<main id="content">
+<h1>Claims audit</h1>
+<section class="intro">
+<p>Each claim below has its verdict, the conditions it holds under and links to the files that show it. For the 2025 ML project, each corrected claim keeps its original wording beside the correction.</p>
+</section>
+<section class="verdicts">
+<h2 id="verdicts">Verdicts</h2>
+<dl class="verdict-legend">
+<dt><span class="verdict verdict-supported">Supported</span></dt>
+<dd>The cited files show it, as stated.</dd>
+<dt><span class="verdict verdict-supported-with-limits">Supported with limits</span></dt>
+<dd>The cited files show it, but only under the conditions named in its limits. Quote it with them.</dd>
+<dt><span class="verdict verdict-not-supported">Not supported</span></dt>
+<dd>The cited files do not show it, or show something else.</dd>
+<dt><span class="verdict verdict-artifact">Artifact</span></dt>
+<dd>The number is real, but it measures a bug or a setup quirk rather than the thing it was labelled as.</dd>
+</dl>
+</section>
+<section class="claim-group">
+<h2 id="rk">The rk run</h2>
+<p>The rk run's Q15 results come from epoch 1. They hold inside Q15 fixed point with floor rounding at the run's fixed cycle budget, under the conditions each claim lists. In float64, <a href="#R5"><code>rk4</code> is far more accurate than the champion</a>.</p>
+<p class="group-summary">Supported: <a href="#R6">R6</a>, <a href="#R7">R7</a>, <a href="#R9">R9</a>, <a href="#R11">R11</a>, <a href="#R12">R12</a>, <a href="#R13">R13</a>, <a href="#R14">R14</a>. Supported with limits: <a href="#R1">R1</a>, <a href="#R2">R2</a>, <a href="#R3">R3</a>, <a href="#R4">R4</a>, <a href="#R5">R5</a>, <a href="#R8">R8</a>, <a href="#R10">R10</a>.</p>
+<article id="R1" class="claim claim-supported-with-limits">
+<h3 class="claim-head"><a class="claim-id" href="#R1">R1</a>: The Q15 lead</h3>
+<p class="claim-meta"><span class="verdict verdict-supported-with-limits">Supported with limits</span> <span class="headline-tag"><a href="index.html">Headline claim</a></span></p>
+<p class="claim-text"><strong>Claim:</strong> Inside Q15 fixed point with floor rounding, at a 65,536-cycle budget, on the analytic m0plus_fast cost model with magnitude weighting, the searched three-stage method 11e898cb has 2.95x lower held-out error than midpoint, the best of eight classical methods.</p>
+<p class="claim-limits"><strong>Limits:</strong> This is an epoch-1 result on the cost model that the trace later found had rk4 and rk38 in the wrong order; epoch 2 scores under a corrected model and has not re-measured it. Elites were picked on held-out error among 141,364 archived tableaus, so the four held-out problems act as a selection set and the lead carries winner&#x27;s-curse bias. The 2.95x is an RMS over four problems: the champion has lower error than midpoint on three of them and higher on pendulum, and much of the gap comes from rc_thermal, where every classical method stalls near a quantization floor. Of six cost-basis and weighting cells, the champion keeps its lead on every leave-one-out subset in two, both analytic: 2.95x under magnitude weighting and 3.36x under reference-norm weighting. On the traced whole-step basis the ratio is 1.01x under magnitude weighting (lowest leave-one-out 0.614x) and 1.84x under reference-norm weighting (lowest 0.604x). Under median-anchor weighting, which weights the four problems equally, it is 1.1x on the analytic basis (lowest 0.814x) and 0.0494x on the traced one; the source reads that last cell as the weighting magnifying pendulum, not as the champion losing by that factor. The lead is a floor-rounding result: under round-to-nearest, at the same budget and cost model and with no extra cycles charged for the rounding, rk38, one of the four classical methods run under both rounding modes, reaches 0.0263 held-out error, below the champion&#x27;s 0.0286 under floor rounding.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-overview</code>: <a href="https://github.com/jgoetzmann/rk-overview/blob/1a8e0a739ce4/tools/key_findings.json"><code>tools/key_findings.json</code> at <code>counterfactual.numbers.headline_checks.cells</code></a></li>
+<li><code>rk-overview</code>: <a href="https://github.com/jgoetzmann/rk-overview/blob/1a8e0a739ce4/tools/key_findings.json"><code>tools/key_findings.json</code> at <code>counterfactual.numbers.weightings; counterfactual.numbers.scope</code></a></li>
+<li><code>rk-overview</code>: <a href="https://github.com/jgoetzmann/rk-overview/blob/1a8e0a739ce4/tools/key_findings.json"><code>tools/key_findings.json</code> at <code>efficiency.numbers.best_discovered.per_problem_heldout; efficiency.numbers.caveats</code></a></li>
+<li><code>rk-overview</code>: <a href="https://github.com/jgoetzmann/rk-overview/blob/1a8e0a739ce4/tools/key_findings.json"><code>tools/key_findings.json</code> at <code>floor_bias_flip.numbers.aggregate</code></a></li>
+</ul>
+</div>
+</article>
+<article id="R2" class="claim claim-supported-with-limits">
+<h3 class="claim-head"><a class="claim-id" href="#R2">R2</a>: Every discovered cell elite ahead of all eight classical methods</h3>
+<p class="claim-meta"><span class="verdict verdict-supported-with-limits">Supported with limits</span> <span class="headline-tag"><a href="index.html">Headline claim</a></span></p>
+<p class="claim-text"><strong>Claim:</strong> In all 16 of the 18 occupied archive cells that a discovered method holds, it has lower held-out error than all eight classical methods, whatever their cost; the closest, a four-stage elite at 30 cycles per step, has 0.0836 against midpoint&#x27;s 0.0844.</p>
+<p class="claim-limits"><strong>Limits:</strong> Same conditions and the same selection bias as R1: Q15 with floor rounding, 65,536-cycle budget, analytic cost model, magnitude weighting. Classical methods hold the other 2 cells. Re-ranking all 141,364 archived tableaus on the analytic basis, no classical method ranks above the champion under any of the three weightings, though the champion&#x27;s own rank moves with the weighting: rank 1 under magnitude weighting, 15 under reference-norm weighting and 9,974 under median-anchor weighting.</p>
+<p class="claim-related">Related claims: <a href="#R1">R1</a></p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-overview</code>: <a href="https://github.com/jgoetzmann/rk-overview/blob/1a8e0a739ce4/tools/key_findings.json"><code>tools/key_findings.json</code> at <code>efficiency.series.frontier_cycles_vs_heldout; efficiency.numbers.note_on_comparison</code></a></li>
+<li><code>rk-overview</code>: <a href="https://github.com/jgoetzmann/rk-overview/blob/1a8e0a739ce4/tools/key_findings.json"><code>tools/key_findings.json</code> at <code>counterfactual.numbers.archive_reranking</code></a></li>
+</ul>
+</div>
+</article>
+<article id="R3" class="claim claim-supported-with-limits">
+<h3 class="claim-head"><a class="claim-id" href="#R3">R3</a>: Leave-one-out</h3>
+<p class="claim-meta"><span class="verdict verdict-supported-with-limits">Supported with limits</span></p>
+<p class="claim-text"><strong>Claim:</strong> Dropping any one of the four held-out problems leaves the champion ahead, by 1.92x to 3.17x.</p>
+<p class="claim-limits"><strong>Limits:</strong> On the published basis only (analytic cost, magnitude weighting). The low end, 1.92x, comes from dropping rc_thermal, the problem where every classical method stalls near a quantization floor. Magnitude weighting lets problems with small errors count for little, so this check cannot show a loss on one of them: the champion has higher error than midpoint on pendulum.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-overview</code>: <a href="https://github.com/jgoetzmann/rk-overview/blob/1a8e0a739ce4/tools/key_findings.json"><code>tools/key_findings.json</code> at <code>efficiency.numbers.leave_one_out; efficiency.numbers.classical_anchors</code></a></li>
+</ul>
+</div>
+</article>
+<article id="R4" class="claim claim-supported-with-limits">
+<h3 class="claim-head"><a class="claim-id" href="#R4">R4</a>: Out-of-sample problems</h3>
+<p class="claim-meta"><span class="verdict verdict-supported-with-limits">Supported with limits</span> <span class="headline-tag"><a href="index.html">Headline claim</a></span></p>
+<p class="claim-text"><strong>Claim:</strong> On eight out-of-sample problems, the best of the three discovered methods tried had lower Q15 error than the best of the five classical methods run (euler, heun2, midpoint, rk4, rk38) on 4 of 5 non-stiff problems. On the stiff robertson_scaled problem every discovered method overflowed, and so did rk4 and rk38; euler, heun2 and midpoint finished, midpoint with the lowest error.</p>
+<p class="claim-limits"><strong>Limits:</strong> Out-of-sample, not blind: no optimizer or model saw these problems and the champion was fixed before they ran, but people chose the problems after the search began. The fixed champion alone had the lower error on 3 of the 5 non-stiff problems.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-work</code>: <a href="https://github.com/jgoetzmann/rk-work/blob/59a43b36953c/epochs/1/validation/results.json"><code>epochs/1/validation/results.json</code> at <code>verdicts.per_problem; methods; results[]</code></a></li>
+</ul>
+</div>
+</article>
+<article id="R5" class="claim claim-supported-with-limits">
+<h3 class="claim-head"><a class="claim-id" href="#R5">R5</a>: In float64, rk4 is far more accurate</h3>
+<p class="claim-meta"><span class="verdict verdict-supported-with-limits">Supported with limits</span> <span class="headline-tag"><a href="index.html">Headline claim</a></span></p>
+<p class="claim-text"><strong>Claim:</strong> In float64, rk4 is far more accurate than the champion: at the step count the 65,536-cycle budget gives each method, the champion&#x27;s float64 error was 1,992x to 420,975x rk4&#x27;s on the 7 validation problems where both finish.</p>
+<p class="claim-limits"><strong>Limits:</strong> The champion is order 2 and rk4 order 4, and classical order-2 methods trail float64 rk4 by a similar margin in the same runs. Two wider comparisons, run on the seven search and held-out problems rather than the validation set, measure the arithmetic rather than the coefficients: float64 rk4 had lower error than every Q15 run, classical and discovered alike, in 56 of 56 fixed-step cells at identical step counts, and at tolerances of one Q15 least significant bit the most accurate library solver, Radau on each of those problems, was a median 519x more accurate than the most accurate Q15 run. Dormand-Prince (SciPy RK45) was among the library solvers but was never the most accurate one, and it was never run against the champion in the same arithmetic. The search optimized for Q15 floor arithmetic on purpose.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-work</code>: <a href="https://github.com/jgoetzmann/rk-work/blob/59a43b36953c/epochs/1/validation/results.json"><code>epochs/1/validation/results.json</code> at <code>results[].float_error; results[].steps</code></a></li>
+<li><code>rk-work</code>: <a href="https://github.com/jgoetzmann/rk-work/blob/59a43b36953c/epochs/1/benchmark/results.json"><code>epochs/1/benchmark/results.json</code> at <code>verdicts.fixed_step; verdicts.matched_tolerance; verdicts.per_problem.*.best_library; tolerance_rule</code></a></li>
+</ul>
+</div>
+</article>
+<article id="R6" class="claim claim-supported">
+<h3 class="claim-head"><a class="claim-id" href="#R6">R6</a>: The champion appeared at cycle 33</h3>
+<p class="claim-meta"><span class="verdict verdict-supported">Supported</span></p>
+<p class="claim-text"><strong>Claim:</strong> The champion appeared at cycle 33, and no later cycle in epoch 1&#x27;s 3,931 lowered the best held-out error.</p>
+<p class="claim-limits"><strong>Limits:</strong> The search kept filling and improving other cells after cycle 33: 11 of the 16 discovered cell elites appeared later, including elites of order 3 and order 4; the last new cell was filled on 2026-09-05 and the last cell improvement came on 2026-09-09.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-overview</code>: <a href="https://github.com/jgoetzmann/rk-overview/blob/1a8e0a739ce4/tools/key_findings.json"><code>tools/key_findings.json</code> at <code>search_progress.numbers</code></a></li>
+<li><code>rk-work</code>: <a href="https://github.com/jgoetzmann/rk-work/tree/59a43b36953c"><code>epochs/1/archive/*.jsonl; epochs/1/EPOCH_STATUS.json</code> at <code>cycle_id of each elite&#x27;s tableau_hash; metrics.last_improvement_ts</code></a> <span class="evidence-note">(opens the repository at this commit)</span></li>
+</ul>
+</div>
+</article>
+<article id="R7" class="claim claim-supported">
+<h3 class="claim-head"><a class="claim-id" href="#R7">R7</a>: An audit caught the cost model&#x27;s error</h3>
+<p class="claim-meta"><span class="verdict verdict-supported">Supported</span> <span class="headline-tag"><a href="index.html">Headline claim</a></span></p>
+<p class="claim-text"><strong>Claim:</strong> A host-side audit compiled the step with GCC 13.2.1 and traced it under an emulator. The compiled step agreed with the Python evaluator bit for bit in 144 of 144 cases, 25 of them overflow cases where both stop at the same operation, and it showed that the m0plus_fast cost model the archive was scored under put rk4 and rk38 in the wrong order. The run froze epoch 1 and started epoch 2 under a corrected cost model instead of rescoring the old archive.</p>
+<p class="claim-limits"><strong>Limits:</strong> The emulator is instruction-accurate, not cycle-accurate. Cycle counts come from a timing table applied to the executed instructions; nothing was measured on a physical chip.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-work</code>: <a href="https://github.com/jgoetzmann/rk-work/blob/59a43b36953c/epochs/1/trace/results.json"><code>epochs/1/trace/results.json</code> at <code>verdicts.crosscheck; verdicts.inversions</code></a></li>
+<li><code>rk-harness</code>: <a href="https://github.com/jgoetzmann/rk-harness/blob/d1e41d5976a4/docs/DECISIONS.md"><code>docs/DECISIONS.md</code> at <code>D42, D45</code></a></li>
+</ul>
+</div>
+</article>
+<article id="R8" class="claim claim-supported-with-limits">
+<h3 class="claim-head"><a class="claim-id" href="#R8">R8</a>: Floor rounding reorders the classical methods</h3>
+<p class="claim-meta"><span class="verdict verdict-supported-with-limits">Supported with limits</span></p>
+<p class="claim-text"><strong>Claim:</strong> Floor rounding reorders the classical methods: on the search problems euler has the lowest error and rk4 the highest, and round-to-nearest puts rk4 back ahead of euler.</p>
+<p class="claim-limits"><strong>Limits:</strong> The round-to-nearest comparison covers four methods (euler, heun2, rk4, rk38). Euler&#x27;s lead holds on the search set under the published basis only; on the held-out problems rk38 has the lowest error of those four under both rounding modes.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-overview</code>: <a href="https://github.com/jgoetzmann/rk-overview/blob/1a8e0a739ce4/tools/key_findings.json"><code>tools/key_findings.json</code> at <code>floor_bias_flip.numbers.aggregate</code></a></li>
+</ul>
+</div>
+</article>
+<article id="R9" class="claim claim-supported">
+<h3 class="claim-head"><a class="claim-id" href="#R9">R9</a>: The premise test came back mixed</h3>
+<p class="claim-meta"><span class="verdict verdict-supported">Supported</span></p>
+<p class="claim-text"><strong>Claim:</strong> The project&#x27;s own premise test, with thresholds committed before the search, came back mixed: rk4 on both cost models and heun2 on the fast one met the proceed criterion, while heun2 on the slow-multiplier model met neither the proceed nor the kill criterion.</p>
+<p class="claim-limits"><strong>Limits:</strong> The thresholds were committed to the project&#x27;s own repository before the test ran, not to an outside registry. A later comparison of four classical methods on the seven search and held-out problems, made after the search began, found rk4 best on 0 of 7 under floor rounding and 1 of 7 under round-to-nearest.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-overview</code>: <a href="https://github.com/jgoetzmann/rk-overview/blob/1a8e0a739ce4/tools/key_findings.json"><code>tools/key_findings.json</code> at <code>crossover.numbers.stored_verdict; crossover.numbers.thresholds; crossover.numbers.methods; crossover.numbers.rk4_wins_at_budget</code></a></li>
+<li><code>rk-work</code>: <a href="https://github.com/jgoetzmann/rk-work/blob/59a43b36953c/epochs/1/falsification.json"><code>epochs/1/falsification.json</code> at <code>methods</code></a></li>
+</ul>
+</div>
+</article>
+<article id="R10" class="claim claim-supported-with-limits">
+<h3 class="claim-head"><a class="claim-id" href="#R10">R10</a>: Measured speed and the cost model</h3>
+<p class="claim-meta"><span class="verdict verdict-supported-with-limits">Supported with limits</span></p>
+<p class="claim-text"><strong>Claim:</strong> Measured in Python on the same solver path, the champion&#x27;s step ran 1.45x faster than rk4&#x27;s against a model prediction of 1.5x, and analytic cycles tracked measured time with Pearson r = 0.97 over 56 runs.</p>
+<p class="claim-limits"><strong>Limits:</strong> Python wall clock, so it speaks to ordering, not to absolute cycle counts on a Cortex-M0+, and only as far as Python mirrors the chip: Python timed rk4 slightly faster than rk38, as the analytic model predicts, while the compiled trace found rk38 cheaper on a Cortex-M0+ (R7).</p>
+<p class="claim-related">Related claims: <a href="#R7">R7</a></p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-work</code>: <a href="https://github.com/jgoetzmann/rk-work/blob/59a43b36953c/epochs/1/benchmark/results.json"><code>epochs/1/benchmark/results.json</code> at <code>speedup; correlation</code></a></li>
+</ul>
+</div>
+</article>
+<article id="R11" class="claim claim-supported">
+<h3 class="claim-head"><a class="claim-id" href="#R11">R11</a>: A scorer the search cannot edit</h3>
+<p class="claim-meta"><span class="verdict verdict-supported">Supported</span> <span class="headline-tag"><a href="index.html">Headline claim</a></span></p>
+<p class="claim-text"><strong>Claim:</strong> The scorer is out of the search&#x27;s reach: the harness is mounted read-only, and a sha256 over the pinned files (10 in epoch 1, 14 since epoch 2) is checked at every start and stored in every record. 91 golden and canary cases must pass before any cycle runs, and the suite collects 1,908 tests.</p>
+<p class="claim-limits"><strong>Limits:</strong> No GitHub credential enters the container: it commits and the host pushes. The one credential inside is the model&#x27;s sign-in file, mounted read-only. The counts are as of 2026-09-23.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-harness</code>: <a href="https://github.com/jgoetzmann/rk-harness/tree/d1e41d5976a4"><code>VERIFIER_FILES.txt; VERIFIER_HASH; entrypoint.sh; tests/golden_gate.txt; scripts/run.ps1</code></a> <span class="evidence-note">(opens the repository at this commit)</span></li>
+<li><code>rk-harness</code>: <a href="https://github.com/jgoetzmann/rk-harness/tree/d1e41d5976a4"><code>tests/</code> at <code>pytest --collect-only</code></a> <span class="evidence-note">(opens the repository at this commit)</span></li>
+</ul>
+</div>
+</article>
+<article id="R12" class="claim claim-supported">
+<h3 class="claim-head"><a class="claim-id" href="#R12">R12</a>: How the run ran</h3>
+<p class="claim-meta"><span class="verdict verdict-supported">Supported</span></p>
+<p class="claim-text"><strong>Claim:</strong> Epoch 1 ran from 2026-08-29 to 2026-09-10: 3,931 search cycles over 13 days of archive and 141,364 scored records, all under the epoch-1 hash apart from 21 written minutes before that pin was set. No person chose candidates or scores and the pinned scorer never changed, though the runner started 24 times, including restarts to deploy changes to the unpinned harness code. Epoch 2 started on 2026-09-17 under the new verifier hash, stopped late that day, and nothing restarted it until 2026-09-23.</p>
+<p class="claim-limits"><strong>Limits:</strong> Autonomous means no person chooses what the search tries or how it scores; it does not mean free of human operation. The watchdog now resumes the stops it makes itself; after a reboot the run is started by hand with one command.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-work</code>: <a href="https://github.com/jgoetzmann/rk-work/tree/59a43b36953c"><code>EPOCH.json; epochs/1/RUNSTATE.json; epochs/1/archive/*.jsonl; epochs/1/events.jsonl</code> at <code>frozen[0]; verifier_hash; runner_started</code></a> <span class="evidence-note">(opens the repository at this commit)</span></li>
+<li><code>rk-harness</code>: <a href="https://github.com/jgoetzmann/rk-harness/blob/d1e41d5976a4/docs/DECISIONS.md"><code>docs/DECISIONS.md</code> at <code>D25, D45, D46, D47</code></a></li>
+</ul>
+</div>
+</article>
+<article id="R13" class="claim claim-supported">
+<h3 class="claim-head"><a class="claim-id" href="#R13">R13</a>: A language model steers the search inside a narrow schema</h3>
+<p class="claim-meta"><span class="verdict verdict-supported">Supported</span></p>
+<p class="claim-text"><strong>Claim:</strong> A language model proposes each search cycle&#x27;s direction as a JSON directive that can only narrow the search, and an unknown key sends the runner to a fixed fallback. The scorer, the verifier and every hypothesis verdict are code.</p>
+<p class="claim-limits"><strong>Limits:</strong> The model is shown held-out errors (U2), so those errors are not independent of the search.</p>
+<p class="claim-related">Related claims: <a href="#U2">U2</a></p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-harness</code>: <a href="https://github.com/jgoetzmann/rk-harness/tree/d1e41d5976a4"><code>rk_harness/directive.py; rk_harness/encourager.py; rk_harness/ledger.py; rk_harness/prompts.py</code></a> <span class="evidence-note">(opens the repository at this commit)</span></li>
+</ul>
+</div>
+</article>
+<article id="R14" class="claim claim-supported">
+<h3 class="claim-head"><a class="claim-id" href="#R14">R14</a>: An independent reimplementation agrees</h3>
+<p class="claim-meta"><span class="verdict verdict-supported">Supported</span></p>
+<p class="claim-text"><strong>Claim:</strong> The overview site&#x27;s browser demo reimplements the Q15 solver in JavaScript and reproduces the Python evaluator in 154 of 154 fixture cases.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-overview</code>: <a href="https://github.com/jgoetzmann/rk-overview/tree/1a8e0a739ce4"><code>tools/check_demo.js; docs/demo_data.json</code></a> <span class="evidence-note">(opens the repository at this commit)</span></li>
+</ul>
+</div>
+</article>
+</section>
+<section class="claim-group">
+<h2 id="novel">The 2025 ML project</h2>
+<p>The project's <a href="#N1">benchmark ran</a>, and its <a href="#N9">evaluation harness works for explicit tables</a>, both with limits. Its main conclusions from 2025 did not hold.</p>
+<p class="group-summary">Supported: <a href="#N10">N10</a>, <a href="#N11">N11</a>. Supported with limits: <a href="#N1">N1</a>, <a href="#N9">N9</a>. Not supported: <a href="#N2">N2</a>, <a href="#N3">N3</a>, <a href="#N4">N4</a>, <a href="#N7">N7</a>, <a href="#N8">N8</a>. Artifact: <a href="#N5">N5</a>, <a href="#N6">N6</a>.</p>
+<article id="N1" class="claim claim-supported-with-limits">
+<h3 class="claim-head"><a class="claim-id" href="#N1">N1</a>: The 2025 benchmark ran</h3>
+<p class="claim-meta"><span class="verdict verdict-supported-with-limits">Supported with limits</span> <span class="headline-tag"><a href="index.html">Headline claim</a></span></p>
+<p class="claim-text"><strong>Claim:</strong> Across 12 methods and 10,000 generated ODEs (8,113 scorable), Dormand-Prince had the lowest mean error (0.0791) and RK4 the next lowest (0.14).</p>
+<p class="claim-limits"><strong>Limits:</strong> The error is the mean of each ODE&#x27;s maximum error, which a few outlier ODEs dominate. The trial entries were copies of RK4 and Dormand-Prince or random tables, the Gauss-Legendre entries ran through a stepper that ignores the implicit part of a table (N5), and the reference solutions came from SciPy RK45, an adaptive Dormand-Prince solver, so the Dormand-Prince entry is measured against a reference built on its own tableau. This ranks two textbook methods against copies of themselves, random tables and truncated methods.</p>
+<p class="claim-related">Related claims: <a href="#N5">N5</a></p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/blob/d89c2c809ee0/results/real_trial_results.csv"><code>results/real_trial_results.csv</code> at <code>Max_Error</code></a></li>
+</ul>
+</div>
+</article>
+<article id="N2" class="claim claim-not-supported">
+<h3 class="claim-head"><a class="claim-id" href="#N2">N2</a>: The rediscovery claim (not supported)</h3>
+<p class="claim-meta"><span class="verdict verdict-not-supported">Not supported</span> <span class="headline-tag"><a href="index.html">Headline claim</a></span></p>
+<p class="claim-text"><strong>Claim:</strong> <q>Evolutionary search independently rediscovered RK4 and Dormand-Prince.</q></p>
+<p class="original-label"><strong>Original wording:</strong></p>
+<blockquote class="original-wording"><p>Evolutionary search, by contrast, independently rediscovered RK4 and Dormand-Prince with exact performance match (README).</p></blockquote>
+<p class="claim-correction"><strong>Correction:</strong> RK4 was placed in the starting population of the 4-stage runs and Dormand-Prince in that of the 7-stage run. The genetic operators did run and the population moved off the seed, but the composite score is clipped at 1: every one of the 10,000 rows of the one training log scores 1, and the checkpoints of trials 12 to 15 record a best and a mean score of 1 in every one of their 100 epochs. The best-table tracker replaces the saved table only on a strictly higher score, so the seed stayed. Trials 12, 14 and 15 saved RK4 exactly and trial 13 saved Dormand-Prince exactly.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/blob/d89c2c809ee0/src/models/model.py"><code>src/models/model.py</code> at <code>183-190</code></a></li>
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/blob/d89c2c809ee0/src/core/metrics.py"><code>src/core/metrics.py</code> at <code>441</code></a></li>
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/blob/d89c2c809ee0/src/training/train.py"><code>src/training/train.py</code> at <code>246-250</code></a></li>
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/tree/d89c2c809ee0"><code>metrics_log.csv; trials/*/checkpoints/checkpoint_epoch_100.json; trials/*/best_butcher_table.json</code> at <code>composite_score; training_history; butcher_table</code></a> <span class="evidence-note">(opens the repository at this commit)</span></li>
+</ul>
+</div>
+</article>
+<article id="N3" class="claim claim-not-supported">
+<h3 class="claim-head"><a class="claim-id" href="#N3">N3</a>: The optimality claim (not supported)</h3>
+<p class="claim-meta"><span class="verdict verdict-not-supported">Not supported</span></p>
+<p class="claim-text"><strong>Claim:</strong> <q>The results validate RK4 and Dormand-Prince as mathematically optimal.</q></p>
+<p class="original-label"><strong>Original wording:</strong></p>
+<blockquote class="original-wording"><p>validating them as true mathematical optima (README); RK4 and Dormand-Prince are not just historically successful methods, but mathematically optimal solutions (results/analysis_report.md).</p></blockquote>
+<p class="claim-correction"><strong>Correction:</strong> Optimality would need a stated objective and a proof or a search that could have found something better. Here the score could not tell RK4 from a random table: trial 8&#x27;s saved file gives its seeded random table a score ratio of 1 to RK4 at 69.4 times RK4&#x27;s error on the same sample.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/blob/d89c2c809ee0/src/core/metrics.py"><code>src/core/metrics.py</code> at <code>441</code></a></li>
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/blob/d89c2c809ee0/trials/trial_008_4stage_accuracy/best_butcher_table.json"><code>trials/trial_008_4stage_accuracy/best_butcher_table.json</code> at <code>comparisons.rk4</code></a></li>
+</ul>
+</div>
+</article>
+<article id="N4" class="claim claim-not-supported">
+<h3 class="claim-head"><a class="claim-id" href="#N4">N4</a>: The local-minima claim (not supported)</h3>
+<p class="claim-meta"><span class="verdict verdict-not-supported">Not supported</span> <span class="headline-tag"><a href="index.html">Headline claim</a></span></p>
+<p class="claim-text"><strong>Claim:</strong> <q>Gradient descent collapsed into local minima.</q></p>
+<p class="original-label"><strong>Original wording:</strong></p>
+<blockquote class="original-wording"><p>Empirical benchmarks show gradient descent consistently collapsed into local minima, producing near-identical low-accuracy schemes (README).</p></blockquote>
+<p class="claim-correction"><strong>Correction:</strong> The generator that proposes tables was never trained: its optimizer is created and never stepped, its outputs never pass validation, and every empty slot is filled by a random generator that resets the seed to 42. The only gradient descent in the project trained a surrogate model, and nothing in the training loop reads its predictions. Trials 1-4, 6, 8 and 9 saved the same A matrix and weights b (trials 8 and 9 carry a different node vector c, which none of the 6 test families depends on). Trials 8 and 9 score the same because they are the same table.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/blob/d89c2c809ee0/src/models/model.py"><code>src/models/model.py</code> at <code>333; 394-405; 446-450</code></a></li>
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/blob/d89c2c809ee0/src/training/train.py"><code>src/training/train.py</code> at <code>123; 220-221</code></a></li>
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/blob/d89c2c809ee0/src/core/butcher_tables.py"><code>src/core/butcher_tables.py</code> at <code>204-206</code></a></li>
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/tree/d89c2c809ee0"><code>trials/*/best_butcher_table.json</code> at <code>butcher_table</code></a> <span class="evidence-note">(opens the repository at this commit)</span></li>
+</ul>
+</div>
+</article>
+<article id="N5" class="claim claim-artifact">
+<h3 class="claim-head"><a class="claim-id" href="#N5">N5</a>: Gauss-Legendre 3&#x27;s error (an artifact)</h3>
+<p class="claim-meta"><span class="verdict verdict-artifact">Artifact</span></p>
+<p class="claim-text"><strong>Claim:</strong> <q>Gauss-Legendre 3 is numerically unstable, with a mean error of 8.31e+211.</q></p>
+<p class="original-label"><strong>Original wording:</strong></p>
+<blockquote class="original-wording"><p>Gauss-Legendre 3: Numerical instability (8.31e+211 max error) (results/analysis_report.md).</p></blockquote>
+<p class="claim-correction"><strong>Correction:</strong> The stepper reads the diagonal only while that stage is still zero and never reads the upper triangle, so an implicit table runs as its strictly lower part. Both Gauss-Legendre entries ran as truncated explicit methods of order one; the number measures that bug, not the method.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/blob/d89c2c809ee0/src/core/integrator_runner.py"><code>src/core/integrator_runner.py</code> at <code>201-214</code></a></li>
+</ul>
+</div>
+</article>
+<article id="N6" class="claim claim-artifact">
+<h3 class="claim-head"><a class="claim-id" href="#N6">N6</a>: The success rate (an artifact)</h3>
+<p class="claim-meta"><span class="verdict verdict-artifact">Artifact</span></p>
+<p class="claim-text"><strong>Claim:</strong> <q>Every method succeeded on 81.1% of the ODEs.</q></p>
+<p class="original-label"><strong>Original wording:</strong></p>
+<blockquote class="original-wording"><p>Success Rate 81.13% for every method (results/analysis_report.md).</p></blockquote>
+<p class="claim-correction"><strong>Correction:</strong> The rate is a property of the ODE set, not of the methods: the reference solver supports 5 of the 6 families in the final test (Robertson is missing), and some polynomial ODEs blow up before the end of the interval. It is the same number for every method for that reason.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/tree/d89c2c809ee0"><code>src/core/integrator_runner.py; results/real_trial_evaluation.py</code> at <code>240-254; 50-130</code></a> <span class="evidence-note">(opens the repository at this commit)</span></li>
+</ul>
+</div>
+</article>
+<article id="N7" class="claim claim-not-supported">
+<h3 class="claim-head"><a class="claim-id" href="#N7">N7</a>: The price of forcing variety (not supported)</h3>
+<p class="claim-meta"><span class="verdict verdict-not-supported">Not supported</span></p>
+<p class="claim-text"><strong>Claim:</strong> <q>Forcing novelty produced a different method at a large accuracy cost.</q></p>
+<p class="original-label"><strong>Original wording:</strong></p>
+<blockquote class="original-wording"><p>Novelty reward successfully created different method but at severe accuracy cost (results/analysis_report.md).</p></blockquote>
+<p class="claim-correction"><strong>Correction:</strong> Trial 16&#x27;s table is the top scorer among fresh random draws: the script&#x27;s evolution branch never ran, so no mutation or crossover happened. Its fitness read an accuracy field that does not exist, so accuracy carried no weight at all. Its mean error of 5,577 describes a random table picked without regard to accuracy, not a price paid for variety.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/blob/d89c2c809ee0/src/training/train_4stage_novelty_2.py"><code>src/training/train_4stage_novelty_2.py</code> at <code>168; 245-254</code></a></li>
+</ul>
+</div>
+</article>
+<article id="N8" class="claim claim-not-supported">
+<h3 class="claim-head"><a class="claim-id" href="#N8">N8</a>: Training scale (not supported)</h3>
+<p class="claim-meta"><span class="verdict verdict-not-supported">Not supported</span></p>
+<p class="claim-text"><strong>Claim:</strong> <q>Large-scale training on 10,000 ODEs.</q></p>
+<p class="original-label"><strong>Original wording:</strong></p>
+<blockquote class="original-wording"><p>Large-scale training on 10k ODEs confirmed the framework could replicate classical integrators (README).</p></blockquote>
+<p class="claim-correction"><strong>Correction:</strong> The 10,000-ODE set was used only for the final evaluation. Trials 8 to 16 trained on 1,000 ODEs each and trials 1 to 7 on 500 to 1,200, so no training set came near 10,000. No committed result ran on a GPU, and the author had already removed the CUDA-speedup claim from the README.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/tree/d89c2c809ee0"><code>trials/*/best_butcher_table.json; results/real_trial_evaluation.py; src/models/model.py</code> at <code>config.N_ODES; 197; 313</code></a> <span class="evidence-note">(opens the repository at this commit)</span></li>
+</ul>
+</div>
+</article>
+<article id="N9" class="claim claim-supported-with-limits">
+<h3 class="claim-head"><a class="claim-id" href="#N9">N9</a>: The 2025 harness</h3>
+<p class="claim-meta"><span class="verdict verdict-supported-with-limits">Supported with limits</span></p>
+<p class="claim-text"><strong>Claim:</strong> The project built a working evaluation harness for explicit tables: a generic Butcher-table stepper, a generator covering 11 ODE families including stiff ones, a SciPy reference solver, parallel scoring and 16 trial configurations, and it ran a 12-method benchmark over 10,000 ODEs. Its source tree holds 10,279 lines of Python across 47 files.</p>
+<p class="claim-limits"><strong>Limits:</strong> The harness runs end to end for explicit tables. Two of its parts produced the artifacts in N5 and N6: the stepper runs only the explicit part of a table, and the reference solver covers 5 of the 6 test families and 5 of the 11 training families. An SQLite results module is in the tree, but nothing in the pipeline calls it. Its main conclusions from 2025 are what did not hold.</p>
+<p class="claim-related">Related claims: <a href="#N5">N5</a>, <a href="#N6">N6</a></p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/tree/d89c2c809ee0"><code>src/; configs/; trials/; results/real_trial_results.csv</code></a> <span class="evidence-note">(opens the repository at this commit)</span></li>
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/blob/d89c2c809ee0/src/__init__.py"><code>src/__init__.py</code> at <code>16</code></a></li>
+</ul>
+</div>
+</article>
+<article id="N10" class="claim claim-supported">
+<h3 class="claim-head"><a class="claim-id" href="#N10">N10</a>: No working order check</h3>
+<p class="claim-meta"><span class="verdict verdict-supported">Supported</span></p>
+<p class="claim-text"><strong>Claim:</strong> The project enforced no order conditions: the only hard validation was that the weights sum to one, and its order-4 test uses a condition that RK4 itself fails, so it labels RK4 as order 3.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/blob/d89c2c809ee0/src/core/butcher_tables.py"><code>src/core/butcher_tables.py</code> at <code>46-47; 94-101</code></a></li>
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/tree/d89c2c809ee0"><code>trials/*/best_butcher_table.json</code> at <code>butcher_table.consistency_order</code></a> <span class="evidence-note">(opens the repository at this commit)</span></li>
+</ul>
+</div>
+</article>
+<article id="N11" class="claim claim-supported">
+<h3 class="claim-head"><a class="claim-id" href="#N11">N11</a>: No test suite</h3>
+<p class="claim-meta"><span class="verdict verdict-supported">Supported</span></p>
+<p class="claim-text"><strong>Claim:</strong> The repository has no automated test suite: tests/ holds two example scripts, and src/evaluation/quick_test.py is a smoke script.</p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/tree/d89c2c809ee0"><code>tests/; src/evaluation/quick_test.py</code></a> <span class="evidence-note">(opens the repository at this commit)</span></li>
+</ul>
+</div>
+</article>
+</section>
+<section class="claim-group">
+<h2 id="both">Across both projects</h2>
+<p>Each of these draws on both projects and names the claims above that it rests on.</p>
+<p class="group-summary">Supported with limits: <a href="#U1">U1</a>. Not supported: <a href="#U2">U2</a>, <a href="#U3">U3</a>.</p>
+<article id="U1" class="claim claim-supported-with-limits">
+<h3 class="claim-head"><a class="claim-id" href="#U1">U1</a>: Which methods lead depends on the arithmetic and the cost model</h3>
+<p class="claim-meta"><span class="verdict verdict-supported-with-limits">Supported with limits</span> <span class="headline-tag"><a href="index.html">Headline claim</a></span></p>
+<p class="claim-text"><strong>Claim:</strong> In float64 the established methods were more accurate in both projects: in the rk run float64 rk4 was 1,992x to 420,975x more accurate than the champion at the same cycle budget, and in the 2025 benchmark Dormand-Prince and RK4 had the lowest mean error.</p>
+<p class="claim-limits"><strong>Limits:</strong> The 2025 benchmark is weak evidence: its other entries were copies of RK4 and Dormand-Prince, random tables and truncated methods, and its reference solutions came from SciPy RK45, itself a Dormand-Prince solver (N1). In the rk run Dormand-Prince was never run against the champion in the same arithmetic (R5). Inside Q15 with floor rounding at a 65,536-cycle budget, on the analytic cost model, the searched method leads the classical fixed-step methods (R1); on the traced whole-step basis that lead falls to 1.01x, which dropping one held-out problem overturns.</p>
+<p class="claim-related">Related claims: <a href="#N1">N1</a>, <a href="#R5">R5</a>, <a href="#R1">R1</a></p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-work</code>: <a href="https://github.com/jgoetzmann/rk-work/blob/59a43b36953c/epochs/1/validation/results.json"><code>epochs/1/validation/results.json</code> at <code>results[].float_error</code></a></li>
+<li><code>Novel-Numerical-Integration-Methods</code>: <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/blob/d89c2c809ee0/results/real_trial_results.csv"><code>results/real_trial_results.csv</code> at <code>Max_Error</code></a></li>
+</ul>
+</div>
+</article>
+<article id="U2" class="claim claim-not-supported">
+<h3 class="claim-head"><a class="claim-id" href="#U2">U2</a>: A blind comparison (not supported)</h3>
+<p class="claim-meta"><span class="verdict verdict-not-supported">Not supported</span></p>
+<p class="claim-text"><strong>Claim:</strong> <q>The comparisons were blind.</q></p>
+<p class="claim-correction"><strong>Correction:</strong> Neither project ran a blind test. In the rk run the model that proposes directions is shown held-out errors and elites are picked on them, so the held-out comparison is not blind; the nearest thing to an independent check is the out-of-sample validation suite (R4). The 2025 project&#x27;s evolutionary search started from the very tables it was said to rediscover (N2).</p>
+<p class="claim-related">Related claims: <a href="#R4">R4</a>, <a href="#N2">N2</a></p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-harness</code>: <a href="https://github.com/jgoetzmann/rk-harness/blob/d1e41d5976a4/rk_harness/prompts.py"><code>rk_harness/prompts.py</code> at <code>100-105</code></a></li>
+</ul>
+</div>
+</article>
+<article id="U3" class="claim claim-not-supported">
+<h3 class="claim-head"><a class="claim-id" href="#U3">U3</a>: Large local minima (not supported)</h3>
+<p class="claim-meta"><span class="verdict verdict-not-supported">Not supported</span></p>
+<p class="claim-text"><strong>Claim:</strong> <q>The search landscape is full of large local minima.</q></p>
+<p class="claim-correction"><strong>Correction:</strong> Neither project measured the landscape. The 2025 flat results came from a clipped score, an untrained generator and a random fallback reseeded to 42 (N2, N4). In the rk run the best held-out error stopped improving after cycle 33 while other cells kept improving (R6), which describes one search, not the landscape.</p>
+<p class="claim-related">Related claims: <a href="#N2">N2</a>, <a href="#N4">N4</a>, <a href="#R6">R6</a></p>
+<div class="evidence">
+<p class="evidence-label"><strong>Evidence</strong></p>
+<ul class="evidence-list">
+<li><code>rk-overview</code>: <a href="https://github.com/jgoetzmann/rk-overview/blob/1a8e0a739ce4/tools/key_findings.json"><code>tools/key_findings.json</code> at <code>search_progress.numbers</code></a></li>
+</ul>
+</div>
+</article>
+</section>
+
+</main>
+<footer class="site-footer">
+<p>Figures as of <time datetime="2026-09-23">2026-09-23</time>, from these repositories at the commits shown:</p>
+<ul class="sources">
+<li><code><a href="https://github.com/jgoetzmann/rk-harness/tree/d1e41d5976a4">rk-harness@d1e41d5976a4</a></code></li>
+<li><code><a href="https://github.com/jgoetzmann/rk-work/tree/59a43b36953c">rk-work@59a43b36953c</a></code></li>
+<li><code><a href="https://github.com/jgoetzmann/rk-findings/tree/9ff318dc5236">rk-findings@9ff318dc5236</a></code></li>
+<li><code><a href="https://github.com/jgoetzmann/rk-overview/tree/1a8e0a739ce4">rk-overview@1a8e0a739ce4</a></code></li>
+<li><code><a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods/tree/d89c2c809ee0">Novel-Numerical-Integration-Methods@d89c2c809ee0</a></code></li>
+</ul>
+<p>The run continues; current numbers are on the <a href="https://jgoetzmann.github.io/rk-findings/">rk-findings site</a>, which it rebuilds every search cycle.</p>
+</footer>
+</body>
+</html>

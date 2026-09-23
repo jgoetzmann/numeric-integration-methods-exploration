@@ -1,0 +1,15 @@
+[submodule "repos/rk-harness"]
+	path = repos/rk-harness
+	url = https://github.com/jgoetzmann/rk-harness.git
+[submodule "repos/rk-work"]
+	path = repos/rk-work
+	url = https://github.com/jgoetzmann/rk-work.git
+[submodule "repos/rk-findings"]
+	path = repos/rk-findings
+	url = https://github.com/jgoetzmann/rk-findings.git
+[submodule "repos/rk-overview"]
+	path = repos/rk-overview
+	url = https://github.com/jgoetzmann/rk-overview.git
+[submodule "repos/Novel-Numerical-Integration-Methods"]
+	path = repos/Novel-Numerical-Integration-Methods
+	url = https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods.git

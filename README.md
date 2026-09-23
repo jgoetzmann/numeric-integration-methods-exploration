@@ -90,6 +90,7 @@ To refresh the figures from the source repositories, then rebuild:
 - `web/`: the page code, one package per page under `web/pages/`, plus the page shell, number formatting and the stylesheet.
 - `tools/`: `build.py` and `snapshot.py`.
 - `docs/`: the built pages.
+- `repos/`: the five repositories above as submodules, pinned at the commits in the table. `git clone --recurse-submodules` fetches them.
 - `tests/`: checks on the data, the pages and this README.
 
 Figures date from 2026-09-23, at the commits above; the rk run has kept going, and [its findings site](https://jgoetzmann.github.io/rk-findings/) has current numbers.
