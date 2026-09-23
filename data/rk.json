@@ -1,5 +1,5 @@
 {
- "_about": "The rk run: an unattended search for Runge-Kutta coefficients that do best in Q15 fixed point with floor rounding, at a fixed 65,536-cycle budget on a modeled Cortex-M0+. Every result below is epoch 1 unless its block says epoch 2.",
+ "_about": "The rk run: an autonomous search for Runge-Kutta coefficients that do best in Q15 fixed point with floor rounding, at a fixed 65,536-cycle budget on a modeled Cortex-M0+. Every result below is epoch 1 unless its block says epoch 2.",
  "champion": {
   "best_classical": "midpoint",
   "best_classical_heldout_error": 0.0844458969940956,
@@ -346,32 +346,32 @@
      "records": 5439
     },
     {
-     "cumulative": 10574,
+     "cumulative": 10850,
      "day": "2026-09-23",
      "epoch": 2,
-     "records": 5135
+     "records": 5411
     }
    ],
-   "as_of": "2026-09-23T17:17Z",
+   "as_of": "2026-09-23T17:37Z",
    "counted_from": "the running work tree at as_of, which includes the current UTC day's archive file before the run commits it at the day's close",
-   "cycle": 250,
+   "cycle": 259,
    "down_days": {
     "from": "2026-09-17T22:09Z",
     "to": "2026-09-23T02:19Z",
     "why": "the watchdog's system-drive guard stopped it and nothing restarted it (fixed by D46)"
    },
    "lane_cycles": {
-    "adaptive": 84,
-    "explicit": 83,
-    "implicit": 83
+    "adaptive": 87,
+    "explicit": 86,
+    "implicit": 86
    },
-   "records": 10574,
+   "records": 10850,
    "started": "2026-09-17T17:54Z",
    "verifier_files": 14,
    "verifier_hash": "2db0816c"
   },
   "source": {
-   "commit": "2bed0ad028c3",
+   "commit": "59a43b36953c",
    "key": "frozen[0]; line counts",
    "path": "EPOCH.json; epochs/1/archive/*.jsonl; archive/*.jsonl; RUNSTATE.json; schedule/cycles.jsonl",
    "repo": "rk-work",
@@ -385,7 +385,7 @@
   "note": "float64 error of the champion over float64 error of rk4, each at the step count the 65,536-cycle budget gives it, per validation problem where both finish",
   "problems": 7,
   "source": {
-   "commit": "2bed0ad028c3",
+   "commit": "59a43b36953c",
    "key": "results[].float_error",
    "path": "epochs/1/validation/results.json",
    "repo": "rk-work",
@@ -818,7 +818,7 @@
    }
   ],
   "source": {
-   "commit": "2bed0ad028c3",
+   "commit": "59a43b36953c",
    "key": "verdicts; speedup; correlation",
    "path": "epochs/1/benchmark/results.json",
    "repo": "rk-work",
@@ -1031,7 +1031,7 @@
    }
   ],
   "source": {
-   "commit": "2bed0ad028c3",
+   "commit": "59a43b36953c",
    "key": "methods[]; verdicts",
    "path": "epochs/1/trace/results.json",
    "repo": "rk-work",
@@ -1182,7 +1182,7 @@
    }
   ],
   "source": {
-   "commit": "2bed0ad028c3",
+   "commit": "59a43b36953c",
    "key": "verdicts; results[]",
    "path": "epochs/1/validation/results.json",
    "repo": "rk-work",

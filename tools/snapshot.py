@@ -89,7 +89,7 @@ def rk(ws: Path) -> dict:
     fb = kf["floor_bias_flip"]["numbers"]["aggregate"]
 
     out: dict = {"_about": (
-        "The rk run: an unattended search for Runge-Kutta coefficients that do best in Q15 "
+        "The rk run: an autonomous search for Runge-Kutta coefficients that do best in Q15 "
         "fixed point with floor rounding, at a fixed 65,536-cycle budget on a modeled "
         "Cortex-M0+. Every result below is epoch 1 unless its block says epoch 2.")}
 
