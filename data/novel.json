@@ -1,0 +1,1450 @@
+{
+ "_about": "The 2025 ML project: a pipeline meant to generate new explicit Runge-Kutta tables with a neural generator, a surrogate model and evolutionary search, scored on generated ODEs. Numbers are read from its committed files; the claims audit is data/claims.json.",
+ "audit_counts": {
+  "evaluation_ode_families": [
+   "linear_system",
+   "van_der_pol",
+   "lotka_volterra",
+   "brusselator",
+   "polynomial",
+   "robertson"
+  ],
+  "evaluation_ode_family_count": 6,
+  "evaluation_odes": 10000,
+  "evaluation_step": 0.01,
+  "evaluation_t_end": 1.0,
+  "random_generator_seed": 42,
+  "reference_solver_families": [
+   "linear_system",
+   "van_der_pol",
+   "lotka_volterra",
+   "brusselator",
+   "polynomial"
+  ],
+  "reference_solver_family_count": 5,
+  "source": {
+   "commit": "d89c2c809ee0",
+   "key": "",
+   "path": "src/core/ode_dataset.py; results/real_trial_evaluation.py:50-130; src/core/integrator_runner.py:240-254",
+   "repo": "Novel-Numerical-Integration-Methods",
+   "url": "https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods"
+  },
+  "training_ode_families": [
+   "brusselator",
+   "enhanced_linear_system",
+   "hindmarsh_rose",
+   "kuramoto_sivashinsky",
+   "linear_system",
+   "lorenz",
+   "lotka_volterra",
+   "oregonator",
+   "polynomial",
+   "robertson",
+   "van_der_pol"
+  ],
+  "training_ode_family_count": 11,
+  "training_set_odes": 1000
+ },
+ "benchmark": {
+  "error_metric": "mean over the scorable ODEs of each ODE's maximum absolute error against a SciPy RK45 reference, fixed step h = 0.01 on t in [0, 1]",
+  "methods": 12,
+  "odes": 10000,
+  "rows": [
+   {
+    "baseline": true,
+    "id": "baseline_rk4",
+    "label": "RK4",
+    "mean_max_error": 0.13992772233169767,
+    "n_successful": 8113,
+    "n_total": 10000,
+    "runtime_s": 154.91110229492188,
+    "stages": 4,
+    "success_rate": 0.8113
+   },
+   {
+    "baseline": true,
+    "id": "baseline_rk45_dormand_prince",
+    "label": "Dormand-Prince (RK45)",
+    "mean_max_error": 0.07909014248651422,
+    "n_successful": 8113,
+    "n_total": 10000,
+    "runtime_s": 402.96074652671814,
+    "stages": 7,
+    "success_rate": 0.8113
+   },
+   {
+    "baseline": true,
+    "id": "baseline_gauss_legendre_2",
+    "label": "Gauss-Legendre 2",
+    "mean_max_error": 0.3303137081309066,
+    "n_successful": 8113,
+    "n_total": 10000,
+    "runtime_s": 70.44709348678589,
+    "stages": 2,
+    "success_rate": 0.8113
+   },
+   {
+    "baseline": true,
+    "id": "baseline_gauss_legendre_3",
+    "label": "Gauss-Legendre 3",
+    "mean_max_error": 8.3059757214515705e+211,
+    "n_successful": 8113,
+    "n_total": 10000,
+    "runtime_s": 111.19106030464172,
+    "stages": 3,
+    "success_rate": 0.8113
+   },
+   {
+    "baseline": false,
+    "id": "8",
+    "label": "Trial 8",
+    "mean_max_error": 0.37665001150370475,
+    "n_successful": 8113,
+    "n_total": 10000,
+    "runtime_s": 153.1557068824768,
+    "stages": 4,
+    "success_rate": 0.8113
+   },
+   {
+    "baseline": false,
+    "id": "9",
+    "label": "Trial 9",
+    "mean_max_error": 0.37665001150370475,
+    "n_successful": 8113,
+    "n_total": 10000,
+    "runtime_s": 150.6849398612976,
+    "stages": 4,
+    "success_rate": 0.8113
+   },
+   {
+    "baseline": false,
+    "id": "10",
+    "label": "Trial 10",
+    "mean_max_error": 0.3736444235987091,
+    "n_successful": 8113,
+    "n_total": 10000,
+    "runtime_s": 366.87059330940247,
+    "stages": 7,
+    "success_rate": 0.8113
+   },
+   {
+    "baseline": false,
+    "id": "12",
+    "label": "Trial 12",
+    "mean_max_error": 0.13992772233169767,
+    "n_successful": 8113,
+    "n_total": 10000,
+    "runtime_s": 145.64745116233826,
+    "stages": 4,
+    "success_rate": 0.8113
+   },
+   {
+    "baseline": false,
+    "id": "13",
+    "label": "Trial 13",
+    "mean_max_error": 0.07909014248651422,
+    "n_successful": 8113,
+    "n_total": 10000,
+    "runtime_s": 364.32173252105713,
+    "stages": 7,
+    "success_rate": 0.8113
+   },
+   {
+    "baseline": false,
+    "id": "14",
+    "label": "Trial 14",
+    "mean_max_error": 0.13992772233169767,
+    "n_successful": 8113,
+    "n_total": 10000,
+    "runtime_s": 145.7298400402069,
+    "stages": 4,
+    "success_rate": 0.8113
+   },
+   {
+    "baseline": false,
+    "id": "15",
+    "label": "Trial 15",
+    "mean_max_error": 0.13992772233169767,
+    "n_successful": 8113,
+    "n_total": 10000,
+    "runtime_s": 145.125590801239,
+    "stages": 4,
+    "success_rate": 0.8113
+   },
+   {
+    "baseline": false,
+    "id": "16",
+    "label": "Trial 16",
+    "mean_max_error": 5577.048475687634,
+    "n_successful": 8113,
+    "n_total": 10000,
+    "runtime_s": 149.56485056877136,
+    "stages": 4,
+    "success_rate": 0.8113
+   }
+  ],
+  "runtime_metric": "wall time for all 10,000 ODEs, reference solve included",
+  "scorable_odes": 8113,
+  "source": {
+   "commit": "d89c2c809ee0",
+   "key": "Max_Error; Runtime_Seconds; Success_Rate; N_Successful; N_Total",
+   "path": "results/real_trial_results.csv",
+   "repo": "Novel-Numerical-Integration-Methods",
+   "url": "https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods"
+  },
+  "success_rate_distinct_values": [
+   0.8113
+  ]
+ },
+ "metrics_log": {
+  "composite_score_distinct_values": [
+   1.0
+  ],
+  "note": "one 100-epoch run of 100 four-stage candidates per epoch; the file has no trial column. Every logged composite score is the clip ceiling, 1.0.",
+  "per_epoch": [
+   {
+    "epoch": 1,
+    "median_max_error": 0.00029268644840824826,
+    "min_max_error": 2.284679620360786e-07
+   },
+   {
+    "epoch": 2,
+    "median_max_error": 0.0007023569257141717,
+    "min_max_error": 1.5081879717883216e-05
+   },
+   {
+    "epoch": 3,
+    "median_max_error": 0.0010013295098006945,
+    "min_max_error": 1.8160791920364753e-05
+   },
+   {
+    "epoch": 4,
+    "median_max_error": 0.00017819817203208572,
+    "min_max_error": 1.3062708670807339e-06
+   },
+   {
+    "epoch": 5,
+    "median_max_error": 0.00010157838890071226,
+    "min_max_error": 3.20936003691021e-07
+   },
+   {
+    "epoch": 6,
+    "median_max_error": 0.0006383208587472176,
+    "min_max_error": 1.5778230517367913e-05
+   },
+   {
+    "epoch": 7,
+    "median_max_error": 0.0021455201190406854,
+    "min_max_error": 1.2600500780490778e-05
+   },
+   {
+    "epoch": 8,
+    "median_max_error": 0.00031164397366024673,
+    "min_max_error": 8.546271279966456e-06
+   },
+   {
+    "epoch": 9,
+    "median_max_error": 0.00019761032602906686,
+    "min_max_error": 6.188030487964648e-06
+   },
+   {
+    "epoch": 10,
+    "median_max_error": 4.937416516045068e-05,
+    "min_max_error": 3.612097586551599e-07
+   },
+   {
+    "epoch": 11,
+    "median_max_error": 0.00042550909566574705,
+    "min_max_error": 7.608084525535823e-06
+   },
+   {
+    "epoch": 12,
+    "median_max_error": 0.0006336873150167019,
+    "min_max_error": 2.4045081787877612e-05
+   },
+   {
+    "epoch": 13,
+    "median_max_error": 0.00021562527438334915,
+    "min_max_error": 5.284554925902084e-06
+   },
+   {
+    "epoch": 14,
+    "median_max_error": 9.738941776227722e-05,
+    "min_max_error": 1.5774018660389128e-06
+   },
+   {
+    "epoch": 15,
+    "median_max_error": 0.0009211638008797454,
+    "min_max_error": 3.870568937156553e-05
+   },
+   {
+    "epoch": 16,
+    "median_max_error": 5.3335782636240175e-05,
+    "min_max_error": 1.3494595415454293e-06
+   },
+   {
+    "epoch": 17,
+    "median_max_error": 0.0006951587908770637,
+    "min_max_error": 8.001057730750947e-06
+   },
+   {
+    "epoch": 18,
+    "median_max_error": 0.0009494983180210969,
+    "min_max_error": 3.847145530069605e-05
+   },
+   {
+    "epoch": 19,
+    "median_max_error": 0.0001409960074492833,
+    "min_max_error": 6.059868722448452e-06
+   },
+   {
+    "epoch": 20,
+    "median_max_error": 0.0007084798298982021,
+    "min_max_error": 7.018471287746578e-05
+   },
+   {
+    "epoch": 21,
+    "median_max_error": 9.44141276597932e-05,
+    "min_max_error": 3.68739931906301e-06
+   },
+   {
+    "epoch": 22,
+    "median_max_error": 0.0008513430160557538,
+    "min_max_error": 3.0394478330027856e-05
+   },
+   {
+    "epoch": 23,
+    "median_max_error": 7.41015925606878e-05,
+    "min_max_error": 2.4965558411528536e-06
+   },
+   {
+    "epoch": 24,
+    "median_max_error": 0.00494854038081278,
+    "min_max_error": 6.120048247885831e-05
+   },
+   {
+    "epoch": 25,
+    "median_max_error": 0.0001644230903720465,
+    "min_max_error": 2.8085765488563386e-06
+   },
+   {
+    "epoch": 26,
+    "median_max_error": 0.0006498578854311998,
+    "min_max_error": 7.896914304019005e-05
+   },
+   {
+    "epoch": 27,
+    "median_max_error": 0.00021652386012688556,
+    "min_max_error": 7.788881034666498e-06
+   },
+   {
+    "epoch": 28,
+    "median_max_error": 0.004645361534555067,
+    "min_max_error": 0.000105259470681307
+   },
+   {
+    "epoch": 29,
+    "median_max_error": 0.00012132487627850675,
+    "min_max_error": 4.092241660133368e-06
+   },
+   {
+    "epoch": 30,
+    "median_max_error": 0.005626922225310079,
+    "min_max_error": 0.0003750472428128188
+   },
+   {
+    "epoch": 31,
+    "median_max_error": 8.719286552670523e-05,
+    "min_max_error": 1.2362523029881695e-06
+   },
+   {
+    "epoch": 32,
+    "median_max_error": 0.003024643391825352,
+    "min_max_error": 6.387904886699886e-05
+   },
+   {
+    "epoch": 33,
+    "median_max_error": 0.00030692993970619236,
+    "min_max_error": 2.1995668219246486e-06
+   },
+   {
+    "epoch": 34,
+    "median_max_error": 0.006491578821650802,
+    "min_max_error": 0.00013149060972385157
+   },
+   {
+    "epoch": 35,
+    "median_max_error": 0.00022915558375037414,
+    "min_max_error": 8.191269550083444e-06
+   },
+   {
+    "epoch": 36,
+    "median_max_error": 0.0006911664511211957,
+    "min_max_error": 2.584654852856372e-05
+   },
+   {
+    "epoch": 37,
+    "median_max_error": 0.00028161690351343176,
+    "min_max_error": 4.7476710110971685e-06
+   },
+   {
+    "epoch": 38,
+    "median_max_error": 3.281187690932381e-05,
+    "min_max_error": 6.517473454296528e-07
+   },
+   {
+    "epoch": 39,
+    "median_max_error": 0.0001550175791185211,
+    "min_max_error": 8.599265206109118e-06
+   },
+   {
+    "epoch": 40,
+    "median_max_error": 0.000566642832146884,
+    "min_max_error": 5.70301138636625e-06
+   },
+   {
+    "epoch": 41,
+    "median_max_error": 0.0001790615767709923,
+    "min_max_error": 3.1201594494484417e-06
+   },
+   {
+    "epoch": 42,
+    "median_max_error": 0.007535592557401612,
+    "min_max_error": 0.00014567540245039975
+   },
+   {
+    "epoch": 43,
+    "median_max_error": 0.0006338395393257858,
+    "min_max_error": 1.4078307643928752e-05
+   },
+   {
+    "epoch": 44,
+    "median_max_error": 0.0003592093523179463,
+    "min_max_error": 8.899259571973674e-06
+   },
+   {
+    "epoch": 45,
+    "median_max_error": 0.00013620096234362894,
+    "min_max_error": 1.4259286550122096e-06
+   },
+   {
+    "epoch": 46,
+    "median_max_error": 0.00018957185129571982,
+    "min_max_error": 1.3004023577894149e-06
+   },
+   {
+    "epoch": 47,
+    "median_max_error": 0.0007147947147629839,
+    "min_max_error": 1.3839048511142036e-05
+   },
+   {
+    "epoch": 48,
+    "median_max_error": 0.0008125603684515841,
+    "min_max_error": 3.452264043658048e-05
+   },
+   {
+    "epoch": 49,
+    "median_max_error": 0.0006448029424944178,
+    "min_max_error": 1.9812856011159314e-05
+   },
+   {
+    "epoch": 50,
+    "median_max_error": 0.0062876917455803785,
+    "min_max_error": 0.00048402664219423055
+   },
+   {
+    "epoch": 51,
+    "median_max_error": 0.006540792618918618,
+    "min_max_error": 0.00022788915167561196
+   },
+   {
+    "epoch": 52,
+    "median_max_error": 0.00015315102523586686,
+    "min_max_error": 2.972153850456845e-06
+   },
+   {
+    "epoch": 53,
+    "median_max_error": 0.00018282656257707892,
+    "min_max_error": 3.3742259731794222e-06
+   },
+   {
+    "epoch": 54,
+    "median_max_error": 0.005527411520064002,
+    "min_max_error": 0.0003519449810274136
+   },
+   {
+    "epoch": 55,
+    "median_max_error": 8.007136366072257e-05,
+    "min_max_error": 1.1559261836628643e-06
+   },
+   {
+    "epoch": 56,
+    "median_max_error": 0.00016670333398609484,
+    "min_max_error": 1.247648584586246e-06
+   },
+   {
+    "epoch": 57,
+    "median_max_error": 0.0004907252002126297,
+    "min_max_error": 5.974770282345343e-06
+   },
+   {
+    "epoch": 58,
+    "median_max_error": 6.46786337491389e-05,
+    "min_max_error": 2.960995471819446e-06
+   },
+   {
+    "epoch": 59,
+    "median_max_error": 0.00013071064538872394,
+    "min_max_error": 1.7965588367128668e-06
+   },
+   {
+    "epoch": 60,
+    "median_max_error": 0.0001673567965711675,
+    "min_max_error": 1.1911661144124723e-06
+   },
+   {
+    "epoch": 61,
+    "median_max_error": 0.0006592120173753301,
+    "min_max_error": 1.118521511877336e-05
+   },
+   {
+    "epoch": 62,
+    "median_max_error": 0.0007073123268940855,
+    "min_max_error": 2.9078055256246554e-05
+   },
+   {
+    "epoch": 63,
+    "median_max_error": 0.0003180843258169656,
+    "min_max_error": 8.534203484635078e-06
+   },
+   {
+    "epoch": 64,
+    "median_max_error": 8.078105395441671e-05,
+    "min_max_error": 3.840189271970681e-06
+   },
+   {
+    "epoch": 65,
+    "median_max_error": 9.223456053238011e-05,
+    "min_max_error": 7.60217867501359e-06
+   },
+   {
+    "epoch": 66,
+    "median_max_error": 0.0011488724748037324,
+    "min_max_error": 2.59973001200427e-05
+   },
+   {
+    "epoch": 67,
+    "median_max_error": 5.5482664513586953e-05,
+    "min_max_error": 1.7189922636752932e-06
+   },
+   {
+    "epoch": 68,
+    "median_max_error": 0.000620022300236912,
+    "min_max_error": 1.2762273260330436e-05
+   },
+   {
+    "epoch": 69,
+    "median_max_error": 0.012158649637909951,
+    "min_max_error": 0.00025148713355320116
+   },
+   {
+    "epoch": 70,
+    "median_max_error": 0.0007374698214608405,
+    "min_max_error": 1.3078571876345472e-05
+   },
+   {
+    "epoch": 71,
+    "median_max_error": 0.0004459460488542877,
+    "min_max_error": 4.766838004709317e-06
+   },
+   {
+    "epoch": 72,
+    "median_max_error": 0.00016335226296448273,
+    "min_max_error": 3.580158763535643e-06
+   },
+   {
+    "epoch": 73,
+    "median_max_error": 0.0001579436132339589,
+    "min_max_error": 1.3081127615768917e-05
+   },
+   {
+    "epoch": 74,
+    "median_max_error": 0.00010277339050833987,
+    "min_max_error": 3.7602381866743863e-06
+   },
+   {
+    "epoch": 75,
+    "median_max_error": 0.00043783915514148514,
+    "min_max_error": 6.456688600531016e-06
+   },
+   {
+    "epoch": 76,
+    "median_max_error": 0.00017218410882111784,
+    "min_max_error": 2.655171828539105e-06
+   },
+   {
+    "epoch": 77,
+    "median_max_error": 0.0011359173312430791,
+    "min_max_error": 4.7847827744208176e-05
+   },
+   {
+    "epoch": 78,
+    "median_max_error": 0.0007590439879927562,
+    "min_max_error": 5.1317234017844894e-05
+   },
+   {
+    "epoch": 79,
+    "median_max_error": 4.711854134064773e-05,
+    "min_max_error": 1.450117937991695e-06
+   },
+   {
+    "epoch": 80,
+    "median_max_error": 0.00019412361949032323,
+    "min_max_error": 8.956589718562264e-06
+   },
+   {
+    "epoch": 81,
+    "median_max_error": 0.0003509811000277319,
+    "min_max_error": 1.4335936554813351e-05
+   },
+   {
+    "epoch": 82,
+    "median_max_error": 0.01393168948124976,
+    "min_max_error": 7.095460176500396e-05
+   },
+   {
+    "epoch": 83,
+    "median_max_error": 0.00012726837186254639,
+    "min_max_error": 1.572642729682805e-06
+   },
+   {
+    "epoch": 84,
+    "median_max_error": 0.0002091729219968385,
+    "min_max_error": 1.3568074618136663e-05
+   },
+   {
+    "epoch": 85,
+    "median_max_error": 0.0007585840735961022,
+    "min_max_error": 2.9517242397002856e-05
+   },
+   {
+    "epoch": 86,
+    "median_max_error": 0.00015055847636648222,
+    "min_max_error": 6.213022171258422e-06
+   },
+   {
+    "epoch": 87,
+    "median_max_error": 0.0005805894056758677,
+    "min_max_error": 8.151934423142441e-06
+   },
+   {
+    "epoch": 88,
+    "median_max_error": 0.001265671641677088,
+    "min_max_error": 3.2404291898481206e-05
+   },
+   {
+    "epoch": 89,
+    "median_max_error": 0.0006031889994811389,
+    "min_max_error": 4.257612971718381e-05
+   },
+   {
+    "epoch": 90,
+    "median_max_error": 0.0012168230179350056,
+    "min_max_error": 6.978811315412625e-05
+   },
+   {
+    "epoch": 91,
+    "median_max_error": 0.00018778677221568504,
+    "min_max_error": 1.6280607382195999e-06
+   },
+   {
+    "epoch": 92,
+    "median_max_error": 0.00010595586180765738,
+    "min_max_error": 9.864971201577499e-07
+   },
+   {
+    "epoch": 93,
+    "median_max_error": 0.0019889728869889427,
+    "min_max_error": 3.954848895249671e-05
+   },
+   {
+    "epoch": 94,
+    "median_max_error": 0.00034663242207017036,
+    "min_max_error": 4.487716873392722e-06
+   },
+   {
+    "epoch": 95,
+    "median_max_error": 0.00040466777859325513,
+    "min_max_error": 4.979073589533378e-06
+   },
+   {
+    "epoch": 96,
+    "median_max_error": 0.0020128790364671257,
+    "min_max_error": 3.1781353818307876e-05
+   },
+   {
+    "epoch": 97,
+    "median_max_error": 0.0003222101465457704,
+    "min_max_error": 6.389127879804432e-06
+   },
+   {
+    "epoch": 98,
+    "median_max_error": 8.201864191285939e-05,
+    "min_max_error": 3.2112218260398974e-06
+   },
+   {
+    "epoch": 99,
+    "median_max_error": 0.0017585280481325163,
+    "min_max_error": 5.3960065023072394e-05
+   },
+   {
+    "epoch": 100,
+    "median_max_error": 0.010832234175755469,
+    "min_max_error": 5.9464298076501556e-05
+   }
+  ],
+  "rows": 10000,
+  "source": {
+   "commit": "d89c2c809ee0",
+   "key": "epoch; max_error; composite_score",
+   "path": "metrics_log.csv",
+   "repo": "Novel-Numerical-Integration-Methods",
+   "url": "https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods"
+  }
+ },
+ "repo": {
+  "active_from": "2025-09-13",
+  "active_to": "2025-09-21",
+  "commits": 22,
+  "first_commit": "2025-08-17",
+  "last_commit": "2025-12-02",
+  "source": {
+   "commit": "d89c2c809ee0",
+   "key": "",
+   "path": "git log; src/**/*.py; trials/",
+   "repo": "Novel-Numerical-Integration-Methods",
+   "url": "https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods"
+  },
+  "src_python_files": 47,
+  "src_python_lines": 10279,
+  "trial_folders": 16
+ },
+ "trial16": {
+  "history": [
+   {
+    "best_score": 1.0171982555755887,
+    "epoch": 1,
+    "mean_score": 0.8925396350029321
+   },
+   {
+    "best_score": 1.0024950137793682,
+    "epoch": 2,
+    "mean_score": 0.8891416411264988
+   },
+   {
+    "best_score": 0.9722501241304021,
+    "epoch": 3,
+    "mean_score": 0.8866887350771058
+   },
+   {
+    "best_score": 0.9765483774441979,
+    "epoch": 4,
+    "mean_score": 0.8871988300674227
+   },
+   {
+    "best_score": 1.0096531917124612,
+    "epoch": 5,
+    "mean_score": 0.8870008446017833
+   },
+   {
+    "best_score": 0.9831555599620007,
+    "epoch": 6,
+    "mean_score": 0.8954017887140971
+   },
+   {
+    "best_score": 0.9639465284671312,
+    "epoch": 7,
+    "mean_score": 0.8942141331953227
+   },
+   {
+    "best_score": 0.978218450839964,
+    "epoch": 8,
+    "mean_score": 0.8913781407189394
+   },
+   {
+    "best_score": 0.9732771172069244,
+    "epoch": 9,
+    "mean_score": 0.8832978703286504
+   },
+   {
+    "best_score": 1.0089713412192085,
+    "epoch": 10,
+    "mean_score": 0.8938419823537123
+   },
+   {
+    "best_score": 0.9762044841711123,
+    "epoch": 11,
+    "mean_score": 0.8896067072283507
+   },
+   {
+    "best_score": 1.038961792867243,
+    "epoch": 12,
+    "mean_score": 0.9002243801177263
+   },
+   {
+    "best_score": 0.9991535408430329,
+    "epoch": 13,
+    "mean_score": 0.8859763273520436
+   },
+   {
+    "best_score": 1.0171005570595313,
+    "epoch": 14,
+    "mean_score": 0.8930651049572433
+   },
+   {
+    "best_score": 1.0030701560173425,
+    "epoch": 15,
+    "mean_score": 0.8908624914129657
+   },
+   {
+    "best_score": 0.9737351905649309,
+    "epoch": 16,
+    "mean_score": 0.8935968868588604
+   },
+   {
+    "best_score": 0.9772037838137422,
+    "epoch": 17,
+    "mean_score": 0.8944971462843612
+   },
+   {
+    "best_score": 0.976955744980205,
+    "epoch": 18,
+    "mean_score": 0.8969461404233375
+   },
+   {
+    "best_score": 0.9708105604336429,
+    "epoch": 19,
+    "mean_score": 0.8986921416172572
+   },
+   {
+    "best_score": 0.9628518466380299,
+    "epoch": 20,
+    "mean_score": 0.8967634067065497
+   },
+   {
+    "best_score": 0.978231265113807,
+    "epoch": 21,
+    "mean_score": 0.8931911864755673
+   },
+   {
+    "best_score": 1.0362561387269413,
+    "epoch": 22,
+    "mean_score": 0.8952214569609341
+   },
+   {
+    "best_score": 1.0065588982504365,
+    "epoch": 23,
+    "mean_score": 0.8982294416422267
+   },
+   {
+    "best_score": 0.9824784993491348,
+    "epoch": 24,
+    "mean_score": 0.8886257441554983
+   },
+   {
+    "best_score": 0.9658676730922332,
+    "epoch": 25,
+    "mean_score": 0.8945035750897016
+   },
+   {
+    "best_score": 0.9649656474297263,
+    "epoch": 26,
+    "mean_score": 0.8919061926681486
+   },
+   {
+    "best_score": 0.9849570764157787,
+    "epoch": 27,
+    "mean_score": 0.892056303554797
+   },
+   {
+    "best_score": 0.9856056292273557,
+    "epoch": 28,
+    "mean_score": 0.8870232127843426
+   },
+   {
+    "best_score": 0.9749862939666601,
+    "epoch": 29,
+    "mean_score": 0.8882656489676041
+   },
+   {
+    "best_score": 0.9915117538688465,
+    "epoch": 30,
+    "mean_score": 0.8973524220301592
+   },
+   {
+    "best_score": 0.9747364445308404,
+    "epoch": 31,
+    "mean_score": 0.8933417725512326
+   },
+   {
+    "best_score": 0.9847107695654637,
+    "epoch": 32,
+    "mean_score": 0.8914174926362265
+   },
+   {
+    "best_score": 1.0484893201912597,
+    "epoch": 33,
+    "mean_score": 0.8927780349834863
+   },
+   {
+    "best_score": 0.9985546758150801,
+    "epoch": 34,
+    "mean_score": 0.8972158899437946
+   },
+   {
+    "best_score": 0.9992431925468844,
+    "epoch": 35,
+    "mean_score": 0.8916060244466668
+   },
+   {
+    "best_score": 0.9821351435418096,
+    "epoch": 36,
+    "mean_score": 0.8940982074963244
+   },
+   {
+    "best_score": 0.9826746990235719,
+    "epoch": 37,
+    "mean_score": 0.892331696691151
+   },
+   {
+    "best_score": 1.0000105794100436,
+    "epoch": 38,
+    "mean_score": 0.8983888883870168
+   },
+   {
+    "best_score": 0.9994142159344012,
+    "epoch": 39,
+    "mean_score": 0.8967186546481823
+   },
+   {
+    "best_score": 1.009060953524632,
+    "epoch": 40,
+    "mean_score": 0.8952566864332329
+   },
+   {
+    "best_score": 0.9923573224079423,
+    "epoch": 41,
+    "mean_score": 0.8993542979139558
+   },
+   {
+    "best_score": 0.9908680832398028,
+    "epoch": 42,
+    "mean_score": 0.9017376439737445
+   },
+   {
+    "best_score": 0.9884081634762458,
+    "epoch": 43,
+    "mean_score": 0.89895001705181
+   },
+   {
+    "best_score": 1.0010902798847656,
+    "epoch": 44,
+    "mean_score": 0.8974854935720792
+   },
+   {
+    "best_score": 0.9950928647807395,
+    "epoch": 45,
+    "mean_score": 0.8984545997449588
+   },
+   {
+    "best_score": 0.9897209398848396,
+    "epoch": 46,
+    "mean_score": 0.8932281780913697
+   },
+   {
+    "best_score": 0.9782153293591036,
+    "epoch": 47,
+    "mean_score": 0.8939450324343522
+   },
+   {
+    "best_score": 0.995768144323976,
+    "epoch": 48,
+    "mean_score": 0.893629579728172
+   },
+   {
+    "best_score": 0.970322267756063,
+    "epoch": 49,
+    "mean_score": 0.8952080502283701
+   },
+   {
+    "best_score": 1.0021603178822496,
+    "epoch": 50,
+    "mean_score": 0.8925789471821232
+   },
+   {
+    "best_score": 0.945372635237689,
+    "epoch": 51,
+    "mean_score": 0.8711723843013988
+   },
+   {
+    "best_score": 1.0188633091695418,
+    "epoch": 52,
+    "mean_score": 0.8734719590264848
+   },
+   {
+    "best_score": 0.9942586462192833,
+    "epoch": 53,
+    "mean_score": 0.8720929557740745
+   },
+   {
+    "best_score": 0.9895866877525844,
+    "epoch": 54,
+    "mean_score": 0.8654831361983404
+   },
+   {
+    "best_score": 0.954141524337402,
+    "epoch": 55,
+    "mean_score": 0.866657330222464
+   },
+   {
+    "best_score": 0.9646125550640885,
+    "epoch": 56,
+    "mean_score": 0.8652174346034252
+   },
+   {
+    "best_score": 0.9747266078575421,
+    "epoch": 57,
+    "mean_score": 0.8759886762575638
+   },
+   {
+    "best_score": 0.9526338673358956,
+    "epoch": 58,
+    "mean_score": 0.8664482916117499
+   },
+   {
+    "best_score": 0.995782908045437,
+    "epoch": 59,
+    "mean_score": 0.871849810231347
+   },
+   {
+    "best_score": 0.9426600771714417,
+    "epoch": 60,
+    "mean_score": 0.8686495975265529
+   },
+   {
+    "best_score": 0.9486183358281843,
+    "epoch": 61,
+    "mean_score": 0.869589009806369
+   },
+   {
+    "best_score": 1.003396870427589,
+    "epoch": 62,
+    "mean_score": 0.8727358028654235
+   },
+   {
+    "best_score": 1.0134653439744965,
+    "epoch": 63,
+    "mean_score": 0.8743705525446
+   },
+   {
+    "best_score": 0.9448406396794473,
+    "epoch": 64,
+    "mean_score": 0.8692651754910514
+   },
+   {
+    "best_score": 0.9837943223473756,
+    "epoch": 65,
+    "mean_score": 0.872419774995862
+   },
+   {
+    "best_score": 0.9585236243285921,
+    "epoch": 66,
+    "mean_score": 0.8690565420901574
+   },
+   {
+    "best_score": 1.0269931921743982,
+    "epoch": 67,
+    "mean_score": 0.87416408581978
+   },
+   {
+    "best_score": 0.9771056912536127,
+    "epoch": 68,
+    "mean_score": 0.8701805261817797
+   },
+   {
+    "best_score": 0.9593209678537686,
+    "epoch": 69,
+    "mean_score": 0.8645584526135976
+   },
+   {
+    "best_score": 0.979883877560368,
+    "epoch": 70,
+    "mean_score": 0.8780653562029861
+   },
+   {
+    "best_score": 0.9508990537058266,
+    "epoch": 71,
+    "mean_score": 0.8684983332616474
+   },
+   {
+    "best_score": 0.9570566994874694,
+    "epoch": 72,
+    "mean_score": 0.8682094292067908
+   },
+   {
+    "best_score": 0.9647093989294265,
+    "epoch": 73,
+    "mean_score": 0.8698256927953423
+   },
+   {
+    "best_score": 0.9779778141993881,
+    "epoch": 74,
+    "mean_score": 0.8741411881209434
+   },
+   {
+    "best_score": 0.9629426995959599,
+    "epoch": 75,
+    "mean_score": 0.8695977713328129
+   },
+   {
+    "best_score": 0.9721637579769112,
+    "epoch": 76,
+    "mean_score": 0.8687162152721616
+   },
+   {
+    "best_score": 0.9360075998582248,
+    "epoch": 77,
+    "mean_score": 0.8671583592061567
+   },
+   {
+    "best_score": 0.9583851109342538,
+    "epoch": 78,
+    "mean_score": 0.87182312426279
+   },
+   {
+    "best_score": 0.9812831989015537,
+    "epoch": 79,
+    "mean_score": 0.8740202790030006
+   },
+   {
+    "best_score": 0.9710537981730897,
+    "epoch": 80,
+    "mean_score": 0.8675276387669109
+   },
+   {
+    "best_score": 0.9516995845094387,
+    "epoch": 81,
+    "mean_score": 0.8680698740373138
+   },
+   {
+    "best_score": 0.9548363262658686,
+    "epoch": 82,
+    "mean_score": 0.8683643721480409
+   },
+   {
+    "best_score": 0.9288418929081413,
+    "epoch": 83,
+    "mean_score": 0.861984705136072
+   },
+   {
+    "best_score": 0.9309204517600161,
+    "epoch": 84,
+    "mean_score": 0.8673498614324351
+   },
+   {
+    "best_score": 1.0088812529857212,
+    "epoch": 85,
+    "mean_score": 0.8727502236349011
+   },
+   {
+    "best_score": 1.0285606964198297,
+    "epoch": 86,
+    "mean_score": 0.8710262353094199
+   },
+   {
+    "best_score": 0.952654519639407,
+    "epoch": 87,
+    "mean_score": 0.8695547958668336
+   },
+   {
+    "best_score": 0.9799346940017369,
+    "epoch": 88,
+    "mean_score": 0.8656901996201045
+   },
+   {
+    "best_score": 0.9431284037923481,
+    "epoch": 89,
+    "mean_score": 0.8684134576093292
+   },
+   {
+    "best_score": 0.9586219804593408,
+    "epoch": 90,
+    "mean_score": 0.8618805642607326
+   },
+   {
+    "best_score": 1.001611719480229,
+    "epoch": 91,
+    "mean_score": 0.864451685517973
+   },
+   {
+    "best_score": 0.9707683554624098,
+    "epoch": 92,
+    "mean_score": 0.8642051215136796
+   },
+   {
+    "best_score": 0.9694076647306399,
+    "epoch": 93,
+    "mean_score": 0.87295414240305
+   },
+   {
+    "best_score": 0.9441842375243947,
+    "epoch": 94,
+    "mean_score": 0.86476058772817
+   },
+   {
+    "best_score": 0.937074315448335,
+    "epoch": 95,
+    "mean_score": 0.8570341265174365
+   },
+   {
+    "best_score": 0.9442204294003823,
+    "epoch": 96,
+    "mean_score": 0.8623779895764282
+   },
+   {
+    "best_score": 0.948429230087031,
+    "epoch": 97,
+    "mean_score": 0.8710822626154807
+   },
+   {
+    "best_score": 0.944534107410273,
+    "epoch": 98,
+    "mean_score": 0.8632613423890259
+   },
+   {
+    "best_score": 0.9708313737891178,
+    "epoch": 99,
+    "mean_score": 0.8692080438102168
+   },
+   {
+    "best_score": 0.9562009279677235,
+    "epoch": 100,
+    "mean_score": 0.8672670544520668
+   }
+  ],
+  "source": {
+   "commit": "d89c2c809ee0",
+   "key": "training_history; training_time",
+   "path": "trials/trial_016_4stage_novelty_v2/best_butcher_table.json",
+   "repo": "Novel-Numerical-Integration-Methods",
+   "url": "https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods"
+  },
+  "training_time_s": 40469.15194630623
+ },
+ "trials": {
+  "equal_to_dormand_prince": [
+   13
+  ],
+  "equal_to_rk4": [
+   12,
+   14,
+   15
+  ],
+  "rows": [
+   {
+    "folder": "trial_001_balanced_weights",
+    "identical_to_trials": [
+     2,
+     3,
+     4,
+     6,
+     8,
+     9
+    ],
+    "max_abs_diff_from_dormand_prince": null,
+    "max_abs_diff_from_rk4": 1.6880109593275947,
+    "stages": 4,
+    "trial": 1
+   },
+   {
+    "folder": "trial_002_efficiency_focused",
+    "identical_to_trials": [
+     1,
+     3,
+     4,
+     6,
+     8,
+     9
+    ],
+    "max_abs_diff_from_dormand_prince": null,
+    "max_abs_diff_from_rk4": 1.6880109593275947,
+    "stages": 4,
+    "trial": 2
+   },
+   {
+    "folder": "trial_003_efficiency_focused_v2",
+    "identical_to_trials": [
+     1,
+     2,
+     4,
+     6,
+     8,
+     9
+    ],
+    "max_abs_diff_from_dormand_prince": null,
+    "max_abs_diff_from_rk4": 1.6880109593275947,
+    "stages": 4,
+    "trial": 3
+   },
+   {
+    "folder": "trial_004_stability_focused",
+    "identical_to_trials": [
+     1,
+     2,
+     3,
+     6,
+     8,
+     9
+    ],
+    "max_abs_diff_from_dormand_prince": null,
+    "max_abs_diff_from_rk4": 1.6880109593275947,
+    "stages": 4,
+    "trial": 4
+   },
+   {
+    "folder": "trial_005_diversity_focused",
+    "identical_to_trials": [
+     7
+    ],
+    "max_abs_diff_from_dormand_prince": null,
+    "max_abs_diff_from_rk4": null,
+    "stages": 6,
+    "trial": 5
+   },
+   {
+    "folder": "trial_006_alternative_4stage",
+    "identical_to_trials": [
+     1,
+     2,
+     3,
+     4,
+     8,
+     9
+    ],
+    "max_abs_diff_from_dormand_prince": null,
+    "max_abs_diff_from_rk4": 1.6880109593275947,
+    "stages": 4,
+    "trial": 6
+   },
+   {
+    "folder": "trial_007_alternative_6stage",
+    "identical_to_trials": [
+     5
+    ],
+    "max_abs_diff_from_dormand_prince": null,
+    "max_abs_diff_from_rk4": null,
+    "stages": 6,
+    "trial": 7
+   },
+   {
+    "folder": "trial_008_4stage_accuracy",
+    "identical_to_trials": [
+     1,
+     2,
+     3,
+     4,
+     6,
+     9
+    ],
+    "max_abs_diff_from_dormand_prince": null,
+    "max_abs_diff_from_rk4": 1.6880109593275947,
+    "stages": 4,
+    "trial": 8
+   },
+   {
+    "folder": "trial_009_4stage_efficiency",
+    "identical_to_trials": [
+     1,
+     2,
+     3,
+     4,
+     6,
+     8
+    ],
+    "max_abs_diff_from_dormand_prince": null,
+    "max_abs_diff_from_rk4": 1.6880109593275947,
+    "stages": 4,
+    "trial": 9
+   },
+   {
+    "folder": "trial_010_7stage_efficiency",
+    "identical_to_trials": [],
+    "max_abs_diff_from_dormand_prince": 12.328145615738256,
+    "max_abs_diff_from_rk4": null,
+    "stages": 7,
+    "trial": 10
+   },
+   {
+    "folder": "trial_011_7stage_accuracy",
+    "saved_table": null,
+    "trial": 11
+   },
+   {
+    "folder": "trial_012_4stage_evolution",
+    "identical_to_trials": [
+     14,
+     15
+    ],
+    "max_abs_diff_from_dormand_prince": null,
+    "max_abs_diff_from_rk4": 0.0,
+    "stages": 4,
+    "trial": 12
+   },
+   {
+    "folder": "trial_013_7stage_evolution",
+    "identical_to_trials": [],
+    "max_abs_diff_from_dormand_prince": 0.0,
+    "max_abs_diff_from_rk4": null,
+    "stages": 7,
+    "trial": 13
+   },
+   {
+    "folder": "trial_014_4stage_novelty",
+    "identical_to_trials": [
+     12,
+     15
+    ],
+    "max_abs_diff_from_dormand_prince": null,
+    "max_abs_diff_from_rk4": 0.0,
+    "stages": 4,
+    "trial": 14
+   },
+   {
+    "folder": "trial_015_4stage_unconstrained",
+    "identical_to_trials": [
+     12,
+     14
+    ],
+    "max_abs_diff_from_dormand_prince": null,
+    "max_abs_diff_from_rk4": 0.0,
+    "stages": 4,
+    "trial": 15
+   },
+   {
+    "folder": "trial_016_4stage_novelty_v2",
+    "identical_to_trials": [],
+    "max_abs_diff_from_dormand_prince": null,
+    "max_abs_diff_from_rk4": 1.5071876696220212,
+    "stages": 4,
+    "trial": 16
+   }
+  ],
+  "source": {
+   "commit": "d89c2c809ee0",
+   "key": "butcher_table.A; butcher_table.b",
+   "path": "trials/*/best_butcher_table.json",
+   "repo": "Novel-Numerical-Integration-Methods",
+   "url": "https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods"
+  }
+ }
+}

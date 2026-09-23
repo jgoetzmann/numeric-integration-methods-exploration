@@ -1,0 +1,41 @@
+{
+ "private_workspace": "rk-dev, the private superproject that pins the four rk repos, is not linked",
+ "repos": [
+  {
+   "commit": "424f25c3f36b",
+   "name": "rk-harness",
+   "role": "code: the runner, the pinned verifier, the site generator, 1,900-odd tests",
+   "site": null,
+   "url": "https://github.com/jgoetzmann/rk-harness"
+  },
+  {
+   "commit": "207403db592b",
+   "name": "rk-work",
+   "role": "run data: the append-only archive, lanes, validation, benchmark and trace documents",
+   "site": null,
+   "url": "https://github.com/jgoetzmann/rk-work"
+  },
+  {
+   "commit": "3920f00c7b97",
+   "name": "rk-findings",
+   "role": "the findings site the run regenerates every cycle",
+   "site": "https://jgoetzmann.github.io/rk-findings/",
+   "url": "https://github.com/jgoetzmann/rk-findings"
+  },
+  {
+   "commit": "1a8e0a739ce4",
+   "name": "rk-overview",
+   "role": "the hand-built explainer site with an in-browser Q15 demo",
+   "site": "https://jgoetzmann.github.io/rk-overview/",
+   "url": "https://github.com/jgoetzmann/rk-overview"
+  },
+  {
+   "commit": "d89c2c809ee0",
+   "name": "Novel-Numerical-Integration-Methods",
+   "role": "the 2025 ML project: generator, evolution, 10,000-ODE benchmark",
+   "site": null,
+   "url": "https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods"
+  }
+ ],
+ "snapshot_date": "2026-09-23"
+}

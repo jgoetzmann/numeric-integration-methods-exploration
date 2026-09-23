@@ -1,0 +1,1028 @@
+{
+ "_about": "The rk run: an unattended search for Runge-Kutta coefficients that do best in Q15 fixed point with floor rounding, at a fixed 65,536-cycle budget on a modeled Cortex-M0+. Every result below is epoch 1 unless its block says epoch 2.",
+ "champion": {
+  "best_classical": "midpoint",
+  "best_classical_heldout_error": 0.0844458969940956,
+  "caveats": [
+   "Cell elites are selected by held-out error among 45k+ unique candidates, so the champion values carry selection (winner's curse) bias; the CMA-ES search itself optimizes only the search-set error.",
+   "Tier labels are mechanical insertion-time comparisons against the then-incumbent, not a validation grade of the final elite: the best cell's elite is stored as no_improvement: its cell had an incumbent and neither heldout_verified nor search_only applied, and both of those start from a lower search error than the incumbent's.",
+   "rc_thermal saturates near 0.156 for every classical method (see rc_thermal_collapse), so classical held-out RMS values are floored near 0.078; discovered winners break that floor."
+  ],
+  "cycles_per_step": 22,
+  "cycles_run": 3931,
+  "cycles_since_last_improvement": 3897,
+  "found_at_cycle": 33,
+  "hash": "11e898cb",
+  "heldout_error": 0.02861808365520825,
+  "lead": 2.9507879706937388,
+  "leave_one_out": [
+   {
+    "dropped": null,
+    "ratio": 2.9507879706937388
+   },
+   {
+    "dropped": "pendulum",
+    "ratio": 2.960977699812511
+   },
+   {
+    "dropped": "dc_motor",
+    "ratio": 3.173892013296891
+   },
+   {
+    "dropped": "rc_thermal",
+    "ratio": 1.9235731494848929
+   },
+   {
+    "dropped": "quaternion",
+    "ratio": 3.0498776737457485
+   }
+  ],
+  "leave_one_out_max": 3.173892013296891,
+  "leave_one_out_min": 1.9235731494848929,
+  "order": 2,
+  "source": {
+   "commit": "1a8e0a739ce4",
+   "key": "efficiency.numbers.best_discovered; efficiency.numbers.leave_one_out; counterfactual.numbers.headline_checks.published_ratio; search_progress.numbers",
+   "path": "tools/key_findings.json",
+   "repo": "rk-overview",
+   "url": "https://github.com/jgoetzmann/rk-overview"
+  },
+  "stages": 3,
+  "stored_tier": "no_improvement",
+  "tableau": {
+   "A": [
+    [
+     "0/1",
+     "0/1",
+     "0/1"
+    ],
+    [
+     "13/16",
+     "0/1",
+     "0/1"
+    ],
+    [
+     "5/32",
+     "11/32",
+     "0/1"
+    ]
+   ],
+   "b": [
+    "0/1",
+    "0/1",
+    "1/1"
+   ],
+   "c": [
+    "0/1",
+    "13/16",
+    "1/2"
+   ]
+  }
+ },
+ "counterfactual": {
+  "archive_reranking": {
+   "equal_median_anchor": {
+    "champion_rank": 9974,
+    "classical_ahead": 0
+   },
+   "equal_reference_norm": {
+    "champion_rank": 15,
+    "classical_ahead": 0
+   },
+   "magnitude": {
+    "champion_rank": 1,
+    "classical_ahead": 0
+   }
+  },
+  "cells": [
+   {
+    "basis": "analytic",
+    "champion_still_leads": true,
+    "lowest_leave_one_out_ratio": 1.9235731494848929,
+    "ratio": 2.9507879706937388,
+    "weighting": "magnitude"
+   },
+   {
+    "basis": "traced_whole_step",
+    "champion_still_leads": false,
+    "lowest_leave_one_out_ratio": 0.6143296094306367,
+    "ratio": 1.0112376451676865,
+    "weighting": "magnitude"
+   },
+   {
+    "basis": "analytic",
+    "champion_still_leads": false,
+    "lowest_leave_one_out_ratio": 0.8143664425108379,
+    "ratio": 1.1020095375682992,
+    "weighting": "equal_median_anchor"
+   },
+   {
+    "basis": "traced_whole_step",
+    "champion_still_leads": false,
+    "lowest_leave_one_out_ratio": 0.031363660682904,
+    "ratio": 0.049352063644135316,
+    "weighting": "equal_median_anchor"
+   },
+   {
+    "basis": "analytic",
+    "champion_still_leads": true,
+    "lowest_leave_one_out_ratio": 1.9200331294359612,
+    "ratio": 3.364575314298773,
+    "weighting": "equal_reference_norm"
+   },
+   {
+    "basis": "traced_whole_step",
+    "champion_still_leads": false,
+    "lowest_leave_one_out_ratio": 0.6042323571077426,
+    "ratio": 1.838647540726091,
+    "weighting": "equal_reference_norm"
+   }
+  ],
+  "note": "ratio = best classical held-out error over the champion's; above 1 the champion leads. traced_whole_step uses the compiled step's cycle count only as the budget denominator (how many steps fit in 65,536 cycles).",
+  "source": {
+   "commit": "1a8e0a739ce4",
+   "key": "counterfactual.numbers.headline_checks.cells; counterfactual.numbers.archive_reranking",
+   "path": "tools/key_findings.json",
+   "repo": "rk-overview",
+   "url": "https://github.com/jgoetzmann/rk-overview"
+  }
+ },
+ "engineering": {
+  "demo_crosscheck": "154 of 154",
+  "golden_gate_cases": 91,
+  "source": {
+   "commit": "424f25c3f36b",
+   "key": "",
+   "path": "tests/ (pytest --collect-only); tests/golden_gate.txt; VERIFIER_FILES.txt",
+   "repo": "rk-harness",
+   "url": "https://github.com/jgoetzmann/rk-harness"
+  },
+  "tests_collected": 1908,
+  "tests_collected_on": "2026-09-23",
+  "trace_crosscheck": "144 of 144",
+  "verifier_files": 14
+ },
+ "epochs": {
+  "epoch1": {
+   "archive_day_count": 13,
+   "archive_days": [
+    {
+     "cumulative": 22,
+     "day": "2026-08-29",
+     "epoch": 1,
+     "records": 22
+    },
+    {
+     "cumulative": 21160,
+     "day": "2026-08-30",
+     "epoch": 1,
+     "records": 21138
+    },
+    {
+     "cumulative": 33700,
+     "day": "2026-08-31",
+     "epoch": 1,
+     "records": 12540
+    },
+    {
+     "cumulative": 45658,
+     "day": "2026-09-01",
+     "epoch": 1,
+     "records": 11958
+    },
+    {
+     "cumulative": 46398,
+     "day": "2026-09-02",
+     "epoch": 1,
+     "records": 740
+    },
+    {
+     "cumulative": 56133,
+     "day": "2026-09-03",
+     "epoch": 1,
+     "records": 9735
+    },
+    {
+     "cumulative": 67785,
+     "day": "2026-09-04",
+     "epoch": 1,
+     "records": 11652
+    },
+    {
+     "cumulative": 80844,
+     "day": "2026-09-05",
+     "epoch": 1,
+     "records": 13059
+    },
+    {
+     "cumulative": 96974,
+     "day": "2026-09-06",
+     "epoch": 1,
+     "records": 16130
+    },
+    {
+     "cumulative": 102082,
+     "day": "2026-09-07",
+     "epoch": 1,
+     "records": 5108
+    },
+    {
+     "cumulative": 119259,
+     "day": "2026-09-08",
+     "epoch": 1,
+     "records": 17177
+    },
+    {
+     "cumulative": 132860,
+     "day": "2026-09-09",
+     "epoch": 1,
+     "records": 13601
+    },
+    {
+     "cumulative": 141364,
+     "day": "2026-09-10",
+     "epoch": 1,
+     "records": 8504
+    }
+   ],
+   "cycles_run": 3931,
+   "frozen_at": "2026-09-15T04:33:44.899417+00:00",
+   "last_cycle_id": 3930,
+   "occupied_cells": 18,
+   "phase_at_stop": 3,
+   "records": 141364,
+   "started": "2026-08-29T11:55:27Z",
+   "stopped": "2026-09-10T14:58:14Z",
+   "verifier_files": 10,
+   "verifier_hash": "de5bec22"
+  },
+  "epoch2": {
+   "archive_days": [
+    {
+     "cumulative": 5439,
+     "day": "2026-09-17",
+     "epoch": 2,
+     "records": 5439
+    },
+    {
+     "cumulative": 8406,
+     "day": "2026-09-23",
+     "epoch": 2,
+     "records": 2967
+    }
+   ],
+   "as_of": "2026-09-23T14:57Z",
+   "cycle": 183,
+   "down_days": {
+    "from": "2026-09-17T22:09Z",
+    "to": "2026-09-23T02:19Z",
+    "why": "the watchdog's system-drive guard stopped it and nothing restarted it (fixed by D46)"
+   },
+   "lane_cycles": {
+    "adaptive": 61,
+    "explicit": 61,
+    "implicit": 61
+   },
+   "records": 8406,
+   "started": "2026-09-17T17:54Z",
+   "verifier_files": 14,
+   "verifier_hash": "2db0816c"
+  },
+  "source": {
+   "commit": "207403db592b",
+   "key": "frozen[0]; line counts",
+   "path": "EPOCH.json; epochs/1/archive/*.jsonl; archive/*.jsonl; RUNSTATE.json; schedule/cycles.jsonl",
+   "repo": "rk-work",
+   "url": "https://github.com/jgoetzmann/rk-work"
+  },
+  "why_epoch1_froze": "Compiling and tracing the step showed the epoch-1 analytic cost rule mis-ordered rk4 and rk38, so epoch 2 prices each coefficient by the instructions GCC 13.2.1 emits for it. That edits a pinned file, which forces a new epoch (DECISIONS D42, D45)."
+ },
+ "float64_gap": {
+  "champion_over_rk4_max": 420974.78164326446,
+  "champion_over_rk4_min": 1991.6608300379737,
+  "note": "float64 error of the champion over float64 error of rk4 at the same step counts, per validation problem where both finish",
+  "problems": 7,
+  "source": {
+   "commit": "12a8c332d82f",
+   "key": "results[].float_error",
+   "path": "epochs/1/validation/results.json",
+   "repo": "rk-work",
+   "url": "https://github.com/jgoetzmann/rk-work"
+  }
+ },
+ "floor_vs_round": {
+  "heldout_rms": {
+   "floor": {
+    "euler": 0.32026831291564534,
+    "heun2": 0.09610240384926588,
+    "rk38": 0.08525221988024427,
+    "rk4": 0.09190123466683545
+   },
+   "round_to_nearest": {
+    "euler": 0.28691644717121506,
+    "heun2": 0.10569019227009818,
+    "rk38": 0.026331784684440862,
+    "rk4": 0.0337441625536516
+   }
+  },
+  "search_rms": {
+   "floor": {
+    "euler": 0.012890031734667783,
+    "heun2": 0.017404867046941882,
+    "rk38": 0.021942383665270307,
+    "rk4": 0.05901725153467999
+   },
+   "round_to_nearest": {
+    "euler": 0.04690821309778167,
+    "heun2": 0.06103999926821567,
+    "rk38": 0.019646408590134716,
+    "rk4": 0.028869238162980072
+   }
+  },
+  "source": {
+   "commit": "1a8e0a739ce4",
+   "key": "floor_bias_flip.numbers.aggregate",
+   "path": "tools/key_findings.json",
+   "repo": "rk-overview",
+   "url": "https://github.com/jgoetzmann/rk-overview"
+  }
+ },
+ "frontier": {
+  "cells_held_by_classical": 2,
+  "cells_held_by_discovered": 16,
+  "cells_total": 18,
+  "cells_where_discovered_leads_every_cheaper_or_equal_classical": 16,
+  "classical": [
+   {
+    "cycles": 5,
+    "heldout_error": 0.32026831291564534,
+    "name": "euler"
+   },
+   {
+    "cycles": 11,
+    "heldout_error": 0.0844458969940956,
+    "name": "midpoint"
+   },
+   {
+    "cycles": 13,
+    "heldout_error": 0.09610240384926588,
+    "name": "heun2"
+   },
+   {
+    "cycles": 16,
+    "heldout_error": 0.09185029578172949,
+    "name": "ralston2"
+   },
+   {
+    "cycles": 23,
+    "heldout_error": 0.085178885467726,
+    "name": "heun3"
+   },
+   {
+    "cycles": 26,
+    "heldout_error": 0.08726723129662106,
+    "name": "kutta3"
+   },
+   {
+    "cycles": 33,
+    "heldout_error": 0.09190123466683545,
+    "name": "rk4"
+   },
+   {
+    "cycles": 36,
+    "heldout_error": 0.08525221988024427,
+    "name": "rk38"
+   }
+  ],
+  "discovered": [
+   {
+    "cycles": 15,
+    "heldout_error": 0.0613276429988836,
+    "is_champion": false,
+    "order": 2,
+    "stages": 2
+   },
+   {
+    "cycles": 17,
+    "heldout_error": 0.04944275089390023,
+    "is_champion": false,
+    "order": 2,
+    "stages": 2
+   },
+   {
+    "cycles": 22,
+    "heldout_error": 0.02861808365520825,
+    "is_champion": true,
+    "order": 2,
+    "stages": 3
+   },
+   {
+    "cycles": 29,
+    "heldout_error": 0.04766612383579887,
+    "is_champion": false,
+    "order": 3,
+    "stages": 3
+   },
+   {
+    "cycles": 30,
+    "heldout_error": 0.08361675440981786,
+    "is_champion": false,
+    "order": 2,
+    "stages": 4
+   },
+   {
+    "cycles": 39,
+    "heldout_error": 0.058654135070242204,
+    "is_champion": false,
+    "order": 2,
+    "stages": 4
+   },
+   {
+    "cycles": 46,
+    "heldout_error": 0.06507091183722752,
+    "is_champion": false,
+    "order": 3,
+    "stages": 4
+   },
+   {
+    "cycles": 57,
+    "heldout_error": 0.05326864255287738,
+    "is_champion": false,
+    "order": 2,
+    "stages": 5
+   },
+   {
+    "cycles": 59,
+    "heldout_error": 0.058737071476212724,
+    "is_champion": false,
+    "order": 3,
+    "stages": 5
+   },
+   {
+    "cycles": 63,
+    "heldout_error": 0.06033885110984443,
+    "is_champion": false,
+    "order": 4,
+    "stages": 6
+   },
+   {
+    "cycles": 63,
+    "heldout_error": 0.08224801589210298,
+    "is_champion": false,
+    "order": 3,
+    "stages": 6
+   },
+   {
+    "cycles": 65,
+    "heldout_error": 0.06039680461696688,
+    "is_champion": false,
+    "order": 3,
+    "stages": 5
+   },
+   {
+    "cycles": 65,
+    "heldout_error": 0.06387410423750851,
+    "is_champion": false,
+    "order": 2,
+    "stages": 5
+   },
+   {
+    "cycles": 72,
+    "heldout_error": 0.04532248499797942,
+    "is_champion": false,
+    "order": 2,
+    "stages": 6
+   },
+   {
+    "cycles": 75,
+    "heldout_error": 0.03765508267933201,
+    "is_champion": false,
+    "order": 3,
+    "stages": 6
+   },
+   {
+    "cycles": 77,
+    "heldout_error": 0.08079379056212986,
+    "is_champion": false,
+    "order": 4,
+    "stages": 6
+   }
+  ],
+  "median_error_ratio_discovered_over_classical": 0.7145267355507311,
+  "note": "held-out RMS error, Q15 floor rounding, 65,536-cycle budget, m0plus_fast analytic cycles per step at one state; the ratio is against the best classical method of equal or lower cost",
+  "source": {
+   "commit": "1a8e0a739ce4",
+   "key": "efficiency.series.frontier_cycles_vs_heldout; efficiency.numbers",
+   "path": "tools/key_findings.json",
+   "repo": "rk-overview",
+   "url": "https://github.com/jgoetzmann/rk-overview"
+  }
+ },
+ "libraries": {
+  "cycle_model_pearson_r": 0.9699683298659061,
+  "cycle_model_points": 56,
+  "fixed_step_cells_compared": 56,
+  "fixed_step_cells_where_q15_error_lower": 0,
+  "median_ratio_q15_over_library_at_matched_tolerance": 519.1703119029906,
+  "solvers": [
+   {
+    "arithmetic": "q15",
+    "class": "explicit",
+    "control": "fixed_step",
+    "cost_grade": "assembly_verified",
+    "family": "explicit Runge-Kutta, fixed step, Q15 integer arithmetic",
+    "jacobian": null,
+    "library_method": null,
+    "newton_iters": null,
+    "roles": [
+     "anchor"
+    ],
+    "side": "ours",
+    "solver": "rk4",
+    "timing_family": "python_loop"
+   },
+   {
+    "arithmetic": "q15",
+    "class": "explicit",
+    "control": "fixed_step",
+    "cost_grade": "assembly_verified",
+    "family": "explicit Runge-Kutta, fixed step, Q15 integer arithmetic",
+    "jacobian": null,
+    "library_method": null,
+    "newton_iters": null,
+    "roles": [
+     "champion",
+     "best_elite_order_2"
+    ],
+    "side": "ours",
+    "solver": "11e898cbab591a7f432670d4040b788f4c00cc646a005d4f967505578e2c0033",
+    "timing_family": "python_loop"
+   },
+   {
+    "arithmetic": "float64",
+    "class": "explicit",
+    "control": "fixed_step",
+    "cost_grade": "none",
+    "family": "explicit Runge-Kutta, fixed step, float64 arithmetic control",
+    "jacobian": null,
+    "library_method": null,
+    "newton_iters": null,
+    "roles": [
+     "arithmetic_control"
+    ],
+    "side": "ours",
+    "solver": "rk4_float64",
+    "timing_family": "python_loop"
+   },
+   {
+    "arithmetic": "float64",
+    "class": "implicit",
+    "control": "fixed_step",
+    "cost_grade": "design_estimate",
+    "family": "implicit Runge-Kutta, 2-stage L-stable SDIRK2 (Alexander 1977), fixed step, fixed modified-Newton iteration count",
+    "jacobian": "analytic",
+    "library_method": null,
+    "newton_iters": 3,
+    "roles": [],
+    "side": "ours",
+    "solver": "sdirk2_analytic_jac",
+    "timing_family": "python_loop"
+   },
+   {
+    "arithmetic": "float64",
+    "class": "implicit",
+    "control": "fixed_step",
+    "cost_grade": "design_estimate",
+    "family": "implicit Runge-Kutta, 2-stage L-stable SDIRK2 (Alexander 1977), fixed step, one-sided finite-difference Jacobian",
+    "jacobian": "finite_difference",
+    "library_method": null,
+    "newton_iters": 3,
+    "roles": [],
+    "side": "ours",
+    "solver": "sdirk2_fd_jac",
+    "timing_family": "python_loop"
+   },
+   {
+    "arithmetic": "q15",
+    "class": "adaptive",
+    "control": "tolerance",
+    "cost_grade": "upper_bound_unpriced_branches",
+    "family": "explicit embedded pair, Bogacki-Shampine 3(2) under a dyadic PI controller, Q15 integer arithmetic",
+    "jacobian": null,
+    "library_method": null,
+    "newton_iters": null,
+    "roles": [],
+    "side": "ours",
+    "solver": "bs32_q15",
+    "timing_family": "python_loop"
+   },
+   {
+    "arithmetic": "float64",
+    "class": "adaptive",
+    "control": "tolerance",
+    "cost_grade": "none",
+    "family": "explicit embedded pair, Bogacki-Shampine 3(2) under a dyadic PI controller, float64 arithmetic control",
+    "jacobian": null,
+    "library_method": null,
+    "newton_iters": null,
+    "roles": [],
+    "side": "ours",
+    "solver": "bs32_float",
+    "timing_family": "python_loop"
+   },
+   {
+    "arithmetic": "compiled_float64",
+    "class": "adaptive",
+    "control": "tolerance",
+    "cost_grade": "none",
+    "family": "explicit embedded pair, Bogacki-Shampine 3(2) under an I controller (this is the same tableau as our pair)",
+    "jacobian": null,
+    "library_method": "RK23",
+    "newton_iters": null,
+    "roles": [],
+    "side": "library",
+    "solver": "RK23",
+    "timing_family": "compiled_scipy"
+   },
+   {
+    "arithmetic": "compiled_float64",
+    "class": "adaptive",
+    "control": "tolerance",
+    "cost_grade": "none",
+    "family": "explicit embedded pair, Dormand-Prince 5(4) under an I controller",
+    "jacobian": null,
+    "library_method": "RK45",
+    "newton_iters": null,
+    "roles": [],
+    "side": "library",
+    "solver": "RK45",
+    "timing_family": "compiled_scipy"
+   },
+   {
+    "arithmetic": "compiled_float64",
+    "class": "implicit",
+    "control": "tolerance",
+    "cost_grade": "none",
+    "family": "implicit Runge-Kutta, Radau IIA of order 5, adaptive",
+    "jacobian": null,
+    "library_method": "Radau",
+    "newton_iters": null,
+    "roles": [],
+    "side": "library",
+    "solver": "Radau",
+    "timing_family": "compiled_scipy"
+   },
+   {
+    "arithmetic": "compiled_float64",
+    "class": "implicit",
+    "control": "tolerance",
+    "cost_grade": "none",
+    "family": "implicit multistep, variable order 1 to 5, adaptive",
+    "jacobian": null,
+    "library_method": "BDF",
+    "newton_iters": null,
+    "roles": [],
+    "side": "library",
+    "solver": "BDF",
+    "timing_family": "compiled_scipy"
+   },
+   {
+    "arithmetic": "compiled_float64",
+    "class": "implicit",
+    "control": "tolerance",
+    "cost_grade": "none",
+    "family": "switching Adams and BDF (ODEPACK), adaptive",
+    "jacobian": null,
+    "library_method": "LSODA",
+    "newton_iters": null,
+    "roles": [],
+    "side": "library",
+    "solver": "LSODA",
+    "timing_family": "compiled_scipy"
+   }
+  ],
+  "source": {
+   "commit": "12a8c332d82f",
+   "key": "verdicts; speedup; correlation",
+   "path": "epochs/1/benchmark/results.json",
+   "repo": "rk-work",
+   "url": "https://github.com/jgoetzmann/rk-work"
+  },
+  "speedup": {
+   "baseline": "rk4",
+   "champion_error_lower_on": 5,
+   "measured_geomean_rk4_over_champion": 1.4515775803883098,
+   "note": "Python wall clock per step, both methods on the same solver path",
+   "predicted_geomean_rk4_over_champion": 1.5,
+   "problems_compared": 7
+  }
+ },
+ "premise": {
+  "rk4_best_under_floor": "0/7",
+  "rk4_best_under_round_to_nearest": "1/7",
+  "source": {
+   "commit": "1a8e0a739ce4",
+   "key": "crossover.numbers",
+   "path": "tools/key_findings.json",
+   "repo": "rk-overview",
+   "url": "https://github.com/jgoetzmann/rk-overview"
+  },
+  "stored_verdict": "mixed"
+ },
+ "setup": {
+  "budget_cycles": 65536,
+  "cost_model": "m0plus_fast",
+  "heldout_problems": [
+   "pendulum",
+   "dc_motor",
+   "rc_thermal",
+   "quaternion"
+  ],
+  "rounding": "floor (arithmetic shift right, as ARM ASRS)",
+  "source": {
+   "commit": "1a8e0a739ce4",
+   "key": "_meta",
+   "path": "tools/key_findings.json",
+   "repo": "rk-overview",
+   "url": "https://github.com/jgoetzmann/rk-overview"
+  }
+ },
+ "trace": {
+  "crosscheck": "144 of 144 comparable cases agree with the pinned Python evaluator on the exact final int16 state and on every stage input. 25 of them are cases where the Q15 primitives raise, and on those the checked C traps at the same operation index. The reference C from emit_c keeps int32 intermediates and truncates at the store, so it returns a value instead of trapping; that is why a checked entry point exists and why the comparison reads the overflow verdict and not only the state.",
+  "emulator_note": "unicorn is instruction-accurate, not cycle-accurate; cycles come from the TRM timing table applied to executed instructions. Nothing was measured on a physical part.",
+  "methods": [
+   {
+    "analytic": {
+     "m0plus_fast": 5,
+     "m0plus_slow": 5
+    },
+    "matched_scope": {
+     "m0plus_fast": 5,
+     "m0plus_slow": 5
+    },
+    "name": "euler",
+    "whole_step": {
+     "m0plus_fast": 32,
+     "m0plus_slow": 63
+    }
+   },
+   {
+    "analytic": {
+     "m0plus_fast": 11,
+     "m0plus_slow": 11
+    },
+    "matched_scope": {
+     "m0plus_fast": 14,
+     "m0plus_slow": 14
+    },
+    "name": "midpoint",
+    "whole_step": {
+     "m0plus_fast": 50,
+     "m0plus_slow": 112
+    }
+   },
+   {
+    "analytic": {
+     "m0plus_fast": 13,
+     "m0plus_slow": 13
+    },
+    "matched_scope": {
+     "m0plus_fast": 17,
+     "m0plus_slow": 17
+    },
+    "name": "heun2",
+    "whole_step": {
+     "m0plus_fast": 55,
+     "m0plus_slow": 117
+    }
+   },
+   {
+    "analytic": {
+     "m0plus_fast": 16,
+     "m0plus_slow": 30
+    },
+    "matched_scope": {
+     "m0plus_fast": 27,
+     "m0plus_slow": 27
+    },
+    "name": "ralston2",
+    "whole_step": {
+     "m0plus_fast": 66,
+     "m0plus_slow": 128
+    }
+   },
+   {
+    "analytic": {
+     "m0plus_fast": 22,
+     "m0plus_slow": 29
+    },
+    "matched_scope": {
+     "m0plus_fast": 35,
+     "m0plus_slow": 35
+    },
+    "name": "11e898cb",
+    "whole_step": {
+     "m0plus_fast": 86,
+     "m0plus_slow": 179
+    }
+   },
+   {
+    "analytic": {
+     "m0plus_fast": 23,
+     "m0plus_slow": 50
+    },
+    "matched_scope": {
+     "m0plus_fast": 42,
+     "m0plus_slow": 42
+    },
+    "name": "heun3",
+    "whole_step": {
+     "m0plus_fast": 93,
+     "m0plus_slow": 186
+    }
+   },
+   {
+    "analytic": {
+     "m0plus_fast": 26,
+     "m0plus_slow": 65
+    },
+    "matched_scope": {
+     "m0plus_fast": 49,
+     "m0plus_slow": 49
+    },
+    "name": "kutta3",
+    "whole_step": {
+     "m0plus_fast": 102,
+     "m0plus_slow": 195
+    }
+   },
+   {
+    "analytic": {
+     "m0plus_fast": 33,
+     "m0plus_slow": 85
+    },
+    "matched_scope": {
+     "m0plus_fast": 67,
+     "m0plus_slow": 67
+    },
+    "name": "rk4",
+    "whole_step": {
+     "m0plus_fast": 139,
+     "m0plus_slow": 263
+    }
+   },
+   {
+    "analytic": {
+     "m0plus_fast": 36,
+     "m0plus_slow": 64
+    },
+    "matched_scope": {
+     "m0plus_fast": 59,
+     "m0plus_slow": 59
+    },
+    "name": "rk38",
+    "whole_step": {
+     "m0plus_fast": 130,
+     "m0plus_slow": 254
+    }
+   }
+  ],
+  "source": {
+   "commit": "12a8c332d82f",
+   "key": "methods[]; verdicts",
+   "path": "epochs/1/trace/results.json",
+   "repo": "rk-work",
+   "url": "https://github.com/jgoetzmann/rk-work"
+  },
+  "toolchain": {
+   "access": "wsl.exe bridge to arm-none-eabi-gcc",
+   "compiler": "arm-none-eabi-gcc (15:13.2.rel1-2) 13.2.1 20231009",
+   "debug_flag_note": "-g adds a line table and no instructions; the region attribution reads it",
+   "emulator": "unicorn 2.1.4",
+   "flags": [
+    "-mcpu=cortex-m0plus",
+    "-mthumb",
+    "-O2",
+    "-ffreestanding",
+    "-nostdlib",
+    "-g"
+   ],
+   "linker_script": "text, data and bss placed contiguously from 0x0; a flat image",
+   "objdump": "GNU objdump (2.42-1ubuntu1+23) 2.42"
+  }
+ },
+ "validation": {
+  "note": "out-of-sample: no optimizer or model saw these problems and the champion was fixed before they ran, but people chose them after the search began",
+  "practical_median_ratio": 0.47497402620761847,
+  "practical_total": 5,
+  "practical_won_by_discovered": 4,
+  "problems": [
+   {
+    "best_classical": "heun2",
+    "best_classical_q15": 0.0776365449167782,
+    "best_discovered_q15": 0.03687534231997076,
+    "champion_float64": 1.495449394689998e-07,
+    "champion_overflowed": false,
+    "champion_q15": 0.03687534231997076,
+    "problem": "battery_2rc",
+    "rk4_float64": 7.601520742791691e-13,
+    "stiff": false,
+    "winner_kind": "discovered"
+   },
+   {
+    "best_classical": "midpoint",
+    "best_classical_q15": 0.00039455599911800214,
+    "best_discovered_q15": 0.00017739964594276674,
+    "champion_float64": 2.7583248456125475e-09,
+    "champion_overflowed": false,
+    "champion_q15": 0.0005393936881889365,
+    "problem": "bicycle_lateral",
+    "rk4_float64": 3.649855707112276e-14,
+    "stiff": false,
+    "winner_kind": "discovered"
+   },
+   {
+    "best_classical": "rk38",
+    "best_classical_q15": 0.020823760562508137,
+    "best_discovered_q15": 0.0019838516767960823,
+    "champion_float64": 9.69070862521002e-07,
+    "champion_overflowed": false,
+    "champion_q15": 0.0019838516767960823,
+    "problem": "buck_converter",
+    "rk4_float64": 1.1478143753793936e-10,
+    "stiff": false,
+    "winner_kind": "discovered"
+   },
+   {
+    "best_classical": "midpoint",
+    "best_classical_q15": 0.00969806756178413,
+    "best_discovered_q15": 0.009655214392681853,
+    "champion_float64": 6.471576767903058e-08,
+    "champion_overflowed": false,
+    "champion_q15": 0.009655214392681853,
+    "problem": "enzyme_qssa",
+    "rk4_float64": 3.249336769744911e-11,
+    "stiff": true,
+    "winner_kind": "discovered"
+   },
+   {
+    "best_classical": "midpoint",
+    "best_classical_q15": 0.037254783663131084,
+    "best_discovered_q15": 0.020701428742272925,
+    "champion_float64": 5.207266511274206e-08,
+    "champion_overflowed": false,
+    "champion_q15": 0.020701428742272925,
+    "problem": "glucose_minimal",
+    "rk4_float64": 1.2369545013950175e-13,
+    "stiff": false,
+    "winner_kind": "discovered"
+   },
+   {
+    "best_classical": "rk38",
+    "best_classical_q15": 0.012848901204317734,
+    "best_discovered_q15": 0.01593813822396849,
+    "champion_float64": 7.604784005739955e-08,
+    "champion_overflowed": false,
+    "champion_q15": 0.01593813822396849,
+    "problem": "pll_lock",
+    "rk4_float64": 7.649010776686775e-13,
+    "stiff": false,
+    "winner_kind": "classical"
+   },
+   {
+    "best_classical": "midpoint",
+    "best_classical_q15": 0.08940456770651534,
+    "best_discovered_q15": null,
+    "champion_float64": null,
+    "champion_overflowed": true,
+    "champion_q15": null,
+    "problem": "robertson_scaled",
+    "rk4_float64": null,
+    "stiff": true,
+    "winner_kind": "classical"
+   },
+   {
+    "best_classical": "midpoint",
+    "best_classical_q15": 0.011574643846869135,
+    "best_discovered_q15": 0.011575447013575685,
+    "champion_float64": 7.129071500481411e-08,
+    "champion_overflowed": false,
+    "champion_q15": 0.011575447013575685,
+    "problem": "servo_load_step",
+    "rk4_float64": 2.625163507499333e-13,
+    "stiff": true,
+    "winner_kind": "classical"
+   }
+  ],
+  "source": {
+   "commit": "12a8c332d82f",
+   "key": "verdicts; results[]",
+   "path": "epochs/1/validation/results.json",
+   "repo": "rk-work",
+   "url": "https://github.com/jgoetzmann/rk-work"
+  },
+  "stiff_total": 3,
+  "stiff_with_no_discovered_finisher": 1,
+  "stiff_won_by_discovered": 1
+ }
+}
