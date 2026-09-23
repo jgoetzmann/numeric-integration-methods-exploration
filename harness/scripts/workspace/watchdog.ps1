@@ -25,7 +25,13 @@ param(
     [string]$PeerContainers = "rk", # comma-separated; only these are subtracted from host load
     [int]$StatsTimeoutMs = 4000,    # hard timeout on the docker stats probe
     [double]$MinFreeSystemGB = 0,   # system-drive floor; 0 = report only, never stop
-    [string]$CpuSampleFile = ""     # where to publish the per-poll sample (empty = workspace root)
+    [string]$CpuSampleFile = "",    # where to publish the per-poll sample (empty = workspace root)
+    [switch]$NoAutoResume,          # never start the container again after a stop this script made
+    [int]$ResumeMax = 3,            # at most this many automatic restarts ...
+    [double]$ResumeWindowHours = 6, # ... in this rolling window
+    [double]$ResumeMarginGB = 2,    # a disk stop resumes only this far above the floor that tripped it
+    [int]$ResumeCooldownSeconds = 60, # never start again sooner than this after the stop
+    [string]$StateFile = ""         # where stops and restarts are recorded (empty = workspace root)
 )
 $ErrorActionPreference = "Continue"
 
@@ -211,6 +217,192 @@ function Write-CpuSample($rows) {
     } catch {}
 }
 
+# Resume (owner's ask, 2026-09-22). Every stop above used to be permanent: on 2026-09-17 the
+# system-drive guard stopped the run and it stayed down for five days, logging "watchdog idle"
+# every poll, because nothing ever started it again. Each stop this script makes is now
+# recorded in $StateFile with the container's id and start time, and the same container is
+# started again once the condition behind that stop has cleared. Only this script's own
+# stops are resumed. A STOP file, a manual docker stop, the runner's own exit and Docker
+# giving up on a crash loop are left alone, because none of them is a condition this script
+# can watch clear. The record is on disk rather than in this process, so a watchdog started
+# again by hand still knows what it stopped; start.ps1 and stop.ps1 delete it.
+function UtcStamp { return [datetime]::UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", [Globalization.CultureInfo]::InvariantCulture) }
+
+function Seconds-Since([string]$stamp) {
+    # $null when the stamp does not parse, so a caller never acts on an age it made up.
+    try {
+        $t = [datetime]::Parse($stamp, [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::AdjustToUniversal -bor [Globalization.DateTimeStyles]::AssumeUniversal)
+        return ([datetime]::UtcNow - $t).TotalSeconds
+    } catch { return $null }
+}
+
+function Get-ContainerFacts {
+    # Id, status and start time from one inspect, or $null when Docker does not answer.
+    $raw = docker inspect -f "{{.Id}}|{{.State.Status}}|{{.State.StartedAt}}" $Container 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $raw) { return $null }
+    $f = "$raw".Trim().Split('|')
+    if ($f.Count -lt 3) { return $null }
+    return @{ id = $f[0]; status = $f[1]; started = $f[2] }
+}
+
+function Read-WatchdogState {
+    $s = @{ stop = $null; resumes = @() }
+    try {
+        if (Test-Path $StateFile) {
+            $doc = Get-Content $StateFile -Raw | ConvertFrom-Json
+            if ($doc.stop) { $s.stop = $doc.stop }
+            if ($doc.resumes) { $s.resumes = @($doc.resumes) }
+        }
+    } catch { Say "watchdog state unreadable, starting from none: $StateFile" }
+    return $s
+}
+
+function Write-WatchdogState {
+    try {
+        $tmp = "$StateFile.tmp"
+        Set-Content -Path $tmp -Value ($script:wdState | ConvertTo-Json -Depth 4 -Compress) -Encoding ascii
+        Move-Item -LiteralPath $tmp -Destination $StateFile -Force
+    } catch { Say "watchdog state not written: $StateFile" }
+}
+
+function Recent-Resumes {
+    return @($script:wdState.resumes | Where-Object { $a = Seconds-Since $_; $null -ne $a -and $a -le $ResumeWindowHours * 3600 })
+}
+
+function Free-GB-Work {
+    try { return [double](Get-Item $Work -ErrorAction Stop).PSDrive.Free / 1GB } catch { return $null }
+}
+
+function Free-GB-System {
+    try { return [double]((Get-PSDrive -Name $env:SystemDrive.TrimEnd(':') -ErrorAction Stop).Free) / 1GB } catch { return $null }
+}
+
+function Resume-Promise([string]$reason) {
+    # What the log line for a stop says will bring the run back.
+    if ($NoAutoResume) { return "auto-resume is off; start.ps1 brings it back" }
+    switch ($reason) {
+        "heartbeat" { return "resumes after ${ResumeCooldownSeconds}s" }
+        "spend"     { return "start.ps1 brings it back once the cap in .env is raised" }
+        "disk"      { return "resumes at $($MinFreeGB + $ResumeMarginGB) GB free" }
+        "system"    { return "resumes at $($MinFreeSystemGB + $ResumeMarginGB) GB free" }
+    }
+    return "not resumed"
+}
+
+function Stop-Run([string]$reason, [string]$verb, [string]$why) {
+    # Every stop this script makes comes through here, so none can go unrecorded. The id and
+    # start time are read while the container is still up, and the record is written only
+    # once Docker confirms the stop: a failed stop leaves no record to resume from.
+    $facts = Get-ContainerFacts
+    Say "$why -> docker $verb; $(Resume-Promise $reason)"
+    docker $verb $Container | Out-Null
+    if ($LASTEXITCODE -eq 0 -and $facts) {
+        $script:wdState.stop = @{ reason = $reason; ts = (UtcStamp); id = $facts.id; started = $facts.started }
+        Write-WatchdogState
+    }
+}
+
+function Resume-Blocker($stop) {
+    # Why the container must stay down, or "" when it may be started again.
+    if ($NoAutoResume) { return "auto-resume is off; start.ps1 brings it back" }
+    if (Test-Path (Join-Path $Work "STOP")) { return "a STOP file is present, so it stays down" }
+    if ($freezePending) { return "an epoch freeze is pending, so it stays down" }
+    if (-not $NoBatteryGuard -and (On-Battery)) { return "waiting for AC power" }
+    $since = Seconds-Since ([string]$stop.ts)
+    if ($null -eq $since) { return "the stop record carries no readable time; start.ps1 brings it back" }
+    if ($since -lt $ResumeCooldownSeconds) { return "cooling down for ${ResumeCooldownSeconds}s" }
+    switch ([string]$stop.reason) {
+        "heartbeat" { }
+        "spend" {
+            # Not resumed. docker start keeps the environment the container was created with,
+            # and the runner reads the cap from that environment before .env, so a raised cap
+            # reaches it only through start.ps1, which recreates the container.
+            return "a spend stop needs start.ps1, which recreates the container with the cap in .env"
+        }
+        "disk" {
+            $free = Free-GB-Work; $need = $MinFreeGB + $ResumeMarginGB
+            if ($null -eq $free) { return "free space on the work drive is unknown" }
+            if ($free -lt $need) { return "resumes at $need GB free on the work drive, now $([math]::Round($free, 1))" }
+        }
+        "system" {
+            $free = Free-GB-System; $need = $MinFreeSystemGB + $ResumeMarginGB
+            if ($MinFreeSystemGB -gt 0) {
+                if ($null -eq $free) { return "free space on $env:SystemDrive is unknown" }
+                if ($free -lt $need) { return "resumes at $need GB free on $env:SystemDrive, now $([math]::Round($free, 1))" }
+            }
+        }
+        default { return "a '$($stop.reason)' stop is not one this script resumes" }
+    }
+    # @() because a function returns a one-element array as the bare element, and indexing a
+    # bare string below would take its last character rather than the last stamp.
+    $recent = @(Recent-Resumes)
+    if ($recent.Count -ge $ResumeMax) { return "restart limit reached: $ResumeMax in the last ${ResumeWindowHours}h, so it waits for the oldest to age out" }
+    if ($recent.Count -gt 0) {
+        # A docker start that fails leaves the record in place, and without this every poll
+        # would retry and spend the whole budget in half a minute, for example while Docker
+        # Desktop is still bringing its mounts back after sleep. Each restart in the window
+        # doubles the wait since the last one.
+        $gap = $ResumeCooldownSeconds * [math]::Pow(2, $recent.Count)
+        $last = Seconds-Since ([string]$recent[-1])
+        if ($null -ne $last -and $last -lt $gap) { return "backing off, next try ${gap}s after the last restart" }
+    }
+    return ""
+}
+
+function Resume-Run($stop) {
+    $n = @(Recent-Resumes).Count + 1
+    Say "$($stop.reason) stop at $($stop.ts) has cleared -> docker start (restart $n of at most $ResumeMax in ${ResumeWindowHours}h)"
+    $out = docker start $Container 2>&1
+    $ok = ($LASTEXITCODE -eq 0)
+    $script:wdState.resumes = @(Recent-Resumes) + @(UtcStamp)
+    if ($ok) { $script:wdState.stop = $null } else { Say "docker start FAILED: $out" }
+    Write-WatchdogState
+}
+
+$script:idleKey = ""
+$script:idleAt = [datetime]::MinValue
+function Say-Idle([string]$key, [string]$msg) {
+    # A stopped container used to print the same line every poll, 8,640 a day. Now a line is
+    # printed when what the watchdog is waiting on changes, and every ten minutes while it holds.
+    if ($key -ne $script:idleKey -or ((Get-Date) - $script:idleAt).TotalMinutes -ge 10) {
+        Say $msg
+        $script:idleKey = $key
+        $script:idleAt = Get-Date
+    }
+}
+
+function Handle-Down([string]$status) {
+    # The container is neither running nor paused. Resume it only if this script stopped it.
+    $stop = $script:wdState.stop
+    if (-not $status) { Say-Idle "noanswer" "docker did not answer; watchdog idle"; return }
+    if (-not $stop) { Say-Idle "down" "container not running ($status); watchdog idle"; return }
+    $facts = Get-ContainerFacts
+    if (-not $facts) { Say-Idle "noanswer" "docker did not answer; watchdog idle"; return }
+    if ($facts.id -ne $stop.id -or $facts.started -ne $stop.started) {
+        # Recreated or started again since this script stopped it, so that stop is over.
+        $script:wdState.stop = $null
+        Write-WatchdogState
+        Say-Idle "down" "container not running ($status); watchdog idle"
+        return
+    }
+    $blocker = Resume-Blocker $stop
+    if ($blocker) {
+        Say-Idle "wait:$($blocker.Split(',')[0])" "container stopped by the watchdog ($($stop.reason), $($stop.ts)); $blocker"
+        return
+    }
+    Resume-Run $stop
+    $script:idleKey = ""
+}
+
+# One file per container, so a -Once pass against a test container cannot overwrite the record
+# of the run.
+if (-not $StateFile) {
+    $stateName = if ($Container -eq "rk") { "watchdog-state.json" } else { "watchdog-state-$Container.json" }
+    $StateFile = Join-Path (Split-Path $HarnessRoot -Parent) $stateName
+}
+$script:wdState = Read-WatchdogState
+
 $cap = Read-Cap
 $highSince = $null
 $lowSince = $null
@@ -227,6 +419,8 @@ $sysPolicy = if ($MinFreeSystemGB -gt 0) { "guard at ${MinFreeSystemGB}GB" } els
 Rotate-Log
 Say "watchdog: container=$Container work=$Work cap=$cap USD poll=${PollSeconds}s heartbeat-stale=${HeartbeatStaleSeconds}s min-free=${MinFreeGB}GB push=${PushMinutes}min cpu-pause spike ${CpuHigh}/${CpuLow}% for ${CpuSustainSeconds}s, avg ${CpuHighAvg}/${CpuLowAvg}% over ${CpuAvgWindowSeconds}s battery-guard=$(-not $NoBatteryGuard)"
 Say "watchdog: peers=[$($peerList -join ', ')] docker-stats-timeout=${StatsTimeoutMs}ms system-drive=$sysPolicy cpu-sample=$CpuSampleFile"
+$resumePolicy = if ($NoAutoResume) { "off" } else { "at most $ResumeMax per ${ResumeWindowHours}h, disk margin ${ResumeMarginGB}GB, cooldown ${ResumeCooldownSeconds}s" }
+Say "watchdog: auto-resume $resumePolicy state=$StateFile$(if ($script:wdState.stop) { " (holds a $($script:wdState.stop.reason) stop from $($script:wdState.stop.ts))" })"
 
 while ($true) {
     if (-not $Once) { Start-Sleep -Seconds $PollSeconds }
@@ -275,7 +469,13 @@ while ($true) {
     # variables: start.ps1 restarts the watchdog, and a fresh instance must adopt a paused
     # container instead of killing it or leaving it frozen.
     $status = (docker inspect -f "{{.State.Status}}" $Container 2>$null)
-    if ($status -ne "running" -and $status -ne "paused") { Say "container not running ($status); watchdog idle"; if ($Once) { break }; continue }
+    if ($status -ne "running" -and $status -ne "paused") { Handle-Down $status; if ($Once) { break }; continue }
+    $script:idleKey = ""
+    if ($script:wdState.stop) {
+        # Up again, whoever started it, so the recorded stop is over.
+        $script:wdState.stop = $null
+        Write-WatchdogState
+    }
     $isPaused = ($status -eq "paused")
     if ($isPaused) { $resumedAt = $null }
 
@@ -314,8 +514,7 @@ while ($true) {
             # then kills it for the silence it just caused.
             $resumeGrace = ($null -ne $resumedAt -and ((Get-Date) - $resumedAt).TotalSeconds -le $HeartbeatStaleSeconds)
             if ($age -gt $HeartbeatStaleSeconds -and -not $isPaused -and -not $resumeGrace -and (Container-UptimeSeconds) -gt $HeartbeatStaleSeconds) {
-                Say "heartbeat stale ${age}s -> docker kill"
-                docker kill $Container | Out-Null
+                Stop-Run "heartbeat" "kill" "heartbeat stale ${age}s"
                 if ($Once) { break }; continue
             }
         } catch { Say "heartbeat unreadable" }
@@ -330,8 +529,7 @@ while ($true) {
     # 4. Spend over cap -> hard stop.
     $spend = Get-Spend
     if ($spend -gt $cap) {
-        Say "spend $spend USD > cap $cap -> docker stop"
-        docker stop $Container | Out-Null
+        Stop-Run "spend" "stop" "spend $spend USD > cap $cap"
         if ($Once) { break }; continue
     }
 
@@ -339,8 +537,7 @@ while ($true) {
     $drive = (Get-Item $Work).PSDrive
     $freeGB = [double]$drive.Free / 1GB
     if ($freeGB -lt $MinFreeGB) {
-        Say "disk free ${freeGB} GB < $MinFreeGB -> docker stop"
-        docker stop $Container | Out-Null
+        Stop-Run "disk" "stop" "disk free ${freeGB} GB < $MinFreeGB"
         if ($Once) { break }; continue
     }
 
@@ -353,8 +550,7 @@ while ($true) {
     if ($null -ne $sysFree) {
         $sysTxt = [math]::Round($sysFree, 1)
         if ($MinFreeSystemGB -gt 0 -and $sysFree -lt $MinFreeSystemGB) {
-            Say "system drive $env:SystemDrive free ${sysTxt} GB < $MinFreeSystemGB -> docker stop"
-            docker stop $Container | Out-Null
+            Stop-Run "system" "stop" "system drive $env:SystemDrive free ${sysTxt} GB < $MinFreeSystemGB"
             if ($Once) { break }; continue
         } elseif ($MinFreeSystemGB -le 0 -and $sysFree -lt 5.0 -and ((Get-Date) - $lastSysWarn).TotalMinutes -ge 30) {
             Say "system drive $env:SystemDrive free ${sysTxt} GB and unguarded; set watchdog.min_free_system_gb to stop the run on it"

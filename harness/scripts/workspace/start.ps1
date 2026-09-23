@@ -70,6 +70,10 @@ if ($LASTEXITCODE -ne 0) { throw "run.ps1 failed" }
 # Watchdog: always restarted so config changes take effect. Own minimized window.
 $existing = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*watchdog.ps1*" -and $_.CommandLine -notlike "*-Once*" }
 foreach ($p in $existing) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; Write-Host "stopped previous watchdog (pid $($p.ProcessId))" }
+# The container was just recreated, so any stop the previous watchdog recorded is over, and
+# a fresh start also clears its restart count. Deleted only now that the previous watchdog
+# is dead, since a live one could write the file back on its next poll.
+Remove-Item (Join-Path $root "watchdog-state.json") -ErrorAction SilentlyContinue
 $wd = Join-Path $harness "scripts\watchdog.ps1"
 $wdArgs = "-NoExit -ExecutionPolicy Bypass -File `"$wd`"" +
     " -Work `"$($work -replace '\\','/')`" -Findings `"$($findings -replace '\\','/')`" -EnvFile `"$($envFile -replace '\\','/')`"" +
@@ -87,8 +91,12 @@ $wdArgs = "-NoExit -ExecutionPolicy Bypass -File `"$wd`"" +
     " -SaturationCheckSeconds $([int](Cfg 'watchdog' 'saturation_check_seconds' 1800))" +
     " -PeerContainers `"$([string](Cfg 'watchdog' 'peer_containers' 'rk'))`"" +
     " -StatsTimeoutMs $([int](Cfg 'watchdog' 'docker_stats_timeout_ms' 4000))" +
-    " -MinFreeSystemGB $([double](Cfg 'watchdog' 'min_free_system_gb' 0))"
+    " -MinFreeSystemGB $([double](Cfg 'watchdog' 'min_free_system_gb' 0))" +
+    " -ResumeMax $([int](Cfg 'watchdog' 'resume_max' 3))" +
+    " -ResumeWindowHours $([double](Cfg 'watchdog' 'resume_window_hours' 6))" +
+    " -ResumeMarginGB $([double](Cfg 'watchdog' 'resume_margin_gb' 2))"
 if (-not [bool](Cfg "watchdog" "battery_guard" $true)) { $wdArgs += " -NoBatteryGuard" }
+if (-not [bool](Cfg "watchdog" "auto_resume" $true)) { $wdArgs += " -NoAutoResume" }
 if ([bool](Cfg "watchdog" "auto_freeze" $false)) { $wdArgs += " -AutoFreeze" }
 $wdLog = Join-Path $root "watchdog.log"
 $wdArgs += " -LogFile `"$wdLog`""

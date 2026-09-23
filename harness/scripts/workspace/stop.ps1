@@ -1,10 +1,21 @@
 # Stop the rk run.
-#   .\stop.ps1          graceful: drop the STOP killfile, wait for the cycle boundary, stop the watchdog
+#   .\stop.ps1          graceful: stop the watchdog, drop the STOP killfile, wait for the cycle boundary
 #   .\stop.ps1 -Force   docker stop now (at most one cycle is lost; state replays on restart)
 param([switch]$Force, [int]$WaitMinutes = 20)
 $ErrorActionPreference = "Continue"
 $root = $PSScriptRoot
 $work = Join-Path $root "rk-work"
+
+# The watchdog goes first. It starts the container again after its own stops (DECISIONS D46),
+# so while it lives it could bring back a container this script has just found stopped.
+# Stopping it first means nothing below races it. The container keeps running meanwhile,
+# and a graceful stop is at most one cycle long.
+$wd = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*watchdog.ps1*" -and $_.CommandLine -notlike "*-Once*" }
+foreach ($p in $wd) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; Write-Host "watchdog stopped (pid $($p.ProcessId))" }
+# A deliberate stop also ends any restart the watchdog had pending: a watchdog started again
+# by hand would otherwise find its own stop record, see the condition cleared, and start
+# the run this script stops.
+Remove-Item (Join-Path $root "watchdog-state.json") -ErrorAction SilentlyContinue
 
 $running = (docker inspect -f "{{.State.Status}}" rk 2>$null)
 if ($running -eq "paused") { docker unpause rk | Out-Null; $running = "running" }
@@ -27,8 +38,6 @@ if ($running -eq "running") {
     Write-Host "container is not running ($running)"
 }
 
-$wd = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*watchdog.ps1*" -and $_.CommandLine -notlike "*-Once*" }
-foreach ($p in $wd) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; Write-Host "watchdog stopped (pid $($p.ProcessId))" }
 
 # Stop the background stats writer start.ps1 launched. Matched by this script's own full
 # path, escaped for -like, and never by a *stats.ps1* wildcard: a second harness sharing

@@ -44,7 +44,11 @@
     "cpu_pause_low_avg_percent": 40,
     "cpu_avg_window_seconds": 300,
     "saturation_check_seconds": 1800,
-    "auto_freeze": false
+    "auto_freeze": false,
+    "auto_resume": true,
+    "resume_max": 3,
+    "resume_window_hours": 6,
+    "resume_margin_gb": 2.0
   },
   "watcher": {
     "refresh_seconds": 5,

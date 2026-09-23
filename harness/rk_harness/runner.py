@@ -703,11 +703,46 @@ def _llm_directive(state: RunState, arch, phase: int, new_cycle_id: int, action_
     return d, spent
 
 
-def _git(args: list[str]) -> None:
+def _git(args: list[str]) -> int | None:
+    """Run git. Its exit code, or None when it could not be run at all."""
     try:
-        subprocess.run(["git"] + args, check=False, capture_output=True, timeout=120)
+        return subprocess.run(["git"] + args, check=False, capture_output=True,
+                              timeout=120).returncode
     except Exception as e:
         log_event("git_failed", args=args, error=repr(e))
+        return None
+
+
+# A lock this old cannot belong to a live git process. Inside the container the runner is the
+# only git user of these checkouts, and a host git status holds its lock for milliseconds.
+_STALE_LOCK_SECONDS = 600
+
+
+def _clear_stale_git_locks() -> None:
+    """Remove the lock files a killed git left in the work and findings checkouts.
+
+    The runner ignores SIGTERM, so every docker stop and every watchdog kill ends in SIGKILL,
+    and one that lands during a git add or commit leaves index.lock or a ref lock behind.
+    Every later add and commit then fails, _git does not raise, and the site stops publishing
+    with nothing to say so. The watchdog now starts the container again after its own kills
+    (DECISIONS D46), so that start is unattended, and the runner clears such locks itself.
+    """
+    now = time.time()
+    for repo in (work_dir(), findings_dir()):
+        git_dir = repo / ".git"
+        if not git_dir.is_dir():
+            continue
+        locks = sorted(git_dir.glob("*.lock")) + sorted((git_dir / "refs").rglob("*.lock"))
+        for lock in locks:
+            try:
+                age = now - lock.stat().st_mtime
+                if age < _STALE_LOCK_SECONDS:
+                    continue
+                lock.unlink()
+            except OSError as e:
+                log_event("git_lock_clear_failed", path=str(lock), error=repr(e)[:200])
+                continue
+            log_event("git_lock_cleared", path=str(lock), age_s=round(age))
 
 
 _HEX = set("0123456789abcdef")
@@ -764,7 +799,50 @@ _WORK_EXTRA_PATHS: tuple[str, ...] = (
     "benchmark",
     "secondpass",
     "stiffscreen",
+    # The lane documents and the cycle log, which reached git only when a host session
+    # committed them. elites.json is a published traceability source (DECISIONS D40), so it
+    # goes in the cycle whose site build published it. The per-day lane records stay out
+    # through .gitignore, as before.
+    "adaptive_archive/elites.json",
+    "implicit_archive/elites.json",
+    "schedule",
 )
+
+# The lane ledgers are append-only, and under schedule EAI the adaptive one grew by 4.7 to
+# 10.4 MB a day over epoch 2's first 74 cycles, depending on how long the explicit cycles
+# ran. Staged every cycle, each lane cycle would write a fresh full-size loose blob, 100 to
+# 300 a day, so each is staged once per UTC day that this process runs, and again after a
+# restart. The day is marked per path and only once git has taken the file, so a failed add
+# or a ledger that does not exist yet is tried again on the next cycle.
+_WORK_DAILY_PATHS: tuple[str, ...] = (
+    "adaptive_archive/ledger.jsonl",
+    "implicit_archive/ledger.jsonl",
+)
+_daily_staged_on: dict[str, str] = {}
+
+# GitHub refuses any push that carries a file of 100 MiB or more, and once such a blob is in
+# a commit every later push of the branch fails on it, whatever else the push carries. So no
+# file at or over this size is staged. The file stays on disk, and the skip is logged once
+# per path per process.
+_COMMIT_MAX_BYTES = 95 * 1024 * 1024
+_oversize_logged: set[str] = set()
+
+
+def _stage(wd: Path, path: Path) -> bool:
+    """git add one file of the work tree unless it is too large to push. True when added."""
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return False
+    # Relative to the work tree, because git -C resolves a relative path from there.
+    rel = path.relative_to(wd).as_posix() if path.is_relative_to(wd) else str(path)
+    if size >= _COMMIT_MAX_BYTES:
+        if rel not in _oversize_logged:
+            _oversize_logged.add(rel)
+            log_event("commit_skipped_oversize", path=rel, bytes=size,
+                      limit_bytes=_COMMIT_MAX_BYTES)
+        return False
+    return _git(["-C", str(wd), "add", rel]) == 0
 
 
 def _commit_outputs(new_cycle_id: int) -> None:
@@ -776,12 +854,20 @@ def _commit_outputs(new_cycle_id: int) -> None:
     staged = False
     for p in sorted(archive_dir().glob("*.jsonl")):
         if p.resolve() != today.resolve():
-            _git(["-C", str(wd), "add", str(p)])
-            staged = True
+            staged = _stage(wd, p) or staged
     for rel in _WORK_EXTRA_PATHS:
-        if (wd / rel).exists():
+        p = wd / rel
+        if p.is_file():
+            staged = _stage(wd, p) or staged
+        elif p.exists():
+            # Directories are staged whole. Nothing under them has come near the limit.
             _git(["-C", str(wd), "add", rel])
             staged = True
+    for rel in _WORK_DAILY_PATHS:
+        if _daily_staged_on.get(rel) != today.stem and (wd / rel).is_file():
+            if _stage(wd, wd / rel):
+                _daily_staged_on[rel] = today.stem
+                staged = True
     if staged:
         # A commit with nothing actually staged fails harmlessly and makes no empty
         # commit, so this can run every cycle without producing one.
@@ -1455,6 +1541,8 @@ def main(argv: list[str] | None = None) -> int:
     state = load_state()
     if refuse_on_epoch_mismatch():
         return 0
+    if os.environ.get("RK_GIT_COMMIT") == "on":
+        _clear_stale_git_locks()
     done = 0
     limit = 1 if args.once else args.cycles
     # Auto-stop limits (config.json run.auto_stop_cycles / run.auto_stop_minutes -> env).

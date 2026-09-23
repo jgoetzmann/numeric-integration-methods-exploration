@@ -533,6 +533,51 @@ def test_C27_docker_stats_is_only_called_through_the_bounded_helper():
         assert "Say " in code, ln
 
 
+def test_C42_every_watchdog_stop_is_recorded_and_only_a_recorded_stop_is_resumed():
+    """The watchdog starts the container again only after a stop it made itself, and it
+    knows which stops those were from the record Stop-Run writes. A docker stop or kill
+    written anywhere else would be a stop with no record, so the run would stay down after
+    it exactly as it did for five days after 2026-09-17. And a docker start anywhere but
+    Resume-Run would be a restart that no limit counts."""
+    import re
+    text = WATCHDOG_PS1.read_text(encoding="ascii")
+    stop_run = _watchdog_function("Stop-Run")
+    resume_run = _watchdog_function("Resume-Run")
+    blocker = _watchdog_function("Resume-Blocker")
+    for ln in text.splitlines():
+        code = ln.split("#", 1)[0]
+        if re.search(r"\bdocker\s+(stop|kill)\b", code):
+            assert "Say " in code, "a docker stop or kill outside Stop-Run: " + ln.strip()
+        if re.search(r"\bdocker\s+start\b", code) and ln not in resume_run.splitlines():
+            assert "Say " in code, "a docker start outside Resume-Run: " + ln.strip()
+    assert "docker $verb $Container" in stop_run and "Write-WatchdogState" in stop_run
+    assert "docker start $Container" in resume_run and "Recent-Resumes" in resume_run
+    # the four stop sites, each under its own reason
+    for reason in ("heartbeat", "spend", "disk", "system"):
+        assert re.search(r'Stop-Run\s+"{}"'.format(reason), text), reason
+        assert '"{}"'.format(reason) in blocker, reason
+    # what keeps a stop down, whatever its reason
+    for guard in ("$NoAutoResume", '"STOP"', "$freezePending", "$ResumeMax", "$ResumeCooldownSeconds"):
+        assert guard in blocker, guard
+
+
+@pytest.mark.skipif(not CONFIGURE.exists(), reason="workspace configure.py not present")
+def test_C43_the_resume_defaults_match_the_config_defaults():
+    """Same reason as C28: the watchdog is started by hand as often as by start.ps1, and a
+    restart limit that differs with who launched it is not a limit anyone can state."""
+    import re
+    schema = _schema()
+    text = WATCHDOG_PS1.read_text(encoding="ascii")
+    for key, param in (("watchdog.resume_max", "ResumeMax"),
+                       ("watchdog.resume_window_hours", "ResumeWindowHours"),
+                       ("watchdog.resume_margin_gb", "ResumeMarginGB")):
+        m = re.search(r"\[(?:int|double)\]\$" + param + r"\s*=\s*([0-9.]+)", text)
+        assert m, param
+        assert float(m.group(1)) == float(schema[key][0]), key
+    assert schema["watchdog.auto_resume"][0] is True
+    assert "[switch]$NoAutoResume" in text
+
+
 @pytest.mark.skipif(not CONFIGURE.exists(), reason="workspace configure.py not present")
 def test_C28_the_peer_default_matches_the_config_default():
     """The script's own default and the configured one cannot drift: the watchdog is started

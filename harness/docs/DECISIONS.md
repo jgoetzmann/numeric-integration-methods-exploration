@@ -2061,3 +2061,100 @@ Here the lane hash had moved as well (0c67fece in the epoch-1 elites,
 229c1559 now), so even the copies left at the root would have dropped out.
 
 ---
+
+## D46 - The watchdog resumes the stops it made, and the container commits the lane documents (2026-09-22)
+
+**Decision.** Two gaps between "running" and "left alone", closed together because the owner
+asked for both on 2026-09-22.
+
+(a) *Resume.* `scripts/watchdog.ps1` records every stop it makes (stale-heartbeat kill, work
+drive, system drive, spend cap) in a state file at the workspace root, `watchdog-state.json`
+for the `rk` container. The record holds the reason, the time, and the container's id and start
+time. While the container is down, the watchdog runs `docker start` on the same container once
+that stop's condition has cleared. A heartbeat kill clears after a 60 s cooldown. A disk stop
+clears once free space is `resume_margin_gb` (2 GB) above the floor that tripped it. A spend stop
+is never resumed this way: `docker start` keeps the environment the container was created with,
+and the runner reads the cap from that environment before `.env`, so only `start.ps1`, which
+recreates the container, can hand it a raised cap. Restarts are capped at `resume_max` (3) per
+`resume_window_hours` (6), counted on disk, and each one waits twice as long after the last as
+the one before it (60 s, 120 s, 240 s), so a `docker start` that keeps failing cannot spend the
+budget in half a minute. A `STOP` file, a pending freeze, battery power or `auto_resume=false`
+keeps the run down. `stop.ps1` stops the watchdog before anything else and deletes the record;
+`start.ps1` deletes it once the previous watchdog is dead.
+
+(b) *Commit set.* `runner._commit_outputs` stages both lanes' `elites.json` and `schedule/`
+every cycle, and each lane's `ledger.jsonl` once per UTC day, marked per path only after git has
+taken it. No archive day, lane document or other file the runner stages by name is staged at
+95 MiB or more. The runner logs `commit_skipped_oversize` once per path per process instead,
+and the file stays on disk. Directories in the commit set are staged whole, and nothing under
+them is over 5 MB today.
+
+(c) *Stale git locks.* At start, with `RK_GIT_COMMIT=on`, the runner deletes any `*.lock` under
+`.git/` or `.git/refs/` of `/work` and `/findings` that is more than ten minutes old, and logs
+`git_lock_cleared`.
+
+**Why.** On 2026-09-17 at 22:09Z the system-drive guard stopped the run with C: at 2 GB free.
+Docker's restart policy does not act on a container stopped with `docker stop` or `docker kill`,
+and nothing else started it either. The run stayed down for five days while the watchdog logged
+"container not running (exited); watchdog idle" every ten seconds. The 2026-09-09 kill had the
+same cause. Rejected: `--restart always` or `unless-stopped`. Under those, Docker would also
+restart after a graceful `STOP` exit and after the runner's own epoch-mismatch refusal, both of
+which must stay down, and it still would not undo a `docker stop`. Rejected as well: resuming any
+exited container. An exit the watchdog did not cause is one whose condition it cannot watch
+clear: a gate failure, a crash loop Docker gave up on, a person's `docker stop`. The record is
+what separates the stops it may undo from the rest.
+
+For (b): the container committed closed archive days and the paths in `_WORK_EXTRA_PATHS`, but
+never the lane documents or the cycle log. After the five-day stop, epoch 2's first 61 cycles
+of them were still uncommitted, and a host session had to commit them by hand (rk-work
+`6189d3d`). `elites.json` is a published traceability source (D40), so it has to be in git in
+the cycle whose site build publishes it. The ledgers are append-only. The adaptive one measured
+4.7 to 10.4 MB a day over epoch 2's first 74 cycles. Staged every cycle, each lane firing would
+add a full-size loose blob, 100 to 300 a day, which is why they go in daily. Rejected: staging
+the ledgers every cycle, for that churn, and leaving them out, because `rk-work/.gitignore`
+keeps them tracked on purpose. The size guard exists because GitHub refuses a push that carries
+a file of 100 MiB or more, and once such a blob is committed every later push of the branch
+fails on it. Without the guard, the adaptive ledger would break the watchdog's push loop for
+all of rk-work in ten to twenty days.
+
+For (c): the runner ignores SIGTERM, so every `docker stop` and every watchdog kill ends in
+SIGKILL. One that lands during a `git add` or `git commit` leaves a lock behind, every later
+commit then fails, and `_git` does not raise, so the findings site would stop publishing without
+a word. (a) makes that restart unattended, which is why the runner now clears the lock itself.
+
+**Evidence.** `rk-harness/scripts/watchdog.ps1`: `Stop-Run` (line 293), `Resume-Blocker`
+(306), `Resume-Run` (353), `Handle-Down` (375), and the four `Stop-Run` call sites (517, 532,
+540, 553). `rk-harness/rk_harness/runner.py`: `_git` (706), `_clear_stale_git_locks` (721, called
+at 1545), `_WORK_EXTRA_PATHS`, `_WORK_DAILY_PATHS` (817), `_COMMIT_MAX_BYTES` (827), `_stage`
+(831), `_commit_outputs` (848). Tests: `test_C42` and `test_C43` in
+`tests/test_t5_config_watch.py`; `test_ST29` to `test_ST32` in `tests/test_t13_sidetrack.py`.
+The watchdog was also driven against a throwaway `sleep` container, one `-Once` pass at a time.
+That run covered a heartbeat kill, the cooldown, two restarts and the limit. It covered a
+work-drive stop held by the margin, by a `STOP` file and by `-NoAutoResume`, then released. It
+covered a system-drive stop and release, a spend stop that stays down after the cap is raised,
+and a failing `docker start` backing off at 6 s and 12 s before the limit. It also showed a
+manual stop left alone, a recreated container whose old record was discarded, and a pass against
+another container writing its own state file. An independent review of the diff found the spend,
+backoff, ordering, shared-file and ledger-marker defects fixed above. Growth figures:
+`rk-work/schedule/cycles.jsonl`, `lane_records_appended` and `seconds`.
+
+**Consequence.** A watchdog stop is now a pause with a stated exit condition. The watchdog prints
+it when it changes and every ten minutes, and `stats.txt` shows it through the watchdog log
+tail. A fault that keeps coming back costs at most three restarts in six hours, each logged.
+rk-work carries every document a findings page reads, as of the cycle that published it, apart
+from today's archive file and the ledgers' current day.
+
+**Closes.** The two set-and-forget gaps reported on 2026-09-22: "nothing ever restarts it" and
+"the archive isn't auto-committed". The second was half wrong. Closed archive days were always
+committed. What was never committed was the lane documents and the cycle log.
+
+**Still open.** Once the adaptive ledger passes 95 MiB it stops reaching git. Splitting it by day
+would fix that, but it edits `lanesearch.py`, re-opens every lane record, and is the owner's
+call (`docs/LANESEARCH.md`). Nothing starts the watchdog at logon, so after a reboot there is no
+guard, no push and no resume until `start.ps1` runs.
+
+**Epoch impact.** None. No verifier-pinned file is edited and `VERIFIER_HASH` is untouched.
+`runner.py` is in neither `LANESEARCH_FILES` nor `SIDETRACK_FILES`, so neither lane hash nor the
+side-track hash moves, and no record re-opens.
+
+---

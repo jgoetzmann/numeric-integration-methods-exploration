@@ -210,9 +210,10 @@ Not done here, and deliberately so.
 1. `runner._run_lane` (batch 9) calls `sidetrack.run_until(tracks=(lane,))` and falls
    through to `lanesearch.adaptive_step` or `lanesearch.implicit_step` when the ledger
    reports exhausted. That fall-through is what makes a lane absorb an arbitrary budget.
-2. `_WORK_EXTRA_PATHS` in `runner.py` would need `adaptive_archive` and `implicit_archive`
-   for the two directories to reach git, and the growth arithmetic below decided before it
-   does.
+2. Done 2026-09-22 (D46). `_WORK_EXTRA_PATHS` in `runner.py` stages each lane's
+   `elites.json` every cycle, and `_WORK_DAILY_PATHS` stages each `ledger.jsonl` once per
+   UTC day. The per-day record files stay out through `rk-work/.gitignore`. The growth
+   arithmetic below is what set the ledger's cadence.
 3. `lanes.cycle_row`'s `lane_records_appended` is already the field for a lane's own
    archive count; the runner passes the length of the step's record list.
    `step()` takes `seed` and records it as provenance; where a firing STARTS walking comes
@@ -227,7 +228,20 @@ Not done here, and deliberately so.
 **Archive growth.** A record is a few kilobytes. At 32 candidates a firing and 164 lane
 cycles a day that is roughly 5,000 records a day per lane. `MAX_CANDIDATES_PER_STEP` is the
 knob, and a rotation or compaction policy for the daily files is a decision nobody has made
-yet. The ledger stays small either way.
+yet.
+
+**Ledger growth.** Measured, the ledger does not stay small. With the budget binding instead
+of a candidate cap, epoch 2's first 74 cycles under schedule EAI averaged 100 adaptive
+records per adaptive firing and 28.6 implicit ones per implicit firing, at 393 and about
+390 bytes a ledger line. Over wall-clock time that is 4.7 to 10.4 MB a day for the adaptive
+ledger and 1.3 to 3.3 MB for the implicit one, the spread set by how long the explicit
+cycles between firings ran (`rk-work/schedule/cycles.jsonl`). The adaptive ledger therefore
+reaches GitHub's 100 MiB file limit in ten to twenty days of running. The runner never
+stages a file of 95 MiB or more (D46), so when it gets there the ledger stays on disk,
+`commit_skipped_oversize` is logged, and the file stops reaching git. Splitting the ledger
+by day would keep it pushable, but it changes `lanesearch.py`, which is in
+`LANESEARCH_FILES`, so it re-opens every lane record measured so far. That is the owner's
+call.
 
 **Whether these numbers may ever be published.** Decided in D40: each lane's `elites.json`
 may be quoted, the per-day files may not. The records are still off the scored path, still

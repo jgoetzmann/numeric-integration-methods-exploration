@@ -600,14 +600,16 @@ def section_G(results, docker_ok):
         (work / "HEARTBEAT").write_text(stale, encoding="utf-8")
         subprocess.run(["docker", "run", "-d", "--name", name, "--entrypoint", "sleep", "rk-harness:latest", "600"], capture_output=True)
         p = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(HARNESS / "scripts" / "watchdog.ps1"),
-                            "-Work", str(work), "-Container", name, "-Once"], capture_output=True, text=True, timeout=120)
+                            "-Work", str(work), "-Container", name, "-Once",
+                            "-StateFile", str(work / "watchdog-state.json")], capture_output=True, text=True, timeout=120)
         st = subprocess.run(["docker", "inspect", "-f", "{{.State.Status}}", name], capture_output=True, text=True).stdout.strip()
         R.check("G4", "docker kill" in p.stdout and st != "running", f"stale HEARTBEAT (300 s): watchdog printed kill={('docker kill' in p.stdout)}; container state now '{st}'")
         subprocess.run(["docker", "rm", "-f", name], capture_output=True)
         (work / "HEARTBEAT").write_text(_dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), encoding="utf-8")
         subprocess.run(["docker", "run", "-d", "--name", name, "--entrypoint", "sleep", "rk-harness:latest", "600"], capture_output=True)
         p = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(HARNESS / "scripts" / "watchdog.ps1"),
-                            "-Work", str(work), "-Container", name, "-Once", "-MinFreeGB", "999999"], capture_output=True, text=True, timeout=120)
+                            "-Work", str(work), "-Container", name, "-Once", "-MinFreeGB", "999999",
+                            "-StateFile", str(work / "watchdog-state.json")], capture_output=True, text=True, timeout=120)
         st = subprocess.run(["docker", "inspect", "-f", "{{.State.Status}}", name], capture_output=True, text=True).stdout.strip()
         R.check("G5", "docker stop" in p.stdout and st != "running", f"disk threshold forced (MinFreeGB=999999): watchdog printed stop={('docker stop' in p.stdout)}; container state '{st}'")
         subprocess.run(["docker", "rm", "-f", name], capture_output=True)

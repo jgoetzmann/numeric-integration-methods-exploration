@@ -107,8 +107,10 @@ Write-Host "search policy: $SearchPolicy (rotate blocks every $PolicyBlockCycles
 Write-Host "lanes: schedule=$LaneSchedule budget=${LaneMaxSeconds}s candidates=$(if ($LaneMaxCandidates -gt 0) { "$LaneMaxCandidates max" } else { "uncapped, the budget binds" }) $(if ($LaneSchedule -eq "E") { "(every cycle explicit, the shipped behaviour)" } else { "(the rotation is ARMED)" })"
 Write-Host "side tracks: every=$(if ($SidetrackEvery -gt 0) { "$SidetrackEvery cycles" } else { "off" }) budget=${SidetrackMaxSeconds}s tracks=$SidetrackTracks"
 
-# on-failure: a wrongful kill (nonzero exit) self-heals; a graceful STOP exit (0) or an explicit
-# `docker stop` from the watchdog stays down.
+# on-failure: a crash (nonzero exit) self-heals up to five times. Docker never restarts a
+# container after docker stop or docker kill, so the watchdog's own stops come back through
+# the watchdog instead, once their condition clears (DECISIONS D46). The watchdog leaves a
+# graceful STOP exit (0) and a manual docker stop alone.
 docker run -d --name rk --restart on-failure:5 `
   --cpus=$Cpus --memory=$mem --pids-limit=$PidsLimit --cpu-shares=$CpuShares `
   --tmpfs $scratch `
