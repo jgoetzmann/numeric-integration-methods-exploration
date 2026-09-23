@@ -196,6 +196,62 @@
    0.8113
   ]
  },
+ "evolution_checkpoints": {
+  "note": "the surrogate model is trained by gradient descent (src/models/model.py:394-405); nothing in the training loop reads its predictions",
+  "rows": [
+   {
+    "best_score_distinct": [
+     1.0
+    ],
+    "epochs": 100,
+    "epochs_with_surrogate_loss": 98,
+    "mean_score_distinct": [
+     1.0
+    ],
+    "trial": 12
+   },
+   {
+    "best_score_distinct": [
+     1.0
+    ],
+    "epochs": 100,
+    "epochs_with_surrogate_loss": 98,
+    "mean_score_distinct": [
+     1.0
+    ],
+    "trial": 13
+   },
+   {
+    "best_score_distinct": [
+     1.0
+    ],
+    "epochs": 100,
+    "epochs_with_surrogate_loss": 98,
+    "mean_score_distinct": [
+     1.0
+    ],
+    "trial": 14
+   },
+   {
+    "best_score_distinct": [
+     1.0
+    ],
+    "epochs": 100,
+    "epochs_with_surrogate_loss": 98,
+    "mean_score_distinct": [
+     1.0
+    ],
+    "trial": 15
+   }
+  ],
+  "source": {
+   "commit": "d89c2c809ee0",
+   "key": "training_history[].best_score; mean_score; surrogate_loss",
+   "path": "trials/trial_01{2,3,4,5}_*/checkpoints/checkpoint_epoch_100.json",
+   "repo": "Novel-Numerical-Integration-Methods",
+   "url": "https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods"
+  }
+ },
  "metrics_log": {
   "composite_score_distinct_values": [
    1.0
@@ -1252,6 +1308,7 @@
   ],
   "rows": [
    {
+    "error_ratio_to_rk4": 1.0,
     "folder": "trial_001_balanced_weights",
     "identical_to_trials": [
      2,
@@ -1263,10 +1320,14 @@
     ],
     "max_abs_diff_from_dormand_prince": null,
     "max_abs_diff_from_rk4": 1.6880109593275947,
+    "order_check_label": 1,
+    "score_ratio_to_rk4": 1.0,
     "stages": 4,
+    "training_odes": 500,
     "trial": 1
    },
    {
+    "error_ratio_to_rk4": 1.0,
     "folder": "trial_002_efficiency_focused",
     "identical_to_trials": [
      1,
@@ -1278,10 +1339,14 @@
     ],
     "max_abs_diff_from_dormand_prince": null,
     "max_abs_diff_from_rk4": 1.6880109593275947,
+    "order_check_label": 1,
+    "score_ratio_to_rk4": 1.0,
     "stages": 4,
+    "training_odes": 1000,
     "trial": 2
    },
    {
+    "error_ratio_to_rk4": 1.0,
     "folder": "trial_003_efficiency_focused_v2",
     "identical_to_trials": [
      1,
@@ -1293,10 +1358,14 @@
     ],
     "max_abs_diff_from_dormand_prince": null,
     "max_abs_diff_from_rk4": 1.6880109593275947,
+    "order_check_label": 1,
+    "score_ratio_to_rk4": 1.0,
     "stages": 4,
+    "training_odes": 1200,
     "trial": 3
    },
    {
+    "error_ratio_to_rk4": 1.0,
     "folder": "trial_004_stability_focused",
     "identical_to_trials": [
      1,
@@ -1308,20 +1377,28 @@
     ],
     "max_abs_diff_from_dormand_prince": null,
     "max_abs_diff_from_rk4": 1.6880109593275947,
+    "order_check_label": 1,
+    "score_ratio_to_rk4": 0.9926516874056428,
     "stages": 4,
+    "training_odes": 1200,
     "trial": 4
    },
    {
+    "error_ratio_to_rk4": 1.0,
     "folder": "trial_005_diversity_focused",
     "identical_to_trials": [
      7
     ],
     "max_abs_diff_from_dormand_prince": null,
     "max_abs_diff_from_rk4": null,
+    "order_check_label": 1,
+    "score_ratio_to_rk4": 1.1340123934249247,
     "stages": 6,
+    "training_odes": 800,
     "trial": 5
    },
    {
+    "error_ratio_to_rk4": 1.0,
     "folder": "trial_006_alternative_4stage",
     "identical_to_trials": [
      1,
@@ -1333,20 +1410,28 @@
     ],
     "max_abs_diff_from_dormand_prince": null,
     "max_abs_diff_from_rk4": 1.6880109593275947,
+    "order_check_label": 1,
+    "score_ratio_to_rk4": 0.7980237729700301,
     "stages": 4,
+    "training_odes": 600,
     "trial": 6
    },
    {
+    "error_ratio_to_rk4": 1.0,
     "folder": "trial_007_alternative_6stage",
     "identical_to_trials": [
      5
     ],
     "max_abs_diff_from_dormand_prince": null,
     "max_abs_diff_from_rk4": null,
+    "order_check_label": 1,
+    "score_ratio_to_rk4": 0.6812600235463079,
     "stages": 6,
+    "training_odes": 700,
     "trial": 7
    },
    {
+    "error_ratio_to_rk4": 69.40233454677661,
     "folder": "trial_008_4stage_accuracy",
     "identical_to_trials": [
      1,
@@ -1358,10 +1443,14 @@
     ],
     "max_abs_diff_from_dormand_prince": null,
     "max_abs_diff_from_rk4": 1.6880109593275947,
+    "order_check_label": 1,
+    "score_ratio_to_rk4": 1.0,
     "stages": 4,
+    "training_odes": 1000,
     "trial": 8
    },
    {
+    "error_ratio_to_rk4": 34.15459639231644,
     "folder": "trial_009_4stage_efficiency",
     "identical_to_trials": [
      1,
@@ -1373,15 +1462,22 @@
     ],
     "max_abs_diff_from_dormand_prince": null,
     "max_abs_diff_from_rk4": 1.6880109593275947,
+    "order_check_label": 1,
+    "score_ratio_to_rk4": 1.0,
     "stages": 4,
+    "training_odes": 1000,
     "trial": 9
    },
    {
+    "error_ratio_to_rk4": 2039.0898766816024,
     "folder": "trial_010_7stage_efficiency",
     "identical_to_trials": [],
     "max_abs_diff_from_dormand_prince": 12.328145615738256,
     "max_abs_diff_from_rk4": null,
+    "order_check_label": 1,
+    "score_ratio_to_rk4": 1.0,
     "stages": 7,
+    "training_odes": 1000,
     "trial": 10
    },
    {
@@ -1390,6 +1486,7 @@
     "trial": 11
    },
    {
+    "error_ratio_to_rk4": 1.0,
     "folder": "trial_012_4stage_evolution",
     "identical_to_trials": [
      14,
@@ -1397,18 +1494,26 @@
     ],
     "max_abs_diff_from_dormand_prince": null,
     "max_abs_diff_from_rk4": 0.0,
+    "order_check_label": 3,
+    "score_ratio_to_rk4": 1.0,
     "stages": 4,
+    "training_odes": 1000,
     "trial": 12
    },
    {
+    "error_ratio_to_rk4": 0.1722974008090662,
     "folder": "trial_013_7stage_evolution",
     "identical_to_trials": [],
     "max_abs_diff_from_dormand_prince": 0.0,
     "max_abs_diff_from_rk4": null,
+    "order_check_label": 3,
+    "score_ratio_to_rk4": 1.0,
     "stages": 7,
+    "training_odes": 1000,
     "trial": 13
    },
    {
+    "error_ratio_to_rk4": 1.0,
     "folder": "trial_014_4stage_novelty",
     "identical_to_trials": [
      12,
@@ -1416,10 +1521,14 @@
     ],
     "max_abs_diff_from_dormand_prince": null,
     "max_abs_diff_from_rk4": 0.0,
+    "order_check_label": 3,
+    "score_ratio_to_rk4": 1.0,
     "stages": 4,
+    "training_odes": 1000,
     "trial": 14
    },
    {
+    "error_ratio_to_rk4": 1.0,
     "folder": "trial_015_4stage_unconstrained",
     "identical_to_trials": [
      12,
@@ -1427,15 +1536,22 @@
     ],
     "max_abs_diff_from_dormand_prince": null,
     "max_abs_diff_from_rk4": 0.0,
+    "order_check_label": 3,
+    "score_ratio_to_rk4": 1.0,
     "stages": 4,
+    "training_odes": 1000,
     "trial": 15
    },
    {
+    "error_ratio_to_rk4": null,
     "folder": "trial_016_4stage_novelty_v2",
     "identical_to_trials": [],
     "max_abs_diff_from_dormand_prince": null,
     "max_abs_diff_from_rk4": 1.5071876696220212,
+    "order_check_label": 1,
+    "score_ratio_to_rk4": null,
     "stages": 4,
+    "training_odes": 1000,
     "trial": 16
    }
   ],

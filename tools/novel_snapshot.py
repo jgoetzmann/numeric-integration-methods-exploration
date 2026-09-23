@@ -107,7 +107,11 @@ def novel(repo: Path, _src, _load) -> dict:
         same_rk4 = _max_diff(A, b, RK4_A, RK4_B)
         same_dp = _max_diff(A, b, DP_A, DP_B)
         trials.append({"trial": num, "folder": Path(d).name, "stages": len(b),
-                       "max_abs_diff_from_rk4": same_rk4, "max_abs_diff_from_dormand_prince": same_dp})
+                       "max_abs_diff_from_rk4": same_rk4, "max_abs_diff_from_dormand_prince": same_dp,
+                       "training_odes": (doc.get("config") or {}).get("N_ODES"),
+                       "order_check_label": bt.get("consistency_order"),
+                       "score_ratio_to_rk4": ((doc.get("comparisons") or {}).get("rk4") or {}).get("score_ratio"),
+                       "error_ratio_to_rk4": ((doc.get("comparisons") or {}).get("rk4") or {}).get("accuracy_ratio")})
     # which trials saved one and the same table
     for t in trials:
         if t.get("saved_table", True) is None:
@@ -160,6 +164,22 @@ def novel(repo: Path, _src, _load) -> dict:
     c["training_ode_family_count"] = len(c["training_ode_families"])
     c["evaluation_ode_family_count"] = len(c["evaluation_ode_families"])
     c["reference_solver_family_count"] = len(c["reference_solver_families"])
+
+    evo = []
+    for num, folder in ((12, "trial_012_4stage_evolution"), (13, "trial_013_7stage_evolution"),
+                        (14, "trial_014_4stage_novelty"), (15, "trial_015_4stage_unconstrained")):
+        h = _load(repo / "trials" / folder / "checkpoints" / "checkpoint_epoch_100.json")["training_history"]
+        evo.append({"trial": num, "epochs": len(h),
+                    "best_score_distinct": sorted({x["best_score"] for x in h}),
+                    "mean_score_distinct": sorted({x["mean_score"] for x in h}),
+                    "epochs_with_surrogate_loss": sum(1 for x in h if x.get("surrogate_loss"))})
+    out["evolution_checkpoints"] = {
+        "rows": evo,
+        "note": "the surrogate model is trained by gradient descent (src/models/model.py:394-405); "
+                "nothing in the training loop reads its predictions",
+        "source": _src(name, repo, "trials/trial_01{2,3,4,5}_*/checkpoints/checkpoint_epoch_100.json",
+                       "training_history[].best_score; mean_score; surrogate_loss"),
+    }
 
     t16 = _load(repo / "trials" / "trial_016_4stage_novelty_v2" / "best_butcher_table.json")
     out["trial16"] = {

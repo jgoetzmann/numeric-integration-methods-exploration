@@ -57,6 +57,21 @@ def _lines(p: Path) -> int:
     return n
 
 
+def _event_counts(path: Path) -> dict:
+    """How often the run started, stopped on its STOP file, or abandoned a cycle."""
+    kinds = ("runner_started", "stopped_by_killfile", "cycle_abandoned")
+    out = {k: 0 for k in kinds}
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            try:
+                k = json.loads(line).get("kind")
+            except ValueError:
+                continue
+            if k in out:
+                out[k] += 1
+    return out
+
+
 # --------------------------------------------------------------------------- the rk run
 
 def rk(ws: Path) -> dict:
@@ -87,12 +102,28 @@ def rk(ws: Path) -> dict:
     }
 
     fr = kf["efficiency"]["series"]["frontier_cycles_vs_heldout"]
+    first_cycle: dict[str, int] = {}
+    hash_counts: dict[str, int] = {}
+    for path in sorted(glob.glob(str(work / "epochs" / "1" / "archive" / "*.jsonl"))):
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                try:
+                    rec = json.loads(line)
+                except ValueError:
+                    continue
+                th = rec.get("tableau_hash") or (rec.get("tableau") or {}).get("hash") or ""
+                cyc = rec.get("cycle_id")
+                if th and isinstance(cyc, int) and (th not in first_cycle or cyc < first_cycle[th]):
+                    first_cycle[th] = cyc
+                vh = str(rec.get("verifier_hash", ""))[:8]
+                hash_counts[vh] = hash_counts.get(vh, 0) + 1
     out["frontier"] = {
         "classical": [{"name": r["name"], "cycles": r["cycles"], "heldout_error": r["heldout_error"]}
                       for r in fr if r["kind"] == "classical"],
         "discovered": [{"order": r.get("order"), "stages": r.get("stages"), "cycles": r["cycles"],
                         "heldout_error": r["heldout_error"],
-                        "is_champion": r.get("tableau_hash", "").startswith("11e898cb")}
+                        "is_champion": r.get("tableau_hash", "").startswith("11e898cb"),
+                        "first_cycle": first_cycle.get(r.get("tableau_hash", ""))}
                        for r in fr if r["kind"] != "classical"],
         "cells_total": eff["grid_cells_total"],
         "cells_held_by_discovered": eff["cells_held_by_discovered"],
@@ -100,6 +131,8 @@ def rk(ws: Path) -> dict:
         "cells_where_discovered_leads_every_cheaper_or_equal_classical":
             eff["cells_where_discovered_beats_all_cheaper_or_equal_anchors"],
         "median_error_ratio_discovered_over_classical": eff["median_error_ratio_discovered_over_anchor"],
+        "note_on_comparison": eff.get("note_on_comparison"),
+        "unique_tableaus": eff["unique_tableaus"],
         "note": "held-out RMS error, Q15 floor rounding, 65,536-cycle budget, m0plus_fast analytic "
                 "cycles per step at one state; the ratio is against the best classical method "
                 "of equal or lower cost",
@@ -107,11 +140,20 @@ def rk(ws: Path) -> dict:
                        "efficiency.series.frontier_cycles_vs_heldout; efficiency.numbers"),
     }
 
+    champ_cycle = kf["search_progress"]["numbers"]["last_improvement_cycle_id"]
+    out["frontier"]["discovered_first_seen_after_champion"] = sum(
+        1 for d in out["frontier"]["discovered"] if (d["first_cycle"] or 0) > champ_cycle)
+    out["frontier"]["closest_discovered_to_classical"] = max(
+        d["heldout_error"] for d in out["frontier"]["discovered"])
     loo = eff["leave_one_out"]
     out["champion"] = {
         "hash": best["tableau_hash"][:8],
         "stages": best["stages"], "order": best["order"], "cycles_per_step": best["cycles"],
         "tableau": best["tableau"],
+        "per_problem_heldout": best["per_problem_heldout"],
+        "classical_per_problem_heldout": {a["name"]: a["per_problem_heldout"] for a in eff["classical_anchors"]},
+        "selection_pool_note": "cell elites are selected by held-out error among the archive's candidates; "
+                               "see caveats for the pool size",
         "heldout_error": best["heldout_error"],
         "best_classical": loo[0]["best_anchor_name"],
         "best_classical_heldout_error": loo[0]["best_anchor_error"],
@@ -140,6 +182,11 @@ def rk(ws: Path) -> dict:
         "archive_reranking": {w: {"champion_rank": v["published_champion_rank"],
                                   "classical_ahead": v["classical_anchors_ahead_of_the_champion"]}
                               for w, v in cf["archive_reranking"]["by_weighting"].items()},
+        "archive_reranking_basis": cf["archive_reranking"]["basis"],
+        "weightings": cf["weightings"],
+        "cost_bases": cf["cost_bases"],
+        "basis_scope": cf["scope"]["basis_scope"],
+        "median_anchor_traced_cell_reading": cf["scope"]["weighting_under_a_changed_cost_basis"],
         "source": _src("rk-overview", ov, "tools/key_findings.json",
                        "counterfactual.numbers.headline_checks.cells; counterfactual.numbers.archive_reranking"),
     }
@@ -147,6 +194,9 @@ def rk(ws: Path) -> dict:
     out["floor_vs_round"] = {
         "search_rms": {mode: fb[mode]["search_rms"]["error"] for mode in ("floor", "round_to_nearest")},
         "heldout_rms": {mode: fb[mode]["heldout_rms"]["error"] for mode in ("floor", "round_to_nearest")},
+        "budget_cycles": kf["floor_bias_flip"]["numbers"]["budget_cycles"],
+        "cost_model": kf["floor_bias_flip"]["numbers"]["cost_model"],
+        "mechanism": kf["floor_bias_flip"]["numbers"]["mechanism"],
         "source": _src("rk-overview", ov, "tools/key_findings.json", "floor_bias_flip.numbers.aggregate"),
     }
 
@@ -155,6 +205,12 @@ def rk(ws: Path) -> dict:
         "stored_verdict": cr["stored_verdict"],
         "rk4_best_under_floor": cr["rk4_wins_at_budget"]["floor"]["fraction"],
         "rk4_best_under_round_to_nearest": cr["rk4_wins_at_budget"]["round_to_nearest"]["fraction"],
+        "rk4_best_note": cr["rk4_wins_at_budget"].get("note"),
+        "thresholds": cr["thresholds"],
+        "problem": cr.get("problem"),
+        "methods": {m: {"coefficient_fraction": d["coefficient_fraction"],
+                        "crossover_h": d["crossover_h"], "crossover_practical": d["crossover_practical"]}
+                    for m, d in cr["methods"].items()},
         "source": _src("rk-overview", ov, "tools/key_findings.json", "crossover.numbers"),
     }
 
@@ -180,6 +236,8 @@ def rk(ws: Path) -> dict:
             "winner_kind": v.get("winner_kind"),
             "champion_float64": err(champ, "float_error"),
             "rk4_float64": err("rk4", "float_error"),
+            "champion_steps": err(champ, "steps"),
+            "rk4_steps": err("rk4", "steps"),
         })
     vv = val["verdicts"]
     gaps = [r["champion_float64"] / r["rk4_float64"] for r in rows
@@ -187,8 +245,8 @@ def rk(ws: Path) -> dict:
     out["float64_gap"] = {
         "champion_over_rk4_min": min(gaps), "champion_over_rk4_max": max(gaps),
         "problems": len(gaps),
-        "note": "float64 error of the champion over float64 error of rk4 at the same step counts, "
-                "per validation problem where both finish",
+        "note": "float64 error of the champion over float64 error of rk4, each at the step count the "
+                "65,536-cycle budget gives it, per validation problem where both finish",
         "source": _src("rk-work", work, "epochs/1/validation/results.json", "results[].float_error"),
     }
     out["validation"] = {
@@ -199,6 +257,8 @@ def rk(ws: Path) -> dict:
         "stiff_total": vv["stiff_problems_total"],
         "stiff_won_by_discovered": vv["stiff_problems_won_by_discovered"],
         "stiff_with_no_discovered_finisher": vv["stiff_problems_with_no_discovered_finisher"],
+        "classical_methods_run": sorted({r["method"] for r in res if len(r["method"]) < 16}),
+        "discovered_methods_run": sum(1 for m in val["methods"] if m.get("kind") == "discovered"),
         "note": "out-of-sample: no optimizer or model saw these problems and the champion was "
                 "fixed before they ran, but people chose them after the search began",
         "source": _src("rk-work", work, "epochs/1/validation/results.json", "verdicts; results[]"),
@@ -210,6 +270,10 @@ def rk(ws: Path) -> dict:
             bv.get("median_ratio_q15_over_library_at_matched_tolerance"),
         "fixed_step_cells_compared": bv["fixed_step_cells_compared"],
         "fixed_step_cells_where_q15_error_lower": bv["fixed_step_cells_where_q15_error_lower"],
+        "fixed_step_verdict": bv.get("fixed_step"),
+        "matched_tolerance_verdict": bv.get("matched_tolerance"),
+        "tolerance_rule": ben.get("tolerance_rule"),
+        "best_library_per_problem": {k: v.get("best_library") for k, v in sorted(bv["per_problem"].items())},
         "solvers": ben.get("solvers"),
         "speedup": {"baseline": ben["speedup"]["baseline"],
                     "measured_geomean_rk4_over_champion": ben["speedup"]["geomean_measured_speedup_rk4_over_champion"],
@@ -258,6 +322,10 @@ def rk(ws: Path) -> dict:
                    "stopped": _load(e1 / "RUNSTATE.json")["last_heartbeat"],
                    "phase_at_stop": _load(e1 / "RUNSTATE.json")["phase"],
                    "archive_day_count": len(days),
+                   "verifier_hash_counts": {k: v for k, v in sorted(hash_counts.items())},
+                   "events": _event_counts(e1 / "events.jsonl"),
+                   "last_improvement_ts": _load(e1 / "EPOCH_STATUS.json")["metrics"].get("last_improvement_ts"),
+                   "last_new_cell_ts": _load(e1 / "EPOCH_STATUS.json")["metrics"].get("last_new_cell_ts"),
                    "records": fz.get("records", {}).get("archive_records"),
                    "cycles_run": sp["cycles_run"], "last_cycle_id": sp["last_cycle_id"],
                    "frozen_at": fz.get("frozen_at"),

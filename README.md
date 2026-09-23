@@ -27,9 +27,9 @@ This repository builds a static site that tells both stories and carries the cla
 
 | Repository | Role | Link | Live site | Commit at snapshot |
 | --- | --- | --- | --- | --- |
-| `rk-harness` | code: the runner, the pinned verifier, the site generator, 1,900-odd tests | [GitHub](https://github.com/jgoetzmann/rk-harness) | none | `424f25c3f36b` |
-| `rk-work` | run data: the append-only archive, lanes, validation, benchmark and trace documents | [GitHub](https://github.com/jgoetzmann/rk-work) | none | `25da57d0cd19` |
-| `rk-findings` | the findings site the run regenerates every cycle | [GitHub](https://github.com/jgoetzmann/rk-findings) | [jgoetzmann.github.io/rk-findings](https://jgoetzmann.github.io/rk-findings/) | `24a3a8f815c3` |
+| `rk-harness` | code: the runner, the pinned verifier, the site generator, 1,900-odd tests | [GitHub](https://github.com/jgoetzmann/rk-harness) | none | `d1e41d5976a4` |
+| `rk-work` | run data: the append-only archive, lanes, validation, benchmark and trace documents | [GitHub](https://github.com/jgoetzmann/rk-work) | none | `0f939a732412` |
+| `rk-findings` | the findings site the run regenerates every cycle | [GitHub](https://github.com/jgoetzmann/rk-findings) | [jgoetzmann.github.io/rk-findings](https://jgoetzmann.github.io/rk-findings/) | `c6f475bb3e56` |
 | `rk-overview` | the hand-built explainer site with an in-browser Q15 demo | [GitHub](https://github.com/jgoetzmann/rk-overview) | [jgoetzmann.github.io/rk-overview](https://jgoetzmann.github.io/rk-overview/) | `1a8e0a739ce4` |
 | `Novel-Numerical-Integration-Methods` | the 2025 ML project: generator, evolution, 10,000-ODE benchmark | <a href="https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods">GitHub</a> | none | `d89c2c809ee0` |
 

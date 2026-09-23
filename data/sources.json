@@ -2,21 +2,21 @@
  "private_workspace": "rk-dev, the private superproject that pins the four rk repos, is not linked",
  "repos": [
   {
-   "commit": "424f25c3f36b",
+   "commit": "d1e41d5976a4",
    "name": "rk-harness",
    "role": "code: the runner, the pinned verifier, the site generator, 1,900-odd tests",
    "site": null,
    "url": "https://github.com/jgoetzmann/rk-harness"
   },
   {
-   "commit": "25da57d0cd19",
+   "commit": "0f939a732412",
    "name": "rk-work",
    "role": "run data: the append-only archive, lanes, validation, benchmark and trace documents",
    "site": null,
    "url": "https://github.com/jgoetzmann/rk-work"
   },
   {
-   "commit": "24a3a8f815c3",
+   "commit": "c6f475bb3e56",
    "name": "rk-findings",
    "role": "the findings site the run regenerates every cycle",
    "site": "https://jgoetzmann.github.io/rk-findings/",
