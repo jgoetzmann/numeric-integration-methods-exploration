@@ -482,7 +482,6 @@ def _work_repo(tmp_path, monkeypatch, clock: str):
     monkeypatch.setenv("RK_WORK_DIR", str(work))
     monkeypatch.setenv("RK_FINDINGS_DIR", str(tmp_path / "findings"))
     monkeypatch.setenv("RK_CLOCK", clock)
-    monkeypatch.setattr(runner, "_daily_staged_on", {})
     monkeypatch.setattr(runner, "_oversize_logged", set())
     _git(work, "init", "-q")
     _git(work, "config", "user.email", "t@t")
@@ -503,18 +502,23 @@ def _at_head(work, rel: str) -> str:
                           capture_output=True, text=True, timeout=60).stdout
 
 
-def test_ST29_the_lane_documents_reach_git_and_the_ledgers_once_a_day(tmp_path, monkeypatch):
+def test_ST29_the_lane_documents_reach_git_and_each_ledger_day_once_it_closes(
+        tmp_path, monkeypatch):
     """The lane documents and the cycle log reached git only when a host session committed
     them, so epoch 2's first 61 cycles of them sat uncommitted through the five days the
-    container was down. elites.json and schedule/ now go in every cycle. The ledgers grow by
-    megabytes a day and go in once per UTC day, and the per-day lane records stay ignored."""
-    work = _work_repo(tmp_path, monkeypatch, "2026-09-23T01:00:00Z")
+    container was down. elites.json and schedule/ now go in every cycle. The ledgers are split
+    by UTC day (D47): a day's file goes in once the day has closed, as an archive day does,
+    and the single file written before the split rides along. Per-day records stay ignored."""
+    work = _work_repo(tmp_path, monkeypatch, "2026-09-24T01:00:00Z")
     for lane in ("adaptive", "implicit"):
         d = work / f"{lane}_archive"
-        d.mkdir()
+        (d / "ledger").mkdir(parents=True)
         (d / "elites.json").write_text('{"v": 1}', encoding="utf-8")
-        (d / "ledger.jsonl").write_text('{"n": 1}\n', encoding="utf-8")
-        (d / "2026-09-23.jsonl").write_text("{}\n", encoding="utf-8")
+        (d / "ledger" / "2026-09-24.jsonl").write_text('{"n": 1}\n', encoding="utf-8")
+        (d / "2026-09-24.jsonl").write_text("{}\n", encoding="utf-8")
+    ad = work / "adaptive_archive"
+    (ad / "ledger.jsonl").write_text('{"n": 0}\n', encoding="utf-8")
+    (ad / "ledger" / "2026-09-23.jsonl").write_text('{"n": 1}\n', encoding="utf-8")
     (work / "schedule").mkdir()
     (work / "schedule" / "cycles.jsonl").write_text('{"cycle": 1}\n', encoding="utf-8")
     (work / "schedule" / "shares.json").write_text("{}", encoding="utf-8")
@@ -522,42 +526,44 @@ def test_ST29_the_lane_documents_reach_git_and_the_ledgers_once_a_day(tmp_path, 
     runner._commit_outputs(1)
 
     out = _tracked(work)
-    for rel in ("adaptive_archive/elites.json", "adaptive_archive/ledger.jsonl",
-                "implicit_archive/elites.json", "implicit_archive/ledger.jsonl",
+    for rel in ("adaptive_archive/elites.json", "implicit_archive/elites.json",
+                "adaptive_archive/ledger.jsonl", "adaptive_archive/ledger/2026-09-23.jsonl",
                 "schedule/cycles.jsonl", "schedule/shares.json"):
         assert rel in out, rel
-    assert "adaptive_archive/2026-09-23.jsonl" not in out
-    assert "implicit_archive/2026-09-23.jsonl" not in out
+    for rel in ("adaptive_archive/ledger/2026-09-24.jsonl",
+                "implicit_archive/ledger/2026-09-24.jsonl",
+                "adaptive_archive/2026-09-24.jsonl", "implicit_archive/2026-09-24.jsonl"):
+        assert rel not in out, rel
 
-    # later the same day: the elites and the cycle log follow, the ledger waits
-    (work / "adaptive_archive" / "elites.json").write_text('{"v": 2}', encoding="utf-8")
-    with open(work / "adaptive_archive" / "ledger.jsonl", "a", encoding="utf-8") as fh:
-        fh.write('{"n": 2}\n')
+    # later the same day: the elites and the cycle log follow, today's ledger file waits
+    (ad / "elites.json").write_text('{"v": 2}', encoding="utf-8")
     with open(work / "schedule" / "cycles.jsonl", "a", encoding="utf-8") as fh:
         fh.write('{"cycle": 2}\n')
     runner._commit_outputs(2)
     assert _at_head(work, "adaptive_archive/elites.json") == '{"v": 2}'
     assert _at_head(work, "schedule/cycles.jsonl").count("\n") == 2
-    assert _at_head(work, "adaptive_archive/ledger.jsonl").count("\n") == 1
+    assert "adaptive_archive/ledger/2026-09-24.jsonl" not in _tracked(work)
 
-    # the first cycle of the next UTC day takes the ledger as it stands
-    monkeypatch.setenv("RK_CLOCK", "2026-09-24T00:05:00Z")
+    # the first cycle of the next UTC day takes the day that has just closed
+    monkeypatch.setenv("RK_CLOCK", "2026-09-25T00:05:00Z")
     runner._commit_outputs(3)
-    assert _at_head(work, "adaptive_archive/ledger.jsonl").count("\n") == 2
+    out = _tracked(work)
+    assert "adaptive_archive/ledger/2026-09-24.jsonl" in out
+    assert "implicit_archive/ledger/2026-09-24.jsonl" in out
 
 
 def test_ST30_no_file_too_large_to_push_is_ever_staged(tmp_path, monkeypatch):
     """GitHub refuses a push that carries a file of 100 MiB or more, and once such a blob is
-    in a commit every later push of the branch fails on it, the archive days included. At
-    the 4.7 to 10.4 MB a day epoch 2 has measured, the adaptive ledger reaches that size in
-    ten to twenty days. The guard keeps any such file out of the commit, leaves it on disk,
-    and logs the skip once."""
+    in a commit every later push of the branch fails on it, the archive days included. The
+    guard keeps any such file out of the commit, leaves it on disk, and logs the skip once,
+    however many cycles offer it again."""
     work = _work_repo(tmp_path, monkeypatch, "2026-09-23T01:00:00Z")
     monkeypatch.setattr(runner, "_COMMIT_MAX_BYTES", 64)
     (work / "archive" / "2026-09-21.jsonl").write_text("{}\n", encoding="utf-8")
     (work / "archive" / "2026-09-22.jsonl").write_text("x" * 100, encoding="utf-8")
-    (work / "adaptive_archive").mkdir()
-    (work / "adaptive_archive" / "ledger.jsonl").write_text("y" * 100, encoding="utf-8")
+    (work / "adaptive_archive" / "ledger").mkdir(parents=True)
+    (work / "adaptive_archive" / "ledger" / "2026-09-22.jsonl").write_text(
+        "y" * 100, encoding="utf-8")
     (work / "adaptive_archive" / "elites.json").write_text("{}", encoding="utf-8")
     (work / "hypotheses.jsonl").write_text("{}\n", encoding="utf-8")
 
@@ -568,38 +574,33 @@ def test_ST30_no_file_too_large_to_push_is_ever_staged(tmp_path, monkeypatch):
     assert "archive/2026-09-21.jsonl" in out
     assert "hypotheses.jsonl" in out and "adaptive_archive/elites.json" in out
     assert "archive/2026-09-22.jsonl" not in out
-    assert "adaptive_archive/ledger.jsonl" not in out
+    assert "adaptive_archive/ledger/2026-09-22.jsonl" not in out
     assert (work / "archive" / "2026-09-22.jsonl").stat().st_size == 100
     skips = [json.loads(ln) for ln in
              (work / "events.jsonl").read_text(encoding="utf-8").splitlines()]
     skips = [e for e in skips if e["kind"] == "commit_skipped_oversize"]
     # two cycles, one line per file
-    assert sorted(e["path"] for e in skips) == ["adaptive_archive/ledger.jsonl",
+    assert sorted(e["path"] for e in skips) == ["adaptive_archive/ledger/2026-09-22.jsonl",
                                                 "archive/2026-09-22.jsonl"]
     assert all(e["bytes"] == 100 and e["limit_bytes"] == 64 for e in skips)
 
 
-def test_ST31_a_ledger_git_did_not_take_is_tried_again_the_same_day(tmp_path, monkeypatch):
-    """The day is marked per ledger and only once git took it. A git add that meets a held
-    index.lock, or a ledger the lane has not written yet, would otherwise wait a whole day."""
-    work = _work_repo(tmp_path, monkeypatch, "2026-09-23T01:00:00Z")
-    (work / "adaptive_archive").mkdir()
-    (work / "adaptive_archive" / "ledger.jsonl").write_text('{"n": 1}\n', encoding="utf-8")
+def test_ST31_a_closed_day_git_did_not_take_goes_in_on_the_next_cycle(tmp_path, monkeypatch):
+    """Closed days are offered to git every cycle, so an add that meets a held index.lock
+    costs one cycle, not the day."""
+    work = _work_repo(tmp_path, monkeypatch, "2026-09-24T01:00:00Z")
     (work / "hypotheses.jsonl").write_text("{}\n", encoding="utf-8")
     runner._commit_outputs(1)                       # a first commit, so HEAD exists
+    (work / "adaptive_archive" / "ledger").mkdir(parents=True)
+    (work / "adaptive_archive" / "ledger" / "2026-09-23.jsonl").write_text(
+        '{"n": 1}\n', encoding="utf-8")
     lock = work / ".git" / "index.lock"
-    with open(work / "adaptive_archive" / "ledger.jsonl", "a", encoding="utf-8") as fh:
-        fh.write('{"n": 2}\n')
-    monkeypatch.setenv("RK_CLOCK", "2026-09-24T00:05:00Z")
     lock.write_text("", encoding="utf-8")
     runner._commit_outputs(2)                       # every add fails on the lock
-    assert _at_head(work, "adaptive_archive/ledger.jsonl").count("\n") == 1
+    assert "adaptive_archive/ledger/2026-09-23.jsonl" not in _tracked(work)
     lock.unlink()
-    (work / "implicit_archive").mkdir()
-    (work / "implicit_archive" / "ledger.jsonl").write_text('{"n": 1}\n', encoding="utf-8")
-    runner._commit_outputs(3)                       # same day: both go in now
-    assert _at_head(work, "adaptive_archive/ledger.jsonl").count("\n") == 2
-    assert "implicit_archive/ledger.jsonl" in _tracked(work)
+    runner._commit_outputs(3)
+    assert "adaptive_archive/ledger/2026-09-23.jsonl" in _tracked(work)
 
 
 def test_ST32_the_runner_clears_git_locks_a_killed_commit_left(tmp_path, monkeypatch):

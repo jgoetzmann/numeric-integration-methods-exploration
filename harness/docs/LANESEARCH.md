@@ -151,10 +151,12 @@ Per lane, under `rk-work/<lane>_archive/`:
 
 * `YYYY-MM-DD.jsonl`, the full records, one per line, schema `adaptive-record/1` or
   `implicit-record/1`. UTC dates, from the record's own stamp.
-* `ledger.jsonl`, one short line per record: stamp, cycle, index, key, hashes, code hash,
-  file, worst status, targets reached, median cycles. Same split `sidetrack` keeps between
-  its ledger and its artifacts, and for the same reason: the cursor and the duplicate check
-  read only this file, so the cost of a firing does not grow with the archive.
+* `ledger/YYYY-MM-DD.jsonl`, one short line per record: stamp, cycle, index, key, hashes,
+  code hash, file, worst status, targets reached, median cycles, filed under the UTC day of
+  the record's own stamp. Same split `sidetrack` keeps between its ledger and its artifacts,
+  and for the same reason: the cursor and the duplicate check read only these files, so the
+  cost of a firing does not grow with the record files. Until 2026-09-23 the index was a
+  single `ledger.jsonl`; that file is still read, first, and never appended to (D47).
 * `elites.json`, schema `lane-elites/1`, capped at 32 entries.
 
 The record is written before its ledger line, so a crash can leave a record nothing points
@@ -210,10 +212,10 @@ Not done here, and deliberately so.
 1. `runner._run_lane` (batch 9) calls `sidetrack.run_until(tracks=(lane,))` and falls
    through to `lanesearch.adaptive_step` or `lanesearch.implicit_step` when the ledger
    reports exhausted. That fall-through is what makes a lane absorb an arbitrary budget.
-2. Done 2026-09-22 (D46). `_WORK_EXTRA_PATHS` in `runner.py` stages each lane's
-   `elites.json` every cycle, and `_WORK_DAILY_PATHS` stages each `ledger.jsonl` once per
-   UTC day. The per-day record files stay out through `rk-work/.gitignore`. The growth
-   arithmetic below is what set the ledger's cadence.
+2. Done 2026-09-22 (D46) and 2026-09-23 (D47). `_WORK_EXTRA_PATHS` in `runner.py` stages
+   each lane's `elites.json` every cycle, and `_commit_outputs` stages each closed day of
+   the ledger, as it does each closed archive day. The per-day record files stay out
+   through `rk-work/.gitignore`. The growth arithmetic below is what split the ledger.
 3. `lanes.cycle_row`'s `lane_records_appended` is already the field for a lane's own
    archive count; the runner passes the length of the step's record list.
    `step()` takes `seed` and records it as provenance; where a firing STARTS walking comes
@@ -235,13 +237,13 @@ of a candidate cap, epoch 2's first 74 cycles under schedule EAI averaged 100 ad
 records per adaptive firing and 28.6 implicit ones per implicit firing, at 393 and about
 390 bytes a ledger line. Over wall-clock time that is 4.7 to 10.4 MB a day for the adaptive
 ledger and 1.3 to 3.3 MB for the implicit one, the spread set by how long the explicit
-cycles between firings ran (`rk-work/schedule/cycles.jsonl`). The adaptive ledger therefore
-reaches GitHub's 100 MiB file limit in ten to twenty days of running. The runner never
-stages a file of 95 MiB or more (D46), so when it gets there the ledger stays on disk,
-`commit_skipped_oversize` is logged, and the file stops reaching git. Splitting the ledger
-by day would keep it pushable, but it changes `lanesearch.py`, which is in
-`LANESEARCH_FILES`, so it re-opens every lane record measured so far. That is the owner's
-call.
+cycles between firings ran (`rk-work/schedule/cycles.jsonl`). As one file, the adaptive
+ledger would have reached GitHub's 100 MiB file limit in ten to twenty days of running, and
+the runner never stages a file of 95 MiB or more (D46), so it would have stopped reaching
+git. On 2026-09-23 the owner had it split by day (D47). A day's file is 5 to 10 MB and never
+changes once the day has closed. The edit moved `lanesearch_code_hash` from 229c1559, so
+every lane record measured before it was re-opened and is being measured again under the
+new hash.
 
 **Whether these numbers may ever be published.** Decided in D40: each lane's `elites.json`
 may be quoted, the per-day files may not. The records are still off the scored path, still

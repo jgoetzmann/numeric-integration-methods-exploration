@@ -808,18 +808,6 @@ _WORK_EXTRA_PATHS: tuple[str, ...] = (
     "schedule",
 )
 
-# The lane ledgers are append-only, and under schedule EAI the adaptive one grew by 4.7 to
-# 10.4 MB a day over epoch 2's first 74 cycles, depending on how long the explicit cycles
-# ran. Staged every cycle, each lane cycle would write a fresh full-size loose blob, 100 to
-# 300 a day, so each is staged once per UTC day that this process runs, and again after a
-# restart. The day is marked per path and only once git has taken the file, so a failed add
-# or a ledger that does not exist yet is tried again on the next cycle.
-_WORK_DAILY_PATHS: tuple[str, ...] = (
-    "adaptive_archive/ledger.jsonl",
-    "implicit_archive/ledger.jsonl",
-)
-_daily_staged_on: dict[str, str] = {}
-
 # GitHub refuses any push that carries a file of 100 MiB or more, and once such a blob is in
 # a commit every later push of the branch fails on it, whatever else the push carries. So no
 # file at or over this size is staged. The file stays on disk, and the skip is logged once
@@ -828,21 +816,33 @@ _COMMIT_MAX_BYTES = 95 * 1024 * 1024
 _oversize_logged: set[str] = set()
 
 
-def _stage(wd: Path, path: Path) -> bool:
-    """git add one file of the work tree unless it is too large to push. True when added."""
-    try:
-        size = path.stat().st_size
-    except OSError:
-        return False
-    # Relative to the work tree, because git -C resolves a relative path from there.
-    rel = path.relative_to(wd).as_posix() if path.is_relative_to(wd) else str(path)
-    if size >= _COMMIT_MAX_BYTES:
-        if rel not in _oversize_logged:
-            _oversize_logged.add(rel)
-            log_event("commit_skipped_oversize", path=rel, bytes=size,
-                      limit_bytes=_COMMIT_MAX_BYTES)
-        return False
-    return _git(["-C", str(wd), "add", rel]) == 0
+def _stage(wd: Path, paths: list[Path]) -> bool:
+    """git add these files of the work tree in one call, leaving out any too large to push.
+
+    True when git took at least one file. One call rather than one per file, because the
+    closed archive and ledger days are offered again every cycle and their number only grows.
+    """
+    rels: list[str] = []
+    for path in paths:
+        try:
+            size = path.stat().st_size
+        except OSError:
+            continue
+        # Relative to the work tree, because git -C resolves a relative path from there.
+        rel = path.relative_to(wd).as_posix() if path.is_relative_to(wd) else str(path)
+        if size >= _COMMIT_MAX_BYTES:
+            if rel not in _oversize_logged:
+                _oversize_logged.add(rel)
+                log_event("commit_skipped_oversize", path=rel, bytes=size,
+                          limit_bytes=_COMMIT_MAX_BYTES)
+            continue
+        rels.append(rel)
+    return bool(rels) and _git(["-C", str(wd), "add", "--"] + rels) == 0
+
+
+def _closed_days(paths, today_stem: str) -> list[Path]:
+    """The per-day files whose UTC day has ended. Today's file is still being appended to."""
+    return [p for p in sorted(paths) if p.stem != today_stem]
 
 
 def _commit_outputs(new_cycle_id: int) -> None:
@@ -851,23 +851,19 @@ def _commit_outputs(new_cycle_id: int) -> None:
     _git(["-C", str(fd), "commit", "-qm", f"cycle {new_cycle_id}"])
     wd = work_dir()
     today = archive.today_path()
-    staged = False
-    for p in sorted(archive_dir().glob("*.jsonl")):
-        if p.resolve() != today.resolve():
-            staged = _stage(wd, p) or staged
-    for rel in _WORK_EXTRA_PATHS:
-        p = wd / rel
-        if p.is_file():
-            staged = _stage(wd, p) or staged
-        elif p.exists():
-            # Directories are staged whole. Nothing under them has come near the limit.
-            _git(["-C", str(wd), "add", rel])
-            staged = True
-    for rel in _WORK_DAILY_PATHS:
-        if _daily_staged_on.get(rel) != today.stem and (wd / rel).is_file():
-            if _stage(wd, wd / rel):
-                _daily_staged_on[rel] = today.stem
-                staged = True
+    # Closed days only, for the archive and for the lane ledgers alike: a closed day's file
+    # never changes again, so it is committed once and costs nothing after. The ledgers are
+    # split by day for this (DECISIONS D47); the one file written before the split is no
+    # longer appended to and rides along.
+    files = _closed_days(archive_dir().glob("*.jsonl"), today.stem)
+    files += _closed_days(lanesearch.every_ledger_path(), today.stem)
+    files += [wd / rel for rel in _WORK_EXTRA_PATHS if (wd / rel).is_file()]
+    staged = _stage(wd, files)
+    dirs = [rel for rel in _WORK_EXTRA_PATHS if (wd / rel).is_dir()]
+    if dirs:
+        # Directories are staged whole. Nothing under them has come near the limit.
+        _git(["-C", str(wd), "add", "--"] + dirs)
+        staged = True
     if staged:
         # A commit with nothing actually staged fails harmlessly and makes no empty
         # commit, so this can run every cycle without producing one.

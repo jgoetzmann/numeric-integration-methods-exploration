@@ -578,6 +578,27 @@ def test_C43_the_resume_defaults_match_the_config_defaults():
     assert "[switch]$NoAutoResume" in text
 
 
+@pytest.mark.skipif(not (WORKSPACE / "autostart.ps1").exists(),
+                    reason="workspace autostart.ps1 not present")
+def test_C44_a_reboot_starts_the_run_but_never_undoes_a_stop():
+    """autostart.ps1 runs start.ps1 at sign-in (D47), because otherwise a reboot left the run
+    with no watchdog until someone noticed. A stop made on purpose has to outlast that:
+    stop.ps1 leaves run-stopped.txt, start.ps1 is the only thing that removes it, and the
+    logon script checks it, and rk-work/STOP, before it starts anything."""
+    auto = (WORKSPACE / "autostart.ps1").read_text(encoding="ascii")
+    stop = (WORKSPACE / "stop.ps1").read_text(encoding="ascii")
+    start = START_PS1.read_text(encoding="ascii")
+    first_start = auto.index('"start.ps1")')
+    for guard in ('"run-stopped.txt"', '"rk-work\\STOP"'):
+        assert guard in auto, guard
+        assert auto.index(guard) < first_start, guard + " is checked after start.ps1 runs"
+    assert 'Set-Content -Path (Join-Path $root "run-stopped.txt")' in stop
+    assert 'Remove-Item (Join-Path $root "run-stopped.txt")' in start
+    assert 'Remove-Item (Join-Path $root "run-stopped.txt")' not in stop
+    # task defaults would refuse to start on battery; the watchdog owns that rule
+    assert "-AllowStartIfOnBatteries" in auto and "-DontStopIfGoingOnBatteries" in auto
+
+
 @pytest.mark.skipif(not CONFIGURE.exists(), reason="workspace configure.py not present")
 def test_C28_the_peer_default_matches_the_config_default():
     """The script's own default and the configured one cannot drift: the watchdog is started

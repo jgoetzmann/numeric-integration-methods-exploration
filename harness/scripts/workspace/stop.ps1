@@ -16,6 +16,9 @@ foreach ($p in $wd) { Stop-Process -Id $p.ProcessId -Force -ErrorAction Silently
 # by hand would otherwise find its own stop record, see the condition cleared, and start
 # the run this script stops.
 Remove-Item (Join-Path $root "watchdog-state.json") -ErrorAction SilentlyContinue
+# And it outlasts a reboot: autostart.ps1 does not start the run while this file exists, and
+# start.ps1 deletes it (DECISIONS D47).
+Set-Content -Path (Join-Path $root "run-stopped.txt") -Encoding ascii -Value ("stop.ps1 stopped the run at " + [datetime]::UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", [Globalization.CultureInfo]::InvariantCulture) + ". start.ps1 deletes this file; autostart.ps1 will not start the run while it exists.")
 
 $running = (docker inspect -f "{{.State.Status}}" rk 2>$null)
 if ($running -eq "paused") { docker unpause rk | Out-Null; $running = "running" }

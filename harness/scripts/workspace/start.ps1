@@ -14,6 +14,8 @@ $cfgFile  = Join-Path $root "config.json"
 foreach ($p in @($harness, $work, $findings)) { if (-not (Test-Path $p)) { throw "missing: $p" } }
 if (-not (Test-Path $envFile)) { throw "missing $envFile (copy rk-harness\.env.example and fill it in)" }
 if (Test-Path (Join-Path $work "STOP")) { Remove-Item (Join-Path $work "STOP"); Write-Host "removed stale STOP file" }
+# A start is the owner's word that the run should be up, after a reboot too (autostart.ps1).
+Remove-Item (Join-Path $root "run-stopped.txt") -ErrorAction SilentlyContinue
 
 # Settings (config.json; defaults are the handoff values).
 $cfg = @{ container = @{}; run = @{}; watchdog = @{}; watcher = @{}; stats = @{} }

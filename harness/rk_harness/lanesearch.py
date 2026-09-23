@@ -338,13 +338,41 @@ def lane_dir(lane: str) -> Path:
     return work_dir() / f"{lane}_archive"
 
 
-def ledger_path(lane: str) -> Path:
-    """The compact index: one short line per measured candidate.
+def ledger_dir(lane: str) -> Path:
+    """Where the compact index lives: one file per UTC day, one short line per record.
 
-    Same split sidetrack uses. The daily files hold the full records and can grow;
-    the cursor and the duplicate check read only this file.
+    Same split sidetrack uses. The daily record files hold the full records and grow by
+    hundreds of megabytes a day; the cursor and the duplicate check read only the index.
+    The index is split by day too (DECISIONS D47), because as one file it grew by 4.7 to
+    10.4 MB a day and would have passed GitHub's 100 MiB file limit within weeks. A closed
+    day's file never changes, so it is committed once, as an archive day is.
     """
+    return lane_dir(lane) / "ledger"
+
+
+def ledger_path(lane: str, day: str) -> Path:
+    """The index file for one UTC day, named by the day its records are stamped with."""
+    return ledger_dir(lane) / f"{day}.jsonl"
+
+
+def legacy_ledger_path(lane: str) -> Path:
+    """The single index file written before the split. Read, never appended to."""
     return lane_dir(lane) / "ledger.jsonl"
+
+
+def ledger_paths(lane: str) -> list[Path]:
+    """Every index file of this lane in the order its lines were written: the pre-split
+    file first, then the days in date order."""
+    out = [legacy_ledger_path(lane)] if legacy_ledger_path(lane).is_file() else []
+    d = ledger_dir(lane)
+    if d.is_dir():
+        out.extend(sorted(d.glob("*.jsonl")))
+    return out
+
+
+def every_ledger_path() -> list[Path]:
+    """ledger_paths for every lane: what the runner offers git each cycle."""
+    return [path for lane in LANES for path in ledger_paths(lane)]
 
 
 def records_path(lane: str, day: str) -> Path:
@@ -1096,7 +1124,7 @@ def append_record(rec: dict) -> tuple[Path, Path]:
     lane = rec["lane"]
     day = _day_of(rec["ts"]) or "undated"
     rpath = _append_jsonl(records_path(lane, day), rec)
-    lpath = _append_jsonl(ledger_path(lane), ledger_line(rec, rpath.name))
+    lpath = _append_jsonl(ledger_path(lane, day), ledger_line(rec, rpath.name))
     return rpath, lpath
 
 
@@ -1118,7 +1146,10 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 
 def load_ledger(lane: str) -> list[dict]:
-    return _read_jsonl(ledger_path(lane))
+    out: list[dict] = []
+    for path in ledger_paths(lane):
+        out.extend(_read_jsonl(path))
+    return out
 
 
 def load_records(lane: str, day: str | None = None) -> list[dict]:

@@ -281,7 +281,7 @@ def test_a_firing_writes_a_record_a_ledger_line_and_the_elites(lane):
                    start=0, **args)
     assert len(recs) == 1
     day = LS.records_path(lane, "2026-09-09")
-    assert day.exists() and LS.ledger_path(lane).exists()
+    assert day.exists() and LS.ledger_path(lane, "2026-09-09").exists()
     assert LS.load_records(lane) == recs
     line = LS.load_ledger(lane)[0]
     assert set(line) == set(LS.LEDGER_KEYS)
@@ -326,10 +326,35 @@ def test_a_ledger_line_under_another_code_hash_does_not_close_a_candidate():
 def test_a_torn_ledger_line_is_discarded_rather_than_fatal():
     args = _kw("adaptive")
     LS.step("adaptive", budget_seconds=0.0, cycle=1, start=0, **args)
-    path = LS.ledger_path("adaptive")
+    path = LS.ledger_paths("adaptive")[-1]
     with open(path, "a", encoding="utf-8", newline="\n") as fh:
         fh.write('{"ts": "2026-09-09T00:00')
     assert len(LS.load_ledger("adaptive")) == 1
+
+
+def test_the_ledger_is_one_file_per_utc_day_read_after_the_pre_split_file():
+    """As one file the adaptive index grew 4.7 to 10.4 MB a day and would have passed
+    GitHub's 100 MiB file limit within weeks (DECISIONS D47). Each line now goes to the
+    file of the day its record is stamped with, and the single file written before the
+    split is still read, first, so nothing it recorded is measured again under the code
+    that measured it."""
+    args = _kw("adaptive")
+    legacy = LS.legacy_ledger_path("adaptive")
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    old = {"key": "k-before-the-split", "index": 0, "lanesearch_code_hash": LS.code_hash(),
+           "ts": "2026-09-01T00:00:00Z"}
+    legacy.write_text(json.dumps(old) + "\n", encoding="utf-8")
+    LS.step("adaptive", budget_seconds=0.0, cycle=1, ts="2026-09-09T23:59:59Z", **args)
+    LS.step("adaptive", budget_seconds=0.0, cycle=2, ts="2026-09-10T00:00:00Z", **args)
+    assert LS.ledger_paths("adaptive") == [legacy, LS.ledger_path("adaptive", "2026-09-09"),
+                                           LS.ledger_path("adaptive", "2026-09-10")]
+    assert legacy.read_text(encoding="utf-8") == json.dumps(old) + "\n"
+    led = LS.load_ledger("adaptive")
+    assert [e["key"] for e in led][0] == "k-before-the-split" and len(led) == 3
+    assert "k-before-the-split" in LS.measured_keys("adaptive")
+    # the per-day index files are not mistaken for per-day record files
+    assert len(LS.load_records("adaptive")) == 2
+    assert LS.every_ledger_path()[:3] == LS.ledger_paths("adaptive")
 
 
 def test_a_missing_archive_is_not_an_error():
@@ -584,7 +609,8 @@ def _no_constant(name):
 # The read-only surface: functions that answer a question about a lane archive and
 # cannot bring one into being. A viewer may call these. Everything else in the module
 # either enumerates a candidate, measures one, or writes.
-_LANE_READERS = frozenset({"lane_dir", "ledger_path", "elites_path", "load_ledger",
+_LANE_READERS = frozenset({"lane_dir", "ledger_dir", "ledger_path", "legacy_ledger_path",
+                           "ledger_paths", "every_ledger_path", "elites_path", "load_ledger",
                            "load_records", "load_elites", "status", "code_hash"})
 
 # Two roles, and the difference between them is the whole point of this gate.

@@ -37,7 +37,8 @@ SKIP = "skipped: "
 _PRUNE = {".git", ".venv", "__pycache__", ".pytest_cache", ".fullsend", "node_modules"}
 
 # The five files the workspace root owns and this repo keeps a restorable copy of.
-WORKSPACE_COPIES = ("start.ps1", "stop.ps1", "watcher.ps1", "stats.ps1", "configure.py")
+WORKSPACE_COPIES = ("start.ps1", "stop.ps1", "watcher.ps1", "stats.ps1", "configure.py",
+                    "autostart.ps1")
 
 
 def _walk(root: Path, suffix: str) -> list[Path]:
