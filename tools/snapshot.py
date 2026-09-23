@@ -401,7 +401,7 @@ def main(argv=None) -> int:
         "snapshot_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
         "repos": [{"name": k, "url": f"{GITHUB}/{k}", "commit": _head(v)[:12], "role": roles[k],
                    "site": sites.get(k)} for k, v in paths.items()],
-        "private_workspace": "rk-dev, the private superproject that pins the four rk repos, is not linked",
+        "private_workspace": "rk-dev, the private superproject that pins the four rk repos, is also pinned under repos/rk-dev, where only its owner can open it",
     }
     try:
         import novel_snapshot  # noqa: F401  (tools/novel_snapshot.py, same directory)

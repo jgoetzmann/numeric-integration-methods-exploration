@@ -13,3 +13,7 @@
 [submodule "repos/Novel-Numerical-Integration-Methods"]
 	path = repos/Novel-Numerical-Integration-Methods
 	url = https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods.git
+[submodule "repos/rk-dev"]
+	path = repos/rk-dev
+	url = https://github.com/jgoetzmann/rk-dev.git
+	update = none

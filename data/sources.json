@@ -1,5 +1,5 @@
 {
- "private_workspace": "rk-dev, the private superproject that pins the four rk repos, is not linked",
+ "private_workspace": "rk-dev, the private superproject that pins the four rk repos, is also pinned under repos/rk-dev, where only its owner can open it",
  "repos": [
   {
    "commit": "d1e41d5976a4",
