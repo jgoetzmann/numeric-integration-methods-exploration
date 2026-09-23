@@ -58,8 +58,11 @@ def events(data):
         },
         {
             "name": "Epoch 1 runs",
-            "what": "Epoch 1 runs unattended",
-            "extra": f"{fmt.count(e1['cycles_run'])} cycles, {fmt.count(e1['records'])} records",
+            "what": "Epoch 1 runs",
+            "extra": (
+                f"{fmt.count(e1['cycles_run'])} search cycles, {fmt.count(e1['records'])} records, "
+                f"runner started {fmt.count(e1['events']['runner_started'])} times for deploys"
+            ),
             "start": e1["started"],
             "end": e1["stopped"],
             "n": 1,
@@ -86,7 +89,7 @@ def events(data):
         {
             "name": "Epoch 2 stopped",
             "what": "The run stopped",
-            "extra": "nothing restarted it",
+            "extra": down["why"],
             "start": down["from"],
             "end": down["to"],
             "n": 3,

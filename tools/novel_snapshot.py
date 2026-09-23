@@ -109,6 +109,7 @@ def novel(repo: Path, _src, _load) -> dict:
         trials.append({"trial": num, "folder": Path(d).name, "stages": len(b),
                        "max_abs_diff_from_rk4": same_rk4, "max_abs_diff_from_dormand_prince": same_dp,
                        "training_odes": (doc.get("config") or {}).get("N_ODES"),
+                       "candidates_per_epoch": (doc.get("config") or {}).get("N_CANDIDATES_PER_BATCH"),
                        "order_check_label": bt.get("consistency_order"),
                        "score_ratio_to_rk4": ((doc.get("comparisons") or {}).get("rk4") or {}).get("score_ratio"),
                        "error_ratio_to_rk4": ((doc.get("comparisons") or {}).get("rk4") or {}).get("accuracy_ratio")})
@@ -138,7 +139,9 @@ def novel(repo: Path, _src, _load) -> dict:
         "per_epoch": [{"epoch": e, "min_max_error": min(v), "median_max_error": statistics.median(v)}
                       for e, v in sorted(by_epoch.items())],
         "note": "one 100-epoch run of 100 four-stage candidates per epoch; the file has no trial "
-                "column. Every logged composite score is the clip ceiling, 1.0.",
+                "column, but trial 15 is the only trial whose saved config evaluates 100 candidates "
+                "per epoch, so it is most likely trial 15's log. Every logged composite score is the "
+                "clip ceiling, 1.0.",
         "source": _src(name, repo, "metrics_log.csv", "epoch; max_error; composite_score"),
     }
 

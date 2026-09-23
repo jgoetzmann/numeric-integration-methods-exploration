@@ -8,6 +8,7 @@
    "Tier labels are mechanical insertion-time comparisons against the then-incumbent, not a validation grade of the final elite: the best cell's elite is stored as no_improvement: its cell had an incumbent and neither heldout_verified nor search_only applied, and both of those start from a lower search error than the incumbent's.",
    "rc_thermal saturates near 0.156 for every classical method (see rc_thermal_collapse), so classical held-out RMS values are floored near 0.078; discovered winners break that floor."
   ],
+  "caveats_note": "quoted verbatim from the source; its '45k+ unique candidates' is older than the full archive, which holds 141,364 unique tableaus (efficiency.numbers.unique_tableaus)",
   "classical_per_problem_heldout": {
    "euler": {
     "dc_motor": 0.1710447625539884,
@@ -345,32 +346,32 @@
      "records": 5439
     },
     {
-     "cumulative": 10192,
+     "cumulative": 10574,
      "day": "2026-09-23",
      "epoch": 2,
-     "records": 4753
+     "records": 5135
     }
    ],
-   "as_of": "2026-09-23T16:53Z",
+   "as_of": "2026-09-23T17:17Z",
    "counted_from": "the running work tree at as_of, which includes the current UTC day's archive file before the run commits it at the day's close",
-   "cycle": 239,
+   "cycle": 250,
    "down_days": {
     "from": "2026-09-17T22:09Z",
     "to": "2026-09-23T02:19Z",
     "why": "the watchdog's system-drive guard stopped it and nothing restarted it (fixed by D46)"
    },
    "lane_cycles": {
-    "adaptive": 80,
-    "explicit": 79,
-    "implicit": 80
+    "adaptive": 84,
+    "explicit": 83,
+    "implicit": 83
    },
-   "records": 10192,
+   "records": 10574,
    "started": "2026-09-17T17:54Z",
    "verifier_files": 14,
    "verifier_hash": "2db0816c"
   },
   "source": {
-   "commit": "0f939a732412",
+   "commit": "2bed0ad028c3",
    "key": "frozen[0]; line counts",
    "path": "EPOCH.json; epochs/1/archive/*.jsonl; archive/*.jsonl; RUNSTATE.json; schedule/cycles.jsonl",
    "repo": "rk-work",
@@ -384,7 +385,7 @@
   "note": "float64 error of the champion over float64 error of rk4, each at the step count the 65,536-cycle budget gives it, per validation problem where both finish",
   "problems": 7,
   "source": {
-   "commit": "0f939a732412",
+   "commit": "2bed0ad028c3",
    "key": "results[].float_error",
    "path": "epochs/1/validation/results.json",
    "repo": "rk-work",
@@ -817,7 +818,7 @@
    }
   ],
   "source": {
-   "commit": "0f939a732412",
+   "commit": "2bed0ad028c3",
    "key": "verdicts; speedup; correlation",
    "path": "epochs/1/benchmark/results.json",
    "repo": "rk-work",
@@ -1030,7 +1031,7 @@
    }
   ],
   "source": {
-   "commit": "0f939a732412",
+   "commit": "2bed0ad028c3",
    "key": "methods[]; verdicts",
    "path": "epochs/1/trace/results.json",
    "repo": "rk-work",
@@ -1181,7 +1182,7 @@
    }
   ],
   "source": {
-   "commit": "0f939a732412",
+   "commit": "2bed0ad028c3",
    "key": "verdicts; results[]",
    "path": "epochs/1/validation/results.json",
    "repo": "rk-work",

@@ -10,6 +10,8 @@ from web.charts import (Linear, Log, bar, dot, esc, legend, lin_domain, lin_tick
                         log_domain, log_ticks, mv, num, series_line, table, text, x_axis, x_grid,
                         y_grid)
 
+RK4_ORDER = 4  # textbook order of the classical rk4 tableau (claims.json R5 limits)
+
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
@@ -21,6 +23,11 @@ _WEIGHTING = {
     "magnitude": "magnitude",
     "equal_median_anchor": "median-anchor",
     "equal_reference_norm": "reference-norm",
+}
+_WEIGHTING_NOTE = {
+    "magnitude": "(published)",
+    "equal_median_anchor": "(equal weight)",
+    "equal_reference_norm": "(weights rc_thermal)",
 }
 _BASIS = {
     "analytic": "analytic cost basis",
@@ -140,13 +147,20 @@ def frontier_chart(rk):
             f"{best}, the best classical method, has {fmt.sig(best_row['heldout_error'])} "
             f"at {best_row['cycles']}.")
 
+    worst_disc = max(r["heldout_error"] for r in discovered)
+    best_cls = min(r["heldout_error"] for r in classical)
+    if worst_disc < best_cls:
+        apart = "Every discovered elite sits below every classical method. "
+    else:
+        apart = ""
     caption = (
         f"Held-out RMS error against cycles per step for the {word(len(classical))} classical "
         f"methods and the {fmt.count(len(discovered))} discovered cell elites of epoch 1, in Q15 "
         f"with floor rounding at the {fmt.count(setup['budget_cycles'])}-cycle budget, on the "
         f"analytic {code(setup['cost_model'])} cost model with magnitude weighting. Lower is "
-        f"better. The champion {code(champ['hash'])} and {code(best)}, the best classical method, "
-        f"are labelled {claim_ref('R1', 'R2')}." + source_note(fr.get("source"))
+        f"better. {apart}Elites were picked on these errors, so they carry selection bias. The "
+        f"champion {code(champ['hash'])} and {code(best)}, the best classical method, are "
+        f"labelled {claim_ref('R1', 'R2')}." + source_note(fr.get("source"))
     )
     return {
         "id": "rk-frontier",
@@ -193,8 +207,8 @@ def counterfactual_chart(rk):
     for i, w in enumerate(weightings):
         cx = L + band * (i + 0.5)
         parts.append(text(cx, B + 18, label_of(_WEIGHTING, w), anchor="middle"))
-        if w == "magnitude":
-            parts.append(text(cx, B + 34, "(published)", anchor="middle", muted=True))
+        if w in _WEIGHTING_NOTE:
+            parts.append(text(cx, B + 34, _WEIGHTING_NOTE[w], anchor="middle", muted=True))
     parts.append(text((L + cat_right) / 2, B + 56, "weighting of the four held-out problems",
                       anchor="middle"))
 
@@ -209,27 +223,45 @@ def counterfactual_chart(rk):
                  f"ratio {fmt.ratio(c['ratio'])}; the champion {stays} on every leave-one-out "
                  f"subset (lowest {fmt.ratio(c['lowest_leave_one_out_ratio'])})")
         parts.append(dot(cx, cy, j + 1, title))
-        if c["weighting"] == "magnitude" or c["ratio"] < 1:
-            labels.append(text(cx, cy - 9, fmt.ratio(c["ratio"]), anchor="middle"))
+        # Every cell is labelled, so neither weighting scale shows without the other.
+        labels.append(text(cx, cy - 9, fmt.ratio(c["ratio"]), anchor="middle"))
     parts.extend(labels)
 
     trows = [[esc(label_of(_WEIGHTING, c["weighting"])), esc(label_of(_BASIS, c["basis"])),
               fmt.ratio(c["ratio"]), fmt.ratio(c["lowest_leave_one_out_ratio"]),
               "yes" if c["champion_still_leads"] else "no"] for c in cells]
 
-    pub = next((c for c in cells if c["weighting"] == "magnitude" and c["basis"] == "analytic"),
-               cells[0])
+    def cell(w, b):
+        return next((c for c in cells if c["weighting"] == w and c["basis"] == b), None)
+
+    pub = cell("magnitude", "analytic") or cells[0]
     desc = (f"Dot plot of {len(cells)} cells, {len(weightings)} weightings by {len(bases)} cost "
             f"bases, on a log ratio axis with a reference line at 1. Above the line the champion "
             f"leads. The published cell is {fmt.ratio(pub['ratio'])}.")
     caption = (
         f"The ratio of the best classical method's held-out error to the champion's, for "
         f"{word(len(weightings))} weightings of the held-out problems and {word(len(bases))} cost "
-        f"bases, in Q15 with floor rounding at the {fmt.count(budget)}-cycle budget. Above 1 the "
-        f"champion leads. The published {fmt.ratio(pub['ratio'])} is the analytic, "
-        f"magnitude-weighted cell. The traced whole-step basis uses the compiled step's cycle "
-        f"count only as the budget denominator {claim_ref('R1')}." + source_note(cf.get("source"))
+        f"bases, in Q15 with floor rounding at the {fmt.count(budget)}-cycle budget, epoch 1. "
+        f"Above 1 the champion leads. The published {fmt.ratio(pub['ratio'])} is the analytic, "
+        f"magnitude-weighted cell."
     )
+    pairs = []
+    for w in ("equal_reference_norm", "equal_median_anchor"):
+        a, t = cell(w, "analytic"), cell(w, "traced_whole_step")
+        if a and t:
+            pairs.append(f"{label_of(_WEIGHTING, w)} weighting gives {fmt.ratio(a['ratio'])} "
+                         f"analytic and {fmt.ratio(t['ratio'])} traced")
+    if pairs:
+        joined = "; ".join(pairs)
+        caption += " " + joined[0].upper() + joined[1:] + "."
+    med_tr = cell("equal_median_anchor", "traced_whole_step")
+    if med_tr and med_tr["ratio"] < 1:
+        caption += (f" The source reads the {fmt.ratio(med_tr['ratio'])} cell as that weighting "
+                    f"magnifying the champion's pendulum error, not as the champion losing by "
+                    f"that factor.")
+    caption += (f" The traced whole-step basis uses the compiled step's cycle count only as the "
+                f"budget denominator, and neither basis is the full cost of a step on a chip "
+                f"{claim_ref('R1')}." + source_note(cf.get("source")))
     return {
         "id": "rk-counterfactual",
         "height": H,
@@ -286,8 +318,11 @@ def validation_q15_chart(rk):
     champ = rk["champion"]["hash"]
     budget = rk["setup"]["budget_cycles"]
     plotted = [p for p in probs if not p.get("champion_overflowed")]
+    run = list(val.get("classical_methods_run", []))
+    n_run = word(len(run)) if run else ""
+    best_label = f"best of {n_run} classical methods" if run else "best classical method"
     series = [
-        (1, "best classical method", lambda p: p["best_classical_q15"],
+        (1, best_label, lambda p: p["best_classical_q15"],
          lambda p: (f"{p['problem']}: best classical method {p['best_classical']}, "
                     f"Q15 error {fmt.sig(p['best_classical_q15'], 4)}")),
         (2, f"champion {champ}", lambda p: p["champion_q15"],
@@ -295,7 +330,7 @@ def validation_q15_chart(rk):
     ]
     H, inner = _row_dotplot(
         probs, plotted, series,
-        f"Q15 RMS error, floor rounding, {fmt.count(budget)}-cycle budget (log scale)",
+        f"Q15 error, floor rounding, {fmt.count(budget)}-cycle budget (log scale)",
         lambda p: "champion overflowed: not plotted")
 
     trows = []
@@ -312,15 +347,25 @@ def validation_q15_chart(rk):
 
     over = _overflowed(probs)
     over_names = and_list([code(p["problem"]) for p in over])
-    desc = (f"Dot plot, one row per out-of-sample problem, of Q15 RMS error on a log axis: the "
-            f"champion {champ} against the best classical method for that problem. "
+    desc = (f"Dot plot, one row per out-of-sample problem, of Q15 error on a log axis: the "
+            f"champion {champ} against the {best_label} run on that problem. "
             f"{len(plotted)} problems are plotted.")
     desc += " " + ", ".join(p["problem"] for p in over) + " is not plotted: the champion overflowed."
+    run_names = f" run ({and_list([code(m) for m in run])})" if run else ""
     caption = (
-        f"Q15 RMS error with floor rounding at the {fmt.count(budget)}-cycle budget on the "
-        f"out-of-sample problems: the champion {code(champ)} against the best classical method "
-        f"for each problem {claim_ref('R4')}. Lower is better."
+        f"Q15 error with floor rounding at the {fmt.count(budget)}-cycle budget on the "
+        f"out-of-sample problems: the champion {code(champ)} against the {best_label}{run_names} "
+        f"on each problem {claim_ref('R4')}. Lower is better. The table adds the best of the "
+        f"{word(val['discovered_methods_run'])} discovered methods tried"
     )
+    other = [p["problem"] for p in plotted
+             if p.get("best_discovered_q15") is not None
+             and p["best_discovered_q15"] != p["champion_q15"]]
+    if other:
+        caption += (f", which on {and_list([code(n) for n in other])} is not the champion. The "
+                    f"table's last column compares that method with the best classical one.")
+    else:
+        caption += "."
     caption += (f" {over_names} is not plotted because the champion overflowed there; "
                 f"its row is in the table.")
     caption += source_note(val.get("source"))
@@ -332,15 +377,17 @@ def validation_q15_chart(rk):
         "inner": inner,
         "caption": caption,
         "table": table(["Problem", "Stiff", "Champion Q15 error", "Best classical method",
-                        "Its Q15 error", "Best discovered Q15 error", "Lower error"], trows),
+                        "Its Q15 error", "Best discovered Q15 error",
+                        "Lower error, best discovered against best classical"], trows),
     }
 
 
 def validation_f64_chart(rk):
-    """B24, float64 half: champion against rk4 at the same step counts."""
+    """B24, float64 half: champion against rk4, each at its budgeted step count."""
     val = rk["validation"]
     probs = val["problems"]
     champ = rk["champion"]["hash"]
+    budget = rk["setup"]["budget_cycles"]
     plotted = [p for p in probs
                if p.get("champion_float64") is not None and p.get("rk4_float64") is not None]
     series = [
@@ -351,35 +398,48 @@ def validation_f64_chart(rk):
     ]
     H, inner = _row_dotplot(
         probs, plotted, series,
-        "float64 error at the same step counts (log scale)",
-        lambda p: "champion overflowed in Q15: not compared")
+        f"float64 error at the {fmt.count(budget)}-cycle budget (log scale)",
+        lambda p: "neither finished at its budgeted step size: not plotted")
+
+    def steps(p, key):
+        return fmt.count(p[key]) if p.get(key) is not None else ""
 
     trows = []
     for p in probs:
         if p.get("champion_float64") is not None:
             c_cell = fmt.sig(p["champion_float64"])
+        elif p.get("champion_overflowed"):
+            c_cell = "overflow in Q15, no float64 result"
         else:
-            c_cell = "overflow in Q15, not compared"
+            c_cell = "no float64 result"
         if p.get("rk4_float64") is not None:
             r_cell = fmt.sig(p["rk4_float64"])
+        elif p.get("champion_overflowed"):
+            r_cell = "overflow in Q15, no float64 result"
         else:
-            r_cell = "not compared"
-        trows.append([code(p["problem"]), "yes" if p.get("stiff") else "no", c_cell, r_cell])
+            r_cell = "no float64 result"
+        trows.append([code(p["problem"]), "yes" if p.get("stiff") else "no",
+                      steps(p, "champion_steps"), c_cell, steps(p, "rk4_steps"), r_cell])
 
-    over = _overflowed(probs)
+    over = [p for p in probs if p not in plotted]
     over_names = and_list([code(p["problem"]) for p in over])
     gap = rk["float64_gap"]
     desc = (f"Dot plot, one row per out-of-sample problem, of float64 error on a log axis: the "
-            f"champion {champ} against rk4 at the same step counts. {len(plotted)} problems are "
-            f"plotted. The champion's error is {fmt.ratio(gap['champion_over_rk4_min'])} to "
+            f"champion {champ} against rk4, each at the step count the {fmt.count(budget)}-cycle "
+            f"budget gives it. {len(plotted)} problems are plotted. The champion's error is "
+            f"{fmt.ratio(gap['champion_over_rk4_min'])} to "
             f"{fmt.ratio(gap['champion_over_rk4_max'])} that of rk4.")
+    ch = rk["champion"]
     caption = (
-        f"Error in float64 of the champion {code(champ)} and of {code('rk4')}, at the same step "
-        f"counts, on the out-of-sample problems where both finish {claim_ref('R5')}. Lower is "
-        f"better."
+        f"Error in float64 of the champion {code(champ)} and of {code('rk4')} on the "
+        f"out-of-sample problems where both finish, each at the step count the "
+        f"{fmt.count(budget)}-cycle budget gives it, so the cheaper champion takes more steps "
+        f"than {code('rk4')} {claim_ref('R5')}. Lower is better. The champion is order "
+        f"{fmt.count(ch['order'])} and {code('rk4')} order {fmt.count(RK4_ORDER)}."
     )
-    caption += (f" {over_names} is not plotted: the champion overflowed there in Q15, "
-                f"so there is no float64 comparison.")
+    if over:
+        caption += (f" {over_names} is not plotted: at their budgeted step sizes neither the "
+                    f"champion nor {code('rk4')} finished it, in Q15 or in float64.")
     caption += source_note(gap["source"])
     return {
         "id": "rk-validation-f64",
@@ -388,7 +448,8 @@ def validation_f64_chart(rk):
         "desc": desc,
         "inner": inner,
         "caption": caption,
-        "table": table(["Problem", "Stiff", "Champion float64 error", "rk4 float64 error"], trows),
+        "table": table(["Problem", "Stiff", "Champion steps", "Champion float64 error",
+                        "rk4 steps", "rk4 float64 error"], trows),
     }
 
 

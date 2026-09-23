@@ -57,39 +57,43 @@ def _rk_section(data):
     items = [
         _item("Watchdog",
               "A PowerShell script on the host kills the container on a stale heartbeat, stops "
-              "it on model spend or low disk, pauses it on battery power or foreground CPU load, "
-              "and pushes the run's repositories to GitHub. Epoch 2 lost five days to a stop "
-              f"that nothing restarted {c('R12')}, so the watchdog now resumes the stops it made "
-              "itself (D46)."),
+              "it on language-model API spend or low disk, pauses it on battery power or "
+              "foreground CPU load, and pushes the run's repositories to GitHub. Epoch 2 lost "
+              f"five days to a stop that nothing restarted {c('R12')}, so the watchdog now "
+              "resumes the stops it made itself (D46)."),
         _item("Stats file",
               f"The host writes {_code('stats.txt')}, not the container, so the file can still "
               "report a dead container. It never carries a value forward, and it claims nothing "
               "about the container unless Docker answered."),
-        _item("Logon task",
-              "A scheduled task runs the start script at logon, so the run comes back after a "
-              "reboot unless a stop file says otherwise (D47)."),
+        _item("Start command",
+              "Nothing starts the run at sign-in. After a reboot a person starts it by hand "
+              f"with one command, {_code('start-integration-harness')}, which brings up the "
+              f"container and the watchdog {c('R12')}."),
         _item("Container",
-              "The harness is mounted read-only and no credential enters the container, so the "
-              f"search cannot reach its own scorer {c('R11')}. Pushing to GitHub happens on the "
-              "host."),
+              "The harness is mounted read-only, so the search cannot change its own scorer "
+              f"{c('R11')}. No GitHub credential enters the container: it commits, and the host "
+              "pushes. The one credential inside is the model's sign-in file, mounted "
+              "read-only, and the model runs in a read-only sandbox."),
         _item("Verifier",
               f"A sha256 over {num['files']} pinned files is checked at every start and stored in "
               "every record, so changing a pinned file opens a new epoch instead of editing the "
-              f"old one. Epoch 1 ran under {_code(num['e1_hash'])} over {num['e1_files']} files. "
-              f"Epoch 2 runs under {_code(num['e2_hash'])} over {num['e2_files']}. It began after "
-              f"tracing the compiled step showed that the old cost model had {_code('rk4')} and "
-              f"{_code('rk38')} in the wrong order {c('R7')}."),
+              f"old one. Epoch 1's records carry {_code(num['e1_hash'])}, over "
+              f"{num['e1_files']} files, apart from {num['e1_prepin']} written minutes before "
+              f"that pin was set. Epoch 2 runs under {_code(num['e2_hash'])} over "
+              f"{num['e2_files']}. It began after tracing the compiled step showed that the old "
+              f"cost model had {_code('rk4')} and {_code('rk38')} in the wrong order {c('R7')}."),
         _item("Golden gate",
               f"Before any cycle runs, {num['gate']} golden and canary cases must pass. The full "
               f"suite collected {num['tests']} tests on {num['tests_on']} {c('R11')}."),
         _item("Runner",
-              "Each cycle starts by replaying any unfinished work, so a crash mid-cycle is "
-              "replayed rather than lost. It then runs the five steps in the diagram, updates "
-              "the hypothesis ledger, rebuilds the findings site and commits."),
+              "Each cycle starts by rebuilding its state from the archive files, so a crash "
+              "costs at most the cycle in progress. It then runs the five steps in the diagram, "
+              "updates the hypothesis ledger, rebuilds the findings site and commits."),
         _item("Directive",
-              "A language model writes a JSON directive that can only narrow the search, and an "
-              "unknown key sends the runner to a fixed fallback. The model sees held-out errors, "
-              f"and elites are picked on them {c('U2')}."),
+              "A language model writes each cycle's direction as a JSON directive that can only "
+              "narrow the search, and an unknown key sends the runner to a fixed fallback "
+              f"{c('R13')}. The model sees held-out errors, and elites are picked on them "
+              f"{c('U2')}."),
         _item("Search",
               "Early phases enumerate a lattice of dyadic coefficients exhaustively, and later "
               "phases run CMA-ES over the stage matrix with the weights solved exactly."),
@@ -103,7 +107,7 @@ def _rk_section(data):
         _item("Archive",
               "Scored candidates are appended to per-day JSON-lines files in "
               f"{_code('rk-work')}. For each order, a MAP-Elites grid keeps the lowest held-out "
-              "error in each cell of stage count and cycle band. Epoch 1 wrote "
+              "error in each cell of stage count and cost band. Epoch 1 wrote "
               f"{num['e1_records']} records {c('R12')}."),
         _item("Lanes and side tracks",
               "A schedule rotates the explicit lane with adaptive and implicit lanes. Those "
@@ -155,32 +159,41 @@ def _novel_section(data):
         _item("Generator",
               "An MLP maps noise to table entries, but its optimizer is created and never "
               "stepped, and its raw outputs never pass validation. Every candidate slot "
-              f"therefore falls back to a random generator that reseeds to {num['seed']}, and "
-              f"trials {num['nn_saved_span']} saved the same seeded table for each stage count "
-              f"{c('N4')}."),
+              f"therefore falls back to a random generator that reseeds to {num['seed']}, so "
+              f"{num['same_ab']} {c('N4')}."),
+        _item("Surrogate",
+              "An MLP is trained by gradient descent on the scored candidates, at start-up and "
+              f"periodically after, and the checkpoints of trials {num['ckpt_span']} record its "
+              f"loss in {num['ckpt_loss']} of their {num['ckpt_epochs']} epochs. Nothing in the "
+              f"training loop reads its predictions {c('N4')}."),
         _item("Evolution",
               f"Trials {num['evo_span']} ran a genetic search whose population starts with {rk4} "
-              "or Dormand-Prince plus perturbed copies of it. Trials "
-              f"{num['rk4_trials']} saved {rk4} exactly, and trial {num['dp_trials']} saved "
-              f"Dormand-Prince exactly {c('N2')}."),
+              "or Dormand-Prince plus perturbed copies of it. Selection, crossover and mutation "
+              "ran and the population moved off the seed, but every score tied at the clip, so "
+              f"the saved table stayed the seed: trials {num['rk4_trials']} saved {rk4} exactly, "
+              f"and trial {num['dp_trials']} saved Dormand-Prince exactly {c('N2')}."),
         _item("Random sampling",
               f"Trial {num['t16']} drew every candidate at random, with no mutation or "
-              "crossover. Its fitness read an accuracy field that does not exist, so accuracy "
-              f"carried no weight {c('N7')}."),
+              "crossover, and saved the top scorer. Its fitness read an accuracy field that does "
+              f"not exist, so accuracy carried no weight {c('N7')}."),
         _item("Stepper",
-              "A fixed-step stepper builds each stage from earlier stages only, so it ignores the "
-              "diagonal and upper triangle of an implicit table. Both Gauss-Legendre baselines "
-              f"therefore ran as truncated explicit methods of order one {c('N5')}."),
+              "A fixed-step stepper reads the diagonal only while that stage is still zero and "
+              "never reads the upper triangle, so an implicit table runs as its strictly lower "
+              "part. Every candidate was explicit, so the gap hit only the two Gauss-Legendre "
+              f"baselines, which ran as truncated explicit methods of order one {c('N5')}."),
         _item("Reference solver",
               "Dormand-Prince (SciPy RK45) supplies each reference solution but handles only "
               f"{num['ref_families']} of the {num['eval_families']} ODE families in the final "
-              f"test, so {missing} problems fail for every method. Those failures, plus "
-              f"polynomial ODEs that blow up, give every method the same {num['success']} "
-              f"success rate {c('N6')}."),
+              f"test and {num['ref_families']} of the {num['train_families']} in training, so "
+              f"{missing} problems fail for every method in the final test. Those failures, "
+              "plus polynomial ODEs that blow up, give every method the same "
+              f"{num['success']} success rate {c('N6', 'N9')}."),
         _item("Composite score",
               "Weighted accuracy, efficiency and stability terms are summed, and the total is "
-              f"clipped at {num['clip']}. All {num['logged']} logged scores sit at that "
-              f"ceiling, so the score cannot tell {rk4} from a random table {c('N2', 'N3')}."),
+              f"clipped at {num['clip']}. All {num['logged']} rows of the one training log score "
+              f"{num['clip']}, and the checkpoints of trials {num['ckpt_span']} record a best and "
+              f"a mean score of {num['clip']} in all {num['ckpt_epochs']} of their epochs, so the "
+              f"score cannot tell {rk4} from a random table {c('N2', 'N3')}."),
         _item("Best-table tracker",
               "The saved table changes only on a strictly higher score, so once scores tie at the "
               "ceiling the earliest valid candidate stays best. In the evolution trials that "
@@ -191,7 +204,8 @@ def _novel_section(data):
         '<section aria-labelledby="novel-pipeline">'
         '<h2 id="novel-pipeline">The 2025 ML project\'s pipeline</h2>'
         f"<p>{_code(NOVEL_REPO)} proposed Butcher tables in three ways and scored all of them "
-        "with one stepper and one composite score. An audit in September 2026 read its code "
+        "with one stepper and one composite score. A surrogate model trained beside them, but "
+        "nothing read its predictions. An audit in September 2026 read the project's code "
         f"and data at commit {_code(commit)}. In the diagram, each box with a heavy outline "
         "has a line starting with \"Audit:\" that names the break and the claim that "
         "records it.</p>"
@@ -204,11 +218,18 @@ def _novel_section(data):
         '<h3 id="novel-components">Components</h3>'
         '<ul class="components">' + "".join(items) + "</ul>"
         '<h3 id="novel-holds">What still holds</h3>'
-        "<p>The parts work as code: the stepper runs any explicit table, the ODE generator "
-        f"covers {num['train_families']} families including stiff ones, and the final benchmark "
-        f"ran {num['methods']} methods on {num['odes']} ODEs, {num['scorable']} of them scorable "
-        f"{c('N9', 'N1')}. What the audit found wrong was how the parts were connected and "
-        "scored. The code itself runs.</p>"
+        "<p>The harness runs end to end for explicit tables: the stepper runs any explicit "
+        f"table, the training generator covers {num['train_families']} ODE families including "
+        f"stiff ones, and the final benchmark ran {num['methods']} methods on {num['odes']} ODEs, "
+        f"{num['scorable']} of them scorable {c('N9', 'N1')}. Trials {num['copy_span']} "
+        f"reproduce the {rk4} and Dormand-Prince errors exactly, {num['rk4_error']} and "
+        f"{num['dp_error']}, so the evaluation gives the same number for the same table.</p>"
+        "<p>Most of what the audit found wrong was in how the parts were connected and "
+        f"scored: a generator optimizer that was never stepped {c('N4')}, a fitness that read "
+        f"a missing field {c('N7')} and a score clipped at {num['clip']} {c('N2')}. Two "
+        "defects sit inside single parts: the stepper runs only the explicit part of a table "
+        f"{c('N5')}, and the reference solver covers {num['ref_families']} of the "
+        f"{num['eval_families']} test families {c('N6')}.</p>"
         "</section>"
     )
 
@@ -232,12 +253,13 @@ def _more_section(data):
 def build(data):
     return (
         "<h1>How the two projects are built</h1>"
-        '<p class="lead">The rk run is a long-running system: a container that searches and '
-        "scores, a host that keeps it running and publishes its data, and two websites that "
-        "read the results. The 2025 ML project was a training pipeline that generated Butcher "
-        "tables, integrated generated ODEs with them and scored them against a reference "
-        "solver. The second diagram marks where an audit in September 2026 found that pipeline "
-        "broke.</p>"
+        '<p class="lead">The rk run is an autonomous search: no person chooses what it tries '
+        "or how it scores, though people start it, stop it and deploy changes to its unpinned "
+        f"code {_cite('R12')}. It is built as a container that searches and scores, a host "
+        "that keeps it running and publishes its data, and two websites that read the results. "
+        "The 2025 ML project was a training pipeline that generated Butcher tables, integrated "
+        "generated ODEs with them and scored them against a reference solver. The second "
+        "diagram marks where an audit in September 2026 found that pipeline broke.</p>"
         + _rk_section(data)
         + _novel_section(data)
         + _more_section(data)

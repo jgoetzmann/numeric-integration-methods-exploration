@@ -23,8 +23,11 @@
    "id": "R2", "project": "rk", "headline": true, "title": "Every discovered cell elite ahead of all eight classical methods",
    "claim": "In all 16 of the 18 occupied archive cells that a discovered method holds, it has lower held-out error than all eight classical methods, whatever their cost; the closest, a four-stage elite at 30 cycles per step, has 0.0836 against midpoint's 0.0844.",
    "verdict": "supported-with-limits",
-   "limits": "Same conditions and the same selection bias as R1: Q15 with floor rounding, 65,536-cycle budget, analytic cost model, magnitude weighting. Classical methods hold the other 2 cells.",
-   "evidence": [{"repo": "rk-overview", "path": "tools/key_findings.json", "at": "efficiency.series.frontier_cycles_vs_heldout; efficiency.numbers.note_on_comparison"}]
+   "limits": "Same conditions and the same selection bias as R1: Q15 with floor rounding, 65,536-cycle budget, analytic cost model, magnitude weighting. Classical methods hold the other 2 cells. Re-ranking all 141,364 archived tableaus on the analytic basis, no classical method ranks above the champion under any of the three weightings, though the champion's own rank moves with the weighting: rank 1 under magnitude weighting, 15 under reference-norm weighting and 9,974 under median-anchor weighting.",
+   "evidence": [
+    {"repo": "rk-overview", "path": "tools/key_findings.json", "at": "efficiency.series.frontier_cycles_vs_heldout; efficiency.numbers.note_on_comparison"},
+    {"repo": "rk-overview", "path": "tools/key_findings.json", "at": "counterfactual.numbers.archive_reranking"}
+   ]
   },
   {
    "id": "R3", "project": "rk", "title": "Leave-one-out",
@@ -54,7 +57,7 @@
    "id": "R6", "project": "rk", "title": "The champion appeared at cycle 33",
    "claim": "The champion appeared at cycle 33, and no later cycle in epoch 1's 3,931 lowered the best held-out error.",
    "verdict": "supported",
-   "limits": "The search kept filling and improving other cells after cycle 33: 11 of the 16 discovered cell elites appeared later, including elites of order 3 and order 4, and the last cell improvement came on 2026-09-09.",
+   "limits": "The search kept filling and improving other cells after cycle 33: 11 of the 16 discovered cell elites appeared later, including elites of order 3 and order 4; the last new cell was filled on 2026-09-05 and the last cell improvement came on 2026-09-09.",
    "evidence": [
     {"repo": "rk-overview", "path": "tools/key_findings.json", "at": "search_progress.numbers"},
     {"repo": "rk-work", "path": "epochs/1/archive/*.jsonl; epochs/1/EPOCH_STATUS.json", "at": "cycle_id of each elite's tableau_hash; metrics.last_improvement_ts"}
@@ -208,8 +211,8 @@
    "id": "N9", "project": "novel", "title": "The 2025 harness",
    "claim": "The project built a working evaluation harness for explicit tables: a generic Butcher-table stepper, a generator covering 11 ODE families including stiff ones, a SciPy reference solver, parallel scoring and 16 trial configurations, and it ran a 12-method benchmark over 10,000 ODEs. Its source tree holds 10,279 lines of Python across 47 files.",
    "verdict": "supported-with-limits",
-   "limits": "The harness runs end to end for explicit tables. Two of its parts produced the artifacts in N5 and N6: the stepper runs only the explicit part of a table, and the reference solver covers 5 of the 6 test families and 5 of the 11 training families. The conclusions drawn from it in 2025 are what did not hold.",
-   "evidence": [{"repo": "Novel-Numerical-Integration-Methods", "path": "src/; configs/; trials/; results/real_trial_results.csv", "at": ""}]
+   "limits": "The harness runs end to end for explicit tables. Two of its parts produced the artifacts in N5 and N6: the stepper runs only the explicit part of a table, and the reference solver covers 5 of the 6 test families and 5 of the 11 training families. An SQLite results module is in the tree, but nothing in the pipeline calls it. The conclusions drawn from it in 2025 are what did not hold.",
+   "evidence": [{"repo": "Novel-Numerical-Integration-Methods", "path": "src/; configs/; trials/; results/real_trial_results.csv", "at": ""}, {"repo": "Novel-Numerical-Integration-Methods", "path": "src/__init__.py", "at": "16"}]
   },
   {
    "id": "N10", "project": "novel", "title": "No working order check",

@@ -65,7 +65,11 @@ def build(data: dict) -> str:
     sources = data["sources"]
     repos = sources["repos"]
     claims = data["claims"]["claims"]
+    eng = data["rk"]["engineering"]
     snap = fmt.esc(fmt.day(sources["snapshot_date"]))
+    tests = fmt.count(eng["tests_collected"])
+    tests_on = fmt.esc(fmt.day(eng["tests_collected_on"]))
+    demo = fmt.esc(eng["demo_crosscheck"])
 
     def ref(name: str) -> str:
         return _link(f"#repo-{name}", f"<code>{fmt.esc(name)}</code>")
@@ -94,18 +98,22 @@ def build(data: dict) -> str:
         "<section>",
         '<h2 id="fit">How they fit together</h2>',
         f"<p>{harness} is the code: the runner, the search, the pinned verifier, the site "
-        "generator and the tests. A host watchdog starts a container that mounts the harness "
-        "read-only, so the search cannot change the code that scores it "
-        '(<a href="claims.html#R11">claim R11</a>).</p>',
+        f"generator and a test suite that collected {tests} tests on {tests_on}. A host "
+        "watchdog starts a container that mounts the harness read-only, so the search cannot "
+        'change the code that scores it (<a href="claims.html#R11">claim R11</a>).</p>',
         f"<p>Each cycle the container appends scored records to {work}, regenerates "
-        f"{findings} (the findings site) and commits both. The host watchdog does the pushing, "
-        f"so no credential enters the container. {work} also keeps epoch 1 frozen under "
+        f"{findings} (the findings site) and commits both. It never pushes: the host "
+        "watchdog does, so no GitHub credential enters the container. The one credential "
+        "inside is the language model's sign-in file, mounted read-only. "
+        f"{work} also keeps epoch 1 frozen under "
         "<code>epochs/1/</code>, with the validation, benchmark and trace documents this site "
         'quotes. <a href="claims.html#R7">Claim R7</a> covers why epoch 1 froze.</p>',
         f"<p>{overview} is built by hand from {work}. Its tools recompute the analysis into "
-        "<code>tools/key_findings.json</code> and generate the explainer pages, including a "
-        "browser demo that reruns the Q15 solver. It is a snapshot that goes stale between "
-        "refreshes, while the findings site rebuilds every cycle.</p>",
+        "<code>tools/key_findings.json</code> and generate the explainer pages. One of them "
+        "is a browser demo that reimplements the Q15 solver in JavaScript and reproduces the "
+        f"Python evaluator in {demo} fixture cases "
+        '(<a href="claims.html#R14">claim R14</a>). The overview is a snapshot that goes '
+        "stale between refreshes, while the findings site rebuilds every cycle.</p>",
         f"<p>{ml} stands alone. It shares no code or data with the rk run. What the two "
         "projects have in common is the question they asked, and this site.</p>",
         "<p>The four rk repositories sit side by side in one private workspace, where the run "

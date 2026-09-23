@@ -166,6 +166,9 @@ def rk(ws: Path) -> dict:
         "cycles_since_last_improvement": sp["cycles_since_last_improvement"],
         "stored_tier": best["tier"],
         "caveats": eff["caveats"],
+        "caveats_note": "quoted verbatim from the source; its '45k+ unique candidates' is older than "
+                        "the full archive, which holds " + f"{eff['unique_tableaus']:,}" +
+                        " unique tableaus (efficiency.numbers.unique_tableaus)",
         "source": _src("rk-overview", ov, "tools/key_findings.json",
                        "efficiency.numbers.best_discovered; efficiency.numbers.leave_one_out; "
                        "counterfactual.numbers.headline_checks.published_ratio; search_progress.numbers"),

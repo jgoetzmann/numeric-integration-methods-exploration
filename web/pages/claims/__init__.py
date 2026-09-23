@@ -7,7 +7,7 @@ from web import fmt
 SLUG = "claims.html"
 TITLE = "Claims audit"
 DESCRIPTION = (
-    "Every claim this site makes about the rk run and the 2025 ML project, "
+    "Every claim the other pages cite by id, about the rk run and the 2025 ML project, "
     "with its verdict, its limits and links to the files that show it."
 )
 
@@ -21,13 +21,22 @@ VERDICT_LABELS = {
 # Verdicts whose claim text the site does not stand behind: shown inside <q>.
 QUOTED_VERDICTS = ("not-supported", "artifact")
 
+# For those verdicts the heading repeats the verdict in words, so a heading such as
+# "A blind comparison" never reads as something the site asserts, in a skim or in a
+# screen reader's list of headings.
+HEADING_VERDICTS = {
+    "not-supported": "not supported",
+    "artifact": "an artifact",
+}
+
 GROUPS = (
     (
         "rk",
         "The rk run",
-        "The rk run's Q15 results hold inside Q15 fixed point with floor rounding "
-        "at the run's fixed cycle budget, under the conditions each claim lists. "
-        'In float64 the established methods win, as <a href="#R5">R5</a> records.',
+        "The rk run's Q15 results come from epoch 1. They hold inside Q15 fixed point "
+        "with floor rounding at the run's fixed cycle budget, under the conditions each "
+        "claim lists. In float64, <code>rk4</code> is far more accurate than the champion, "
+        'as <a href="#R5">R5</a> records.',
     ),
     (
         "novel",
@@ -80,11 +89,24 @@ def _related(claim):
     return seen
 
 
+def _heading(claim):
+    """<h3> with the claim id as a self-link, then the claim's title, e.g. "R1: The Q15 lead"."""
+    cid = fmt.esc(claim["id"])
+    head = f'<a class="claim-id" href="#{cid}">{cid}</a>'
+    title = claim.get("title")
+    if title:
+        head += f": {fmt.esc(title)}"
+        note = HEADING_VERDICTS.get(claim["verdict"])
+        if note:
+            head += f" ({fmt.esc(note)})"
+    return f'<h3 class="claim-head">{head}</h3>'
+
+
 def _article(claim, repos):
     cid = claim["id"]
     verdict = claim["verdict"]
     parts = [f'<article id="{fmt.esc(cid)}" class="claim claim-{fmt.esc(verdict)}">']
-    parts.append(f'<h3 class="claim-head"><a class="claim-id" href="#{fmt.esc(cid)}">{fmt.esc(cid)}</a></h3>')
+    parts.append(_heading(claim))
 
     meta = (
         f'<span class="verdict verdict-{fmt.esc(verdict)}">'
@@ -147,15 +169,16 @@ def build(data: dict) -> str:
     out = ["<h1>Claims audit</h1>"]
     out.append(
         '<section class="intro">\n'
-        "<p>This page lists every claim this site makes about either project. Each "
+        "<p>This page lists every claim the other pages of this site cite by id. Each "
         "one carries a verdict, the conditions it holds under, and links to the files "
-        "that show it, pinned to the commits named in the footer. Other pages link "
-        "here by claim id.</p>\n"
-        "<p>The audit checked every claim against the source repositories as of the "
-        f"snapshot on {snapshot}. It checked the claims about the 2025 ML project in "
-        "September 2026 against that project's code and data. Where the 2025 project "
-        "published a claim the files do not support, this page keeps its original "
-        "wording in a block quote beside the correction.</p>\n"
+        "that show it, pinned to the commits named in the footer.</p>\n"
+        "<p>The audit was done in September 2026. It checked the claims about the rk run "
+        f"against that run's code and documents as of the snapshot on {snapshot}, and the "
+        "claims about the 2025 ML project against that project's code and data. Where "
+        "the 2025 project published a claim the files do not support, this page keeps "
+        "its original wording in a block quote beside the correction. Three adversarial "
+        "reviews of the whole site, run before it was published, shaped the limits "
+        "below.</p>\n"
         "<p>A verdict is always written out in words. Claims marked not supported are "
         "claims this site does not make; they stay listed so each correction sits next "
         "to the claim it replaces.</p>\n"

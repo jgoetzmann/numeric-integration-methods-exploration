@@ -9,14 +9,14 @@
    "url": "https://github.com/jgoetzmann/rk-harness"
   },
   {
-   "commit": "0f939a732412",
+   "commit": "2bed0ad028c3",
    "name": "rk-work",
    "role": "run data: the append-only archive, lanes, validation, benchmark and trace documents",
    "site": null,
    "url": "https://github.com/jgoetzmann/rk-work"
   },
   {
-   "commit": "c6f475bb3e56",
+   "commit": "4aa8ff43b09c",
    "name": "rk-findings",
    "role": "the findings site the run regenerates every cycle",
    "site": "https://jgoetzmann.github.io/rk-findings/",

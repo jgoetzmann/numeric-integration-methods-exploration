@@ -28,11 +28,23 @@ def and_list(items):
 
 
 def trial_span(nums):
-    """'12 to 15' for a contiguous run of three or more, else '12, 14 and 15'."""
-    nums = sorted(nums)
-    if len(nums) > 2 and nums == list(range(nums[0], nums[-1] + 1)):
-        return f"{fmt.count(nums[0])} to {fmt.count(nums[-1])}"
-    return and_list(fmt.count(v) for v in nums)
+    """'12 to 15', or '1 to 4, 6, 8 and 9': runs of three or more collapse to 'a to b'."""
+    groups = []
+    for n in sorted(nums):
+        if groups and n == groups[-1][-1] + 1:
+            groups[-1].append(n)
+        else:
+            groups.append([n])
+    parts = []
+    for g in groups:
+        if len(g) >= 3:
+            parts.append(f"{fmt.count(g[0])} to {fmt.count(g[-1])}")
+        else:
+            parts.extend(fmt.count(v) for v in g)
+    return and_list(parts)
+
+
+_STAGE_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven"}
 
 
 def rk_numbers(rk):
@@ -48,6 +60,8 @@ def rk_numbers(rk):
         "e1_hash": e1["verifier_hash"],
         "e1_files": fmt.count(e1["verifier_files"]),
         "e1_records": fmt.count(e1["records"]),
+        "e1_prepin": fmt.count(sum(n for h, n in e1["verifier_hash_counts"].items()
+                                   if h != e1["verifier_hash"])),
         "e2_hash": e2["verifier_hash"],
         "e2_files": fmt.count(e2["verifier_files"]),
         "heldout": list(rk["setup"]["heldout_problems"]),
@@ -69,13 +83,44 @@ def novel_numbers(novel):
     ac = novel["audit_counts"]
     missing = sorted(set(ac["evaluation_ode_families"]) - set(ac["reference_solver_families"]))
     bench = novel["benchmark"]
+
+    # Generator trials that saved the same A and b, grouped, in trial order.
+    by_trial = {r["trial"]: r for r in rows}
+    groups = []
+    seen = set()
+    for t in nn_saved:
+        if t in seen:
+            continue
+        g = sorted({t} | set(by_trial[t].get("identical_to_trials") or []))
+        seen.update(g)
+        if len(g) > 1:
+            groups.append(g)
+    same = []
+    for i, g in enumerate(groups):
+        stages = _STAGE_WORDS.get(by_trial[g[0]]["stages"], fmt.count(by_trial[g[0]]["stages"]))
+        verb = "saved " if i == 0 else ""
+        same.append(f"trials {trial_span(g)} {verb}the same {stages}-stage A and b")
+    same_ab = and_list(same) if same else "the saved tables repeat"
+
+    ckpt = novel["evolution_checkpoints"]["rows"]
+    loss = sorted({r["epochs_with_surrogate_loss"] for r in ckpt})
+    ep = sorted({r["epochs"] for r in ckpt})
+    bench_by = {r["id"]: r for r in bench["rows"]}
     return {
         "rk4_trials": and_list(fmt.count(t) for t in rk4),
         "dp_trials": and_list(fmt.count(t) for t in dp),
         "evo_span": trial_span(evo),
+        "copy_span": trial_span(rk4 + dp),
         "t16": fmt.count(t16),
         "nn_span": trial_span(nn),
         "nn_saved_span": trial_span(nn_saved),
+        "same_ab": same_ab,
+        "ckpt_span": trial_span(r["trial"] for r in ckpt),
+        "ckpt_loss": (fmt.count(loss[0]) if len(loss) == 1
+                      else f"{fmt.count(loss[0])} to {fmt.count(loss[-1])}"),
+        "ckpt_epochs": fmt.count(ep[-1]),
+        "rk4_error": fmt.sig(bench_by["baseline_rk4"]["mean_max_error"]),
+        "dp_error": fmt.sig(bench_by["baseline_rk45_dormand_prince"]["mean_max_error"]),
         "seed": fmt.count(ac["random_generator_seed"]),
         "ref_families": fmt.count(ac["reference_solver_family_count"]),
         "eval_families": fmt.count(ac["evaluation_ode_family_count"]),
@@ -208,17 +253,17 @@ def arch_rk(data):
     s, h_stats = _box(ix, row_y, hw, "stats file",
                       ["written on the host,", "so a dead container", "still gets reported"])
     nodes.append(s)
-    s, h_logon = _box(x2, row_y, hw, "logon task",
-                      ["restarts the run", "after a reboot unless", "a stop file is present"])
+    s, h_start = _box(x2, row_y, hw, "start command",
+                      ["run by hand after", "a reboot; starts the", "container and watchdog"])
     nodes.append(s)
-    row_h = max(h_stats, h_logon)
+    row_h = max(h_stats, h_start)
     wd_y = row_y + row_h + 16
     s, h_wd = _box(ix, wd_y, iw, "watchdog",
                    ["pause guard: battery or foreground load",
                     "pushes to GitHub; resumes its own stops"])
     nodes.append(s)
-    logon_cx = x2 + hw // 2
-    edges.append(_edge([(logon_cx, row_y + row_h), (logon_cx, wd_y)], marker))
+    start_cx = x2 + hw // 2
+    edges.append(_edge([(start_cx, row_y + row_h), (start_cx, wd_y)], marker))
     host_h = wd_y + h_wd + 10 - host_y
     back.append(_group(gx, host_y, gw, host_h, "host machine"))
 
@@ -230,7 +275,7 @@ def arch_rk(data):
                         fill="var(--text-2)"))
 
     y = c_y + 28
-    s, h = _box(ix, y, iw, "harness", ["mounted read-only; no credentials inside"])
+    s, h = _box(ix, y, iw, "harness", ["mounted read-only; no GitHub credentials inside"])
     nodes.append(s)
     prev_end = y + h
     chain = [
@@ -323,9 +368,10 @@ def arch_rk(data):
     title = "Architecture of the rk run"
     desc = (
         "Three groups, stacked top to bottom. The host machine holds a stats file written on "
-        "the host, a logon task that restarts the run after a reboot, and a watchdog with a "
-        "pause guard. The watchdog can kill, stop, pause and resume the container, and it pushes "
-        "the outputs to GitHub. In the container, the harness is mounted read-only, the "
+        "the host, a start command that a person runs by hand after a reboot, and a watchdog "
+        "with a pause guard. The watchdog can kill, stop, pause and resume the container, and it "
+        "pushes the outputs to GitHub. In the container, the harness is mounted read-only with "
+        "no GitHub credentials inside, the "
         f"verifier's sha256 over {num['files']} pinned files is checked at start, and "
         f"{num['gate']} golden and canary cases must pass. The runner then repeats one cycle: a "
         "directive from a model or a fixed fallback, a search by enumeration or CMA-ES, "
@@ -360,7 +406,7 @@ def arch_novel(data):
         (f"evolution (trials {num['evo_span']})",
          ["population seeded with RK4 or",
           "Dormand-Prince and perturbed copies"],
-         "Audit: the seed is never replaced (N2)"),
+         "Audit: saved table stays the seed (N2)"),
         (f"random sampling (trial {num['t16']})",
          ["random tables, no mutation or crossover"],
          "Audit: fitness read a missing field (N7)"),
@@ -387,7 +433,7 @@ def arch_novel(data):
                         fill="var(--text-2)", anchor="middle"))
 
     s, h_s = _box(bx, row_y, hw, "stepper",
-                  ["fixed step, explicit", "ignores the implicit", "part of a table"],
+                  ["fixed step; uses", "only the explicit", "part of a table"],
                   "Audit: a bug (N5)")
     nodes.append(s)
     s, h_r = _box(x2, row_y, hw, "reference solver",
@@ -417,23 +463,38 @@ def arch_novel(data):
                   "Audit: ties keep the seeded table (N2)")
     nodes.append(s)
 
+    # the surrogate trains on the scores through the right-hand channel; nothing reads it
+    u_y = t_y + h_t + 18
+    s, h_u = _box(bx, u_y, bw, "surrogate",
+                  ["an MLP trained by gradient descent", "on the scored candidates"],
+                  "Audit: nothing reads its output (N4)")
+    nodes.append(s)
+    c_right = c_y + h_c // 2
+    u_mid = u_y + h_u // 2
+    edges.append(_edge([(bx + bw, c_right), (bus_x, c_right), (bus_x, u_mid), (bx + bw, u_mid)],
+                       marker))
+    labels.append(_text(bus_x + 13, (c_right + u_mid) / 2, "trains on scores",
+                        fill="var(--text-2)", anchor="middle", rotate=True))
+
     edges.append(_edge([(bx, c_mid), (loop_x, c_mid), (loop_x, evo_mid), (bx, evo_mid)], marker))
     labels.append(_text(loop_x - 6, (c_mid + evo_mid) / 2, "selection",
                         fill="var(--text-2)", anchor="middle", rotate=True))
 
-    height = t_y + h_t + 10
+    height = u_y + h_u + 10
     title = "Pipeline of the 2025 ML project, with the audit's findings"
     desc = (
         f"Three sources propose Butcher tables: a generator (trials {num['nn_span']}) that is "
         f"never trained and falls back to a random table reseeded to {num['seed']}; evolution "
         f"(trials {num['evo_span']}) whose population is seeded with RK4 or Dormand-Prince; and "
-        f"random sampling in trial {num['t16']}. The candidate tables go to a fixed-step stepper "
-        "that ignores the implicit part of a table, and its results are compared with a reference "
-        f"solver, Dormand-Prince (SciPy RK45), which handles {num['ref_families']} of the "
-        f"{num['eval_families']} test families. The error feeds a composite score clipped at "
-        f"{num['clip']}, which feeds a best-table tracker and, through selection, the evolution "
-        "loop. Labels starting with \"Audit:\" mark breaks at the generator, the evolution seed, "
-        f"trial {num['t16']}'s fitness, the stepper, the reference solver's coverage, the clipped "
-        "score and the tracker."
+        f"random sampling in trial {num['t16']}. The candidate tables and the baselines go to a "
+        "fixed-step stepper that uses only the explicit part of a table, and its results are "
+        f"compared with a reference solver, Dormand-Prince (SciPy RK45), which handles "
+        f"{num['ref_families']} of the {num['eval_families']} test families. The error feeds a "
+        f"composite score clipped at {num['clip']}, which feeds a best-table tracker and, "
+        "through selection, the evolution loop. The scores also train a surrogate model by "
+        "gradient descent, and nothing reads its output. Labels starting with \"Audit:\" mark "
+        f"breaks at the generator, the evolution seed, trial {num['t16']}'s fitness, the "
+        "stepper, the reference solver's coverage, the clipped score, the tracker and the "
+        "surrogate."
     )
     return _svg(NOVEL_ID, height, title, desc, marker, edges + nodes + labels)
