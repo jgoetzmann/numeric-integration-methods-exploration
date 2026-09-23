@@ -163,8 +163,6 @@ def _audit_extra(cid, novel):
         )
     if cid == "N5":
         off = [r for r in bench["rows"] if r["mean_max_error"] >= charts.OFF_SCALE]
-        if not off:
-            return ""
         return (
             f'<p>The <a href="#novel-benchmark">benchmark chart</a> marks this row off '
             f"scale and does not plot {fmt.sig(off[0]['mean_max_error'])} as a result.</p>"
@@ -207,15 +205,11 @@ def _audit_item(cid, claim, novel):
         f'<span class="verdict verdict-{fmt.esc(verdict)}">{fmt.esc(label)}</span>. '
         f"<q>{fmt.esc(claim['claim'])}</q></p>",
     ]
-    if claim.get("original_wording"):
-        out.append(
-            "<p>The project's own wording:</p>"
-            f"<blockquote><p>{fmt.esc(claim['original_wording'])}</p></blockquote>"
-        )
-    if claim.get("correction"):
-        out.append(f"<p>{fmt.esc(claim['correction'])}</p>")
-    elif claim.get("limits"):
-        out.append(f"<p>{fmt.esc(claim['limits'])}</p>")
+    out.append(
+        "<p>The project's own wording:</p>"
+        f"<blockquote><p>{fmt.esc(claim['original_wording'])}</p></blockquote>"
+    )
+    out.append(f"<p>{fmt.esc(claim['correction'])}</p>")
     out.append(_audit_extra(cid, novel))
     out.append("</section>")
     return "".join(out)
@@ -237,8 +231,6 @@ def build(data):
     eq_rk4 = trials["equal_to_rk4"]
     eq_dp = trials["equal_to_dormand_prince"]
     repo_name = repo["source"]["repo"]
-    repo_url = repo["source"]["url"]
-    repo_commit = repo["source"]["commit"]
     for r in sources["repos"]:
         if r["name"] == repo_name:
             repo_url = r["url"]
@@ -332,13 +324,11 @@ def build(data):
     parts.append(f"<p><strong>Limits.</strong> {fmt.esc(claims['N1']['limits'])}</p>")
     bench_src = charts.source_link(bench["source"], sources)
     gl_off = [r for r in rows if r["mean_max_error"] >= charts.OFF_SCALE]
-    off_sentence = ""
-    if gl_off:
-        off_sentence = (
-            f" {fmt.esc(gl_off[0]['label'])} is drawn off scale: its "
-            f"{fmt.sig(gl_off[0]['mean_max_error'])} is an artifact of a stepper bug, not a "
-            f"measurement of the method ({_claim('N5')})."
-        )
+    off_sentence = (
+        f" {fmt.esc(gl_off[0]['label'])} is drawn off scale: its "
+        f"{fmt.sig(gl_off[0]['mean_max_error'])} is an artifact of a stepper bug, not a "
+        f"measurement of the method ({_claim('N5')})."
+    )
     bench_caption = (
         f"Mean of per-ODE max error for each of the {fmt.count(len(rows))} benchmark entries, "
         f"float64, fixed step h = {fmt.sig(audit['evaluation_step'])}, over "
@@ -379,8 +369,7 @@ def build(data):
         f"claim, the project's own wording, and what the files show.</p>"
     )
     for cid in AUDIT_ORDER:
-        if cid in claims:
-            parts.append(_audit_item(cid, claims[cid], novel))
+        parts.append(_audit_item(cid, claims[cid], novel))
     parts.append("</section>")
 
     # The training log

@@ -72,16 +72,16 @@ def _evidence_item(ev, repos):
     )
 
 
-def _related(claim, known_ids):
+def _related(claim):
     seen = []
     for field in ("claim", "limits", "correction"):
         for ref in _CLAIM_REF.findall(claim.get(field, "") or ""):
-            if ref in known_ids and ref != claim["id"] and ref not in seen:
+            if ref != claim["id"] and ref not in seen:
                 seen.append(ref)
     return seen
 
 
-def _article(claim, repos, known_ids):
+def _article(claim, repos):
     cid = claim["id"]
     verdict = claim["verdict"]
     parts = [f'<article id="{fmt.esc(cid)}" class="claim claim-{fmt.esc(verdict)}">']
@@ -110,7 +110,7 @@ def _article(claim, repos, known_ids):
     if claim.get("correction"):
         parts.append(f'<p class="claim-correction"><strong>Correction:</strong> {fmt.esc(claim["correction"])}</p>')
 
-    related = _related(claim, known_ids)
+    related = _related(claim)
     if related:
         links = ", ".join(f'<a href="#{fmt.esc(r)}">{fmt.esc(r)}</a>' for r in related)
         parts.append(f'<p class="claim-related">Related claims: {links}</p>')
@@ -142,7 +142,6 @@ def build(data: dict) -> str:
     sources = data["sources"]
     repos = {r["name"]: r for r in sources["repos"]}
     claims = claims_doc["claims"]
-    known_ids = {c["id"] for c in claims}
     verdict_order = [v for v in claims_doc["verdicts"] if v in VERDICT_LABELS]
     snapshot = fmt.esc(fmt.day(sources["snapshot_date"]))
 
@@ -182,10 +181,9 @@ def build(data: dict) -> str:
         group_claims = [c for c in claims if c["project"] == group_id]
         section = [f'<section class="claim-group">', f'<h2 id="{group_id}">{fmt.esc(heading)}</h2>']
         section.append(f"<p>{intro}</p>")
-        if group_claims:
-            section.append(_group_summary(group_claims, verdict_order))
+        section.append(_group_summary(group_claims, verdict_order))
         for claim in group_claims:
-            section.append(_article(claim, repos, known_ids))
+            section.append(_article(claim, repos))
         section.append("</section>")
         out.append("\n".join(section))
 

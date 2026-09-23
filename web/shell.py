@@ -42,10 +42,6 @@ class _VisibleText(HTMLParser):
         if tag in _EXEMPT_TAGS:
             self.depth += 1
 
-    def handle_startendtag(self, tag, attrs):
-        # A self-closing element opens and closes at once: no change in depth.
-        return
-
     def handle_endtag(self, tag):
         if tag in _EXEMPT_TAGS and self.depth > 0:
             self.depth -= 1
@@ -84,13 +80,12 @@ def _footer(data: dict) -> str:
     sources = data["sources"]
     snapshot = day(sources["snapshot_date"])
     items = []
-    findings_site = None
     for repo in sources["repos"]:
         name = repo["name"]
         commit = repo["commit"]
         url = f'{repo["url"]}/tree/{commit}'
         items.append(f'<li><code><a href="{esc(url)}">{esc(name)}@{esc(commit)}</a></code></li>')
-        if name == "rk-findings" and repo.get("site"):
+        if name == "rk-findings":
             findings_site = repo["site"]
     lines = [
         '<footer class="site-footer">',
@@ -101,11 +96,10 @@ def _footer(data: dict) -> str:
         *items,
         "</ul>",
     ]
-    if findings_site:
-        lines.append(
-            "<p>The findings site regenerates every cycle, so its numbers can be newer than "
-            f'these: <a href="{esc(findings_site)}">rk-findings site</a>.</p>'
-        )
+    lines.append(
+        "<p>The findings site regenerates every cycle, so its numbers can be newer than "
+        f'these: <a href="{esc(findings_site)}">rk-findings site</a>.</p>'
+    )
     lines.append(
         "<p>Built by <code>tools/build.py</code> as static HTML with no JavaScript.</p>"
     )

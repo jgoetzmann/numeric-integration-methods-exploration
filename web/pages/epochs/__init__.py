@@ -65,10 +65,9 @@ def _trace_row(rk, name):
     for m in rk["trace"]["methods"]:
         if m["name"] == name:
             return m
-    raise KeyError(name)
 
 
-def _lead(data):
+def _lead():
     return (
         "<p>The rk run is divided into epochs. Every scored record stores the hash of the pinned "
         f"files that do the scoring ({_claim('R11')}), so when one of those files has to change, "
@@ -299,15 +298,13 @@ def _grid(data):
     if len(lead_bases) == 1 and len(leading) >= 2:
         label = fmt.esc(_BASIS_LABELS.get(lead_bases[0], lead_bases[0]))
         both = f", {'both' if len(leading) == 2 else 'all'} on the {label} basis"
-    tail = ""
-    mag_traced = by_key.get(("magnitude", "traced_whole_step"))
-    med_traced = by_key.get(("equal_median_anchor", "traced_whole_step"))
-    if mag_traced is not None and med_traced is not None:
-        tail = (
-            " On the traced whole-step basis the ratio is "
-            f"{fmt.ratio(mag_traced['ratio'])} under magnitude weighting, and under median-anchor "
-            f"weighting a classical method leads, at {fmt.ratio(med_traced['ratio'])}."
-        )
+    mag_traced = by_key[("magnitude", "traced_whole_step")]
+    med_traced = by_key[("equal_median_anchor", "traced_whole_step")]
+    tail = (
+        " On the traced whole-step basis the ratio is "
+        f"{fmt.ratio(mag_traced['ratio'])} under magnitude weighting, and under median-anchor "
+        f"weighting a classical method leads, at {fmt.ratio(med_traced['ratio'])}."
+    )
     n_other = len(cells) - len(leading)
     return (
         '<h3 id="grid">The counterfactual grid</h3>\n'
@@ -349,7 +346,7 @@ def _snapshot(data):
 def build(data):
     parts = [
         "<h1>Epochs and research</h1>",
-        _lead(data),
+        _lead(),
         _dates(data),
         _epoch1(data),
         _froze(data),

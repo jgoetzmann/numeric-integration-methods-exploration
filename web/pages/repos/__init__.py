@@ -65,12 +65,10 @@ def build(data: dict) -> str:
     sources = data["sources"]
     repos = sources["repos"]
     claims = data["claims"]["claims"]
-    names = {r["name"] for r in repos}
     snap = fmt.esc(fmt.day(sources["snapshot_date"]))
 
     def ref(name: str) -> str:
-        code = f"<code>{fmt.esc(name)}</code>"
-        return _link(f"#repo-{name}", code) if name in names else code
+        return _link(f"#repo-{name}", f"<code>{fmt.esc(name)}</code>")
 
     harness = ref("rk-harness")
     work = ref("rk-work")

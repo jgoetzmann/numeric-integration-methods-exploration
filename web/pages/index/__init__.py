@@ -60,7 +60,6 @@ def _cell(rk, basis, weighting):
     for c in rk["counterfactual"]["cells"]:
         if c["basis"] == basis and c["weighting"] == weighting:
             return c
-    raise KeyError(f"counterfactual cell {basis}/{weighting} missing from rk.json")
 
 
 def _lead(rk):
@@ -253,20 +252,6 @@ def _card_texts(data):
     }
 
 
-def _fallback_text(claim):
-    """A headline claim without a hand-written card: its own audited wording."""
-    if claim["verdict"] in ("not-supported", "artifact"):
-        body = (
-            f"<p>The claim: <q>{fmt.esc(claim['claim'])}</q></p>\n"
-            f"<p>{fmt.esc(claim.get('correction', ''))}</p>"
-        )
-    else:
-        body = f"<p>{fmt.esc(claim['claim'])}</p>"
-        if claim.get("limits"):
-            body += f"\n<p>Limits: {fmt.esc(claim['limits'])}</p>"
-    return "Claim " + claim["id"], body
-
-
 def _card(claim, heading, body):
     cid = fmt.esc(claim["id"])
     verdict = claim["verdict"]
@@ -288,7 +273,7 @@ def _highlights(data):
     texts = _card_texts(data)
     cards = []
     for claim in headline:
-        heading, body = texts.get(claim["id"]) or _fallback_text(claim)
+        heading, body = texts[claim["id"]]
         cards.append(_card(claim, heading, body))
     return (
         '<h2 id="highlights">Headline claims</h2>\n'

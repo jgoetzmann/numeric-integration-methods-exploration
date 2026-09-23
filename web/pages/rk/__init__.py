@@ -5,9 +5,11 @@ web.fmt. Every result sentence names its conditions and links its claim id.
 """
 
 from web import fmt
+from web.charts import figure, table
+from web.fmt import esc
 
 from . import charts
-from .charts import and_list, claim_ref, code, esc, word
+from .charts import and_list, claim_ref, code, word
 
 SLUG = "rk.html"
 TITLE = "The rk run"
@@ -15,18 +17,16 @@ DESCRIPTION = ("What the rk run searched for, what it found in Q15 fixed point w
                "rounding, and where established methods still win.")
 
 FINDINGS_URL = "https://jgoetzmann.github.io/rk-findings/"
-OVERVIEW_URL = "https://jgoetzmann.github.io/rk-overview/"
 
 
 def _section(sid, heading, body):
     return f'<section aria-labelledby="{sid}"><h2 id="{sid}">{esc(heading)}</h2>{body}</section>'
 
 
-def _site(sources, name, default):
+def _site(sources, name):
     for r in sources.get("repos", []):
         if r.get("name") == name and r.get("site"):
             return r["site"]
-    return default
 
 
 def _budget(rk):
@@ -138,7 +138,6 @@ def _cell(cells, weighting, basis):
     for c in cells:
         if c["weighting"] == weighting and c["basis"] == basis:
             return c
-    return None
 
 
 def _loo_table(ch):
@@ -146,7 +145,7 @@ def _loo_table(ch):
     for r in ch["leave_one_out"]:
         name = code(r["dropped"]) if r.get("dropped") else "none (all four problems)"
         rows.append([name, fmt.ratio(r["ratio"])])
-    return charts.table(["Held-out problem dropped", "Ratio, best classical error over champion"],
+    return table(["Held-out problem dropped", "Ratio, best classical error over champion"],
                         rows,
                         caption=("Leave-one-out check: Q15 with floor rounding, analytic cost "
                                  "model, magnitude weighting"))
@@ -197,7 +196,7 @@ def _results(rk):
         f"basis {claim_ref('R3')}. The low end comes from dropping {code(lo_row['dropped'])}, "
         "which carries most of the champion's lead.</p>"
         + _loo_table(ch)
-        + charts.figure(charts.frontier_chart(rk))
+        + figure(charts.frontier_chart(rk))
     )
 
     # How the lead depends on cost basis and weighting.
@@ -213,27 +212,24 @@ def _results(rk):
     still = [c for c in cells if c["champion_still_leads"]]
 
     sub = '<h3 id="lead-conditions">How the lead depends on cost basis and weighting</h3>'
-    if pub:
-        sub += (
-            f"<p>The {fmt.ratio(pub['ratio'])} figure is one cell in a grid of "
-            f"{word(len(cells))}: {word(len(weightings))} ways to weight the held-out problems "
-            f"against each other, times {word(len(bases))} ways to count what a step costs. The "
-            "analytic basis prices only the stage and weight combinations. The traced whole-step "
-            "basis compiles the step, counts the cycles of the whole step under an emulator, "
-            "including the derivative call and loop control, and uses that count only to decide "
-            f"how many steps fit in {budget} cycles.</p>"
-        )
+    sub += (
+        f"<p>The {fmt.ratio(pub['ratio'])} figure is one cell in a grid of "
+        f"{word(len(cells))}: {word(len(weightings))} ways to weight the held-out problems "
+        f"against each other, times {word(len(bases))} ways to count what a step costs. The "
+        "analytic basis prices only the stage and weight combinations. The traced whole-step "
+        "basis compiles the step, counts the cycles of the whole step under an emulator, "
+        "including the derivative call and loop control, and uses that count only to decide "
+        f"how many steps fit in {budget} cycles.</p>"
+    )
     para = []
-    if mag_tr:
-        para.append("On the traced whole-step basis with magnitude weighting, still in Q15 with "
-                    f"floor rounding, the lead shrinks to {fmt.ratio(mag_tr['ratio'])}.")
-    if med_tr:
-        if med_tr["ratio"] < 1:
-            para.append(f"With median-anchor weighting on that basis, {code('midpoint')} leads "
-                        f"at a ratio of {fmt.ratio(med_tr['ratio'])} {claim_ref('R1')}.")
-        else:
-            para.append(f"With median-anchor weighting on that basis the ratio is "
-                        f"{fmt.ratio(med_tr['ratio'])} {claim_ref('R1')}.")
+    para.append("On the traced whole-step basis with magnitude weighting, still in Q15 with "
+                f"floor rounding, the lead shrinks to {fmt.ratio(mag_tr['ratio'])}.")
+    if med_tr["ratio"] < 1:
+        para.append(f"With median-anchor weighting on that basis, {code('midpoint')} leads "
+                    f"at a ratio of {fmt.ratio(med_tr['ratio'])} {claim_ref('R1')}.")
+    else:
+        para.append(f"With median-anchor weighting on that basis the ratio is "
+                    f"{fmt.ratio(med_tr['ratio'])} {claim_ref('R1')}.")
     tail = ""
     if still and all(c["basis"] == "analytic" for c in still):
         if len(still) == 1:
@@ -245,7 +241,7 @@ def _results(rk):
     para.append(f"The champion stays ahead on every leave-one-out subset in "
                 f"{word(len(still))} of the {word(len(cells))} cells{tail}.")
     sub += "<p>" + " ".join(para) + "</p>"
-    sub += charts.figure(charts.counterfactual_chart(rk))
+    sub += figure(charts.counterfactual_chart(rk))
 
     return _section("results", "What the search found", body + sub)
 
@@ -256,10 +252,7 @@ def _validation(rk):
     budget = _budget(rk)
     non_stiff = [p for p in probs if not p.get("stiff")]
     stiff = [p for p in probs if p.get("stiff")]
-    champ_wins = sum(1 for p in non_stiff
-                     if p.get("champion_q15") is not None
-                     and p.get("best_classical_q15") is not None
-                     and p["champion_q15"] < p["best_classical_q15"])
+    champ_wins = sum(1 for p in non_stiff if p["champion_q15"] < p["best_classical_q15"])
 
     stiff_parts = []
     for p in stiff:
@@ -293,7 +286,7 @@ def _validation(rk):
         f"{word(val['practical_total'])} {claim_ref('R4')}. The fixed champion alone had the "
         f"lower error on {fmt.count(champ_wins)} of the {fmt.count(len(non_stiff))}.</p>"
         + stiff_sentence
-        + charts.figure(charts.validation_q15_chart(rk))
+        + figure(charts.validation_q15_chart(rk))
     )
     return _section("validation", "Out-of-sample check", body)
 
@@ -318,15 +311,14 @@ def _float64(rk):
         f"{fmt.ratio(lib['median_ratio_q15_over_library_at_matched_tolerance'])} more accurate "
         "than the best Q15 result."
     )
-    if libs:
-        body += (f" The library set is {and_list([code(x) for x in libs])}, run in compiled "
-                 "float64 through SciPy.")
+    body += (f" The library set is {and_list([code(x) for x in libs])}, run in compiled "
+             "float64 through SciPy.")
     body += (
         "</p>"
         "<p>This is the boundary of the Q15 result, not a flaw in it. Nothing on this page says "
         f"the champion is more accurate than {code('rk4')} or Dormand-Prince outside Q15 with "
         "floor rounding.</p>"
-        + charts.figure(charts.validation_f64_chart(rk))
+        + figure(charts.validation_f64_chart(rk))
     )
     return _section("float64", "Where established methods win", body)
 
@@ -334,7 +326,7 @@ def _float64(rk):
 def _rounding(rk):
     fvr = rk["floor_vs_round"]
     search = fvr["search_rms"]
-    held = fvr.get("heldout_rms", {})
+    held = fvr["heldout_rms"]
     budget = _budget(rk)
     modes, names = charts._floor_round_methods(rk, search)
     fl = search["floor"]
@@ -351,25 +343,23 @@ def _rounding(rk):
                f"of {code(lowest)} ({fmt.sig(rn[lowest])})")
     p1 += f" {claim_ref('R8')}.</p>"
 
-    p2 = ""
-    if "floor" in held and "round_to_nearest" in held:
-        hf = held["floor"]
-        hr = held["round_to_nearest"]
-        bf = min((n for n in names if n in hf), key=lambda n: hf[n])
-        br = min((n for n in names if n in hr), key=lambda n: hr[n])
-        p2 = "<p>That ordering holds on the search set and on the published basis only. "
-        if bf == br:
-            p2 += (f"On the held-out problems {code(bf)} has the lowest error of the "
-                   f"{word(len(names))} under both rounding modes.</p>")
-        else:
-            p2 += (f"On the held-out problems {code(bf)} has the lowest error under floor "
-                   f"rounding and {code(br)} under round-to-nearest.</p>")
+    hf = held["floor"]
+    hr = held["round_to_nearest"]
+    bf = min(names, key=lambda n: hf[n])
+    br = min(names, key=lambda n: hr[n])
+    p2 = "<p>That ordering holds on the search set and on the published basis only. "
+    if bf == br:
+        p2 += (f"On the held-out problems {code(bf)} has the lowest error of the "
+               f"{word(len(names))} under both rounding modes.</p>")
+    else:
+        p2 += (f"On the held-out problems {code(bf)} has the lowest error under floor "
+               f"rounding and {code(br)} under round-to-nearest.</p>")
 
     pr = rk["premise"]
 
     def of(s):
         a, _, b = str(s).partition("/")
-        return f"{esc(a)} of {esc(b)}" if b else esc(s)
+        return f"{esc(a)} of {esc(b)}"
 
     p3 = (
         "<p>The run tested its premise before the search began. At the budget, "
@@ -379,7 +369,7 @@ def _rounding(rk):
         "set in advance were met for some methods and missed narrowly for one "
         f"{claim_ref('R9')}.</p>"
     )
-    body = p1 + p2 + p3 + charts.figure(charts.floor_round_chart(rk))
+    body = p1 + p2 + p3 + figure(charts.floor_round_chart(rk))
     return _section("rounding", "Rounding reorders the classical methods", body)
 
 
@@ -396,9 +386,9 @@ def _trace_table(rk):
                "matched scope only, since matched scope counts the same work the analytic model "
                "prices. Whole step adds the derivative call, the h times k product, loop control "
                "and the stack frame; the counterfactual grid uses it only as a budget denominator.")
-    return (charts.table(["Method", "Analytic", "Matched scope (traced)", "Whole step (traced)"],
+    return (table(["Method", "Analytic", "Matched scope (traced)", "Whole step (traced)"],
                          rows, caption=caption)
-            + "<p>" + charts.source_note(tr.get("source")).strip() + "</p>")
+            + "<p>" + charts.source_note(tr["source"]).strip() + "</p>")
 
 
 def _cost_model(rk):
@@ -426,14 +416,13 @@ def _cost_model(rk):
         f"for bit in {esc(eng['trace_crosscheck'])} cases, and it showed that the epoch-1 cost "
         f"model put {code('rk4')} and {code('rk38')} in the wrong order {claim_ref('R7')}"
     )
-    if "rk4" in by and "rk38" in by:
-        a4 = by["rk4"]["analytic"][model]
-        a38 = by["rk38"]["analytic"][model]
-        m4 = by["rk4"]["matched_scope"][model]
-        m38 = by["rk38"]["matched_scope"][model]
-        p2 += (f": the analytic model prices {code('rk4')} at {fmt.count(a4)} cycles per step and "
-               f"{code('rk38')} at {fmt.count(a38)}, while the traced count at matched scope, "
-               f"which covers the same work, is {fmt.count(m4)} and {fmt.count(m38)}")
+    a4 = by["rk4"]["analytic"][model]
+    a38 = by["rk38"]["analytic"][model]
+    m4 = by["rk4"]["matched_scope"][model]
+    m38 = by["rk38"]["matched_scope"][model]
+    p2 += (f": the analytic model prices {code('rk4')} at {fmt.count(a4)} cycles per step and "
+           f"{code('rk38')} at {fmt.count(a38)}, while the traced count at matched scope, "
+           f"which covers the same work, is {fmt.count(m4)} and {fmt.count(m38)}")
     p2 += ".</p>"
     p3 = (
         "<p>The emulator is instruction-accurate, not cycle-accurate: its cycle counts come from "
@@ -464,10 +453,9 @@ def _not_shown(rk):
         "validation problems, but people chose them after the search began "
         f"{claim_ref('R4')}.",
     ]
-    if mag_tr:
-        items.append("Its lead does not survive every cost basis unchanged. On the traced "
-                     "whole-step basis with magnitude weighting, in Q15 with floor rounding, it "
-                     f"is {fmt.ratio(mag_tr['ratio'])} {claim_ref('R1')}.")
+    items.append("Its lead does not survive every cost basis unchanged. On the traced "
+                 "whole-step basis with magnitude weighting, in Q15 with floor rounding, it "
+                 f"is {fmt.ratio(mag_tr['ratio'])} {claim_ref('R1')}.")
     items.append("Its methods do not handle every stiff problem. Every discovered method "
                  f"overflowed on {code('robertson_scaled')} {claim_ref('R4')}.")
     items.append(f"It did not map the search space. The plateau after cycle "
@@ -483,7 +471,7 @@ def _archive(rk):
     ep = rk["epochs"]
     e1 = ep["epoch1"]
     e2 = ep["epoch2"]
-    down = e2.get("down_days") or {}
+    down = e2["down_days"]
     p1 = (
         f"<p>Epoch 1 ran unattended from {esc(fmt.day(e1['started']))} to "
         f"{esc(fmt.day(e1['stopped']))}: {fmt.count(e1['cycles_run'])} cycles over "
@@ -493,10 +481,9 @@ def _archive(rk):
         f"which replaced epoch 1's {code(e1['verifier_hash'])}.</p>"
     )
     p2 = "<p>"
-    if down.get("from") and down.get("to"):
-        p2 += (f"Epoch 2 lost five days to a stop that nothing restarted, from "
-               f"{esc(fmt.day(down['from']))} to {esc(fmt.day(down['to']))}. The watchdog now "
-               "resumes its own stops, and a logon task restarts the run after a reboot. ")
+    p2 += (f"Epoch 2 lost five days to a stop that nothing restarted, from "
+           f"{esc(fmt.day(down['from']))} to {esc(fmt.day(down['to']))}. The watchdog now "
+           "resumes its own stops, and a logon task restarts the run after a reboot. ")
     p2 += (
         f"As of {esc(fmt.day(e2['as_of']))}, epoch 2 had reached cycle {fmt.count(e2['cycle'])} "
         f"with {fmt.count(e2['records'])} records. Its records are scored under the corrected "
@@ -504,13 +491,13 @@ def _archive(rk):
         'epochs as separate series. <a href="epochs.html">Epochs and research</a> has the '
         "timeline.</p>"
     )
-    body = p1 + p2 + charts.figure(charts.archive_chart(rk))
+    body = p1 + p2 + figure(charts.archive_chart(rk))
     return _section("archive-growth", "Archive growth", body)
 
 
 def _snapshot(data):
     sources = data["sources"]
-    overview = _site(sources, "rk-overview", OVERVIEW_URL)
+    overview = _site(sources, "rk-overview")
     body = (
         f"<p>This page is a snapshot of data read on {esc(fmt.day(sources['snapshot_date']))}. "
         f'The rk run keeps going: the <a href="{esc(FINDINGS_URL)}">rk-findings site</a> '
@@ -542,12 +529,3 @@ def build(data):
     ]
     return "\n".join(parts) + "\n"
 
-
-def assets(data):
-    rk = data["rk"]
-    return {
-        "rk-counterfactual.svg": charts.standalone(charts.counterfactual_chart(rk)),
-        "rk-frontier.svg": charts.standalone(charts.frontier_chart(rk)),
-        "rk-validation-f64.svg": charts.standalone(charts.validation_f64_chart(rk)),
-        "rk-validation.svg": charts.standalone(charts.validation_q15_chart(rk)),
-    }

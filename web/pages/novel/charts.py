@@ -11,8 +11,6 @@ OFF_SCALE = 1e6
 
 
 def source_link(source, sources):
-    url = source["url"]
-    commit = source["commit"]
     for repo in sources["repos"]:
         if repo["name"] == source["repo"]:
             url = repo["url"]

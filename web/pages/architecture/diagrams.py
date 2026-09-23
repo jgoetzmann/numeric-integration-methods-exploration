@@ -22,8 +22,6 @@ NOVEL_ID = "arch-novel"
 
 def and_list(items):
     items = list(items)
-    if not items:
-        return ""
     if len(items) == 1:
         return items[0]
     return ", ".join(items[:-1]) + " and " + items[-1]
@@ -61,12 +59,9 @@ def novel_numbers(novel):
     rk4 = sorted(novel["trials"]["equal_to_rk4"])
     dp = sorted(novel["trials"]["equal_to_dormand_prince"])
     evo = sorted(rk4 + dp)
-    t16 = None
     for r in rows:
         if str(r.get("folder", "")).endswith("novelty_v2"):
             t16 = r["trial"]
-    if t16 is None:
-        t16 = max(r["trial"] for r in rows)
     nn = sorted(r["trial"] for r in rows if r["trial"] not in evo and r["trial"] != t16)
     nn_saved = sorted(
         r["trial"] for r in rows if r["trial"] in nn and r.get("stages") is not None

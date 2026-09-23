@@ -1,15 +1,14 @@
 """The six rk.html charts, built on the primitives in web.charts.
 
-Each builder returns a chart dict for web.charts.figure (the page) and
-web.charts.standalone (the asset copies).
+Each builder returns a chart dict for web.charts.figure.
 """
 
 import datetime
 
 from web import fmt
-from web.charts import (Linear, Log, bar, dot, esc, figure, legend, lin_domain, lin_ticks,  # noqa: F401
-                        line, log_domain, log_ticks, mv, num, series_line, standalone, table,
-                        text, x_axis, x_grid, y_grid)
+from web.charts import (Linear, Log, bar, dot, esc, legend, lin_domain, lin_ticks, line,
+                        log_domain, log_ticks, mv, num, series_line, table, text, x_axis, x_grid,
+                        y_grid)
 
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
@@ -66,8 +65,6 @@ def label_of(mapping, key):
 
 def source_note(src):
     """A 'Source:' sentence linking the file a block was read from."""
-    if not src:
-        return ""
     path = src.get("path", "") or ""
     single = bool(path) and ";" not in path and "*" not in path and not path.endswith("/")
     if single:
@@ -134,15 +131,14 @@ def frontier_chart(rk):
         trows.append(["discovered", name, fmt.count(r["order"]), fmt.count(r["stages"]),
                       fmt.count(r["cycles"]), fmt.sig(r["heldout_error"])])
 
-    champ_row = next((r for r in discovered if r.get("is_champion")), None)
-    best_row = next((r for r in classical if r["name"] == best), None)
+    champ_row = next(r for r in discovered if r.get("is_champion"))
+    best_row = next(r for r in classical if r["name"] == best)
     desc = (f"Scatter plot of held-out RMS error (log scale) against cycles per step for "
-            f"{len(classical)} classical methods and {len(discovered)} discovered cell elites.")
-    if champ_row and best_row:
-        desc += (f" The champion {champ['hash']} has the lowest error, "
-                 f"{fmt.sig(champ_row['heldout_error'])} at {champ_row['cycles']} cycles per step; "
-                 f"{best}, the best classical method, has {fmt.sig(best_row['heldout_error'])} "
-                 f"at {best_row['cycles']}.")
+            f"{len(classical)} classical methods and {len(discovered)} discovered cell elites."
+            f" The champion {champ['hash']} has the lowest error, "
+            f"{fmt.sig(champ_row['heldout_error'])} at {champ_row['cycles']} cycles per step; "
+            f"{best}, the best classical method, has {fmt.sig(best_row['heldout_error'])} "
+            f"at {best_row['cycles']}.")
 
     caption = (
         f"Held-out RMS error against cycles per step for the {word(len(classical))} classical "
@@ -289,10 +285,7 @@ def validation_q15_chart(rk):
     probs = val["problems"]
     champ = rk["champion"]["hash"]
     budget = rk["setup"]["budget_cycles"]
-    plotted = [p for p in probs
-               if not p.get("champion_overflowed")
-               and p.get("champion_q15") is not None
-               and p.get("best_classical_q15") is not None]
+    plotted = [p for p in probs if not p.get("champion_overflowed")]
     series = [
         (1, "best classical method", lambda p: p["best_classical_q15"],
          lambda p: (f"{p['problem']}: best classical method {p['best_classical']}, "
@@ -303,22 +296,17 @@ def validation_q15_chart(rk):
     H, inner = _row_dotplot(
         probs, plotted, series,
         f"Q15 RMS error, floor rounding, {fmt.count(budget)}-cycle budget (log scale)",
-        lambda p: ("champion overflowed: not plotted" if p.get("champion_overflowed")
-                   else "no Q15 result: not plotted"))
+        lambda p: "champion overflowed: not plotted")
 
     trows = []
     for p in probs:
         if p.get("champion_overflowed"):
             champ_cell = "overflow"
-        elif p.get("champion_q15") is None:
-            champ_cell = "none"
+            disc_cell = "overflow"
         else:
             champ_cell = fmt.sig(p["champion_q15"], 4)
-        if p.get("best_discovered_q15") is None:
-            disc_cell = "overflow" if p.get("champion_overflowed") else "none"
-        else:
             disc_cell = fmt.sig(p["best_discovered_q15"], 4)
-        bc = fmt.sig(p["best_classical_q15"], 4) if p.get("best_classical_q15") is not None else "none"
+        bc = fmt.sig(p["best_classical_q15"], 4)
         trows.append([code(p["problem"]), "yes" if p.get("stiff") else "no", champ_cell,
                       code(p["best_classical"]), bc, disc_cell, esc(p.get("winner_kind", ""))])
 
@@ -327,16 +315,14 @@ def validation_q15_chart(rk):
     desc = (f"Dot plot, one row per out-of-sample problem, of Q15 RMS error on a log axis: the "
             f"champion {champ} against the best classical method for that problem. "
             f"{len(plotted)} problems are plotted.")
-    if over:
-        desc += " " + ", ".join(p["problem"] for p in over) + " is not plotted: the champion overflowed."
+    desc += " " + ", ".join(p["problem"] for p in over) + " is not plotted: the champion overflowed."
     caption = (
         f"Q15 RMS error with floor rounding at the {fmt.count(budget)}-cycle budget on the "
         f"out-of-sample problems: the champion {code(champ)} against the best classical method "
         f"for each problem {claim_ref('R4')}. Lower is better."
     )
-    if over:
-        caption += (f" {over_names} is not plotted because the champion hit an overflow there; "
-                    f"it is in the table.")
+    caption += (f" {over_names} is not plotted because the champion hit an overflow there; "
+                f"it is in the table.")
     caption += source_note(val.get("source"))
     return {
         "id": "rk-validation-q15",
@@ -366,17 +352,14 @@ def validation_f64_chart(rk):
     H, inner = _row_dotplot(
         probs, plotted, series,
         "float64 error at the same step counts (log scale)",
-        lambda p: ("champion overflowed in Q15: not compared" if p.get("champion_overflowed")
-                   else "no float64 result: not plotted"))
+        lambda p: "champion overflowed in Q15: not compared")
 
     trows = []
     for p in probs:
         if p.get("champion_float64") is not None:
             c_cell = fmt.sig(p["champion_float64"])
-        elif p.get("champion_overflowed"):
-            c_cell = "overflow in Q15, not compared"
         else:
-            c_cell = "none"
+            c_cell = "overflow in Q15, not compared"
         if p.get("rk4_float64") is not None:
             r_cell = fmt.sig(p["rk4_float64"])
         else:
@@ -385,22 +368,19 @@ def validation_f64_chart(rk):
 
     over = _overflowed(probs)
     over_names = and_list([code(p["problem"]) for p in over])
-    gap = rk.get("float64_gap", {})
+    gap = rk["float64_gap"]
     desc = (f"Dot plot, one row per out-of-sample problem, of float64 error on a log axis: the "
             f"champion {champ} against rk4 at the same step counts. {len(plotted)} problems are "
-            f"plotted.")
-    if gap:
-        desc += (f" The champion's error is {fmt.ratio(gap['champion_over_rk4_min'])} to "
-                 f"{fmt.ratio(gap['champion_over_rk4_max'])} that of rk4.")
+            f"plotted. The champion's error is {fmt.ratio(gap['champion_over_rk4_min'])} to "
+            f"{fmt.ratio(gap['champion_over_rk4_max'])} that of rk4.")
     caption = (
         f"Error in float64 of the champion {code(champ)} and of {code('rk4')}, at the same step "
         f"counts, on the out-of-sample problems where both finish {claim_ref('R5')}. Lower is "
         f"better."
     )
-    if over:
-        caption += (f" {over_names} is not plotted: the champion hit an overflow there in Q15, "
-                    f"so it has no float64 comparison.")
-    caption += source_note(gap.get("source") or val.get("source"))
+    caption += (f" {over_names} is not plotted: the champion hit an overflow there in Q15, "
+                f"so it has no float64 comparison.")
+    caption += source_note(gap["source"])
     return {
         "id": "rk-validation-f64",
         "height": H,
@@ -413,11 +393,8 @@ def validation_f64_chart(rk):
 
 
 def _floor_round_methods(rk, search):
-    modes = [m for m in ("floor", "round_to_nearest") if m in search]
-    modes += sorted(m for m in search if m not in modes)
-    first_mode = search[modes[0]]
-    names = [r["name"] for r in rk["frontier"]["classical"] if r["name"] in first_mode]
-    names += sorted(n for n in first_mode if n not in names)
+    modes = ["floor", "round_to_nearest"]
+    names = [r["name"] for r in rk["frontier"]["classical"] if r["name"] in search["floor"]]
     return modes, names
 
 
@@ -425,7 +402,7 @@ def floor_round_chart(rk):
     """B25: search_rms per method under both rounding modes, two series."""
     fvr = rk["floor_vs_round"]
     search = fvr["search_rms"]
-    held = fvr.get("heldout_rms", {})
+    held = fvr["heldout_rms"]
     budget = rk["setup"]["budget_cycles"]
     modes, names = _floor_round_methods(rk, search)
 
@@ -457,12 +434,11 @@ def floor_round_chart(rk):
     parts.append(text((L + R) / 2, B + 40, "classical method", anchor="middle"))
 
     headers = ["Method"] + [f"Search set, {esc(label_of(_MODE, m))}" for m in modes]
-    held_modes = [m for m in modes if m in held]
-    headers += [f"Held-out, {esc(label_of(_MODE, m))} (not plotted)" for m in held_modes]
+    headers += [f"Held-out, {esc(label_of(_MODE, m))} (not plotted)" for m in modes]
     trows = []
     for name in names:
         row = [code(name)] + [fmt.sig(search[m][name]) for m in modes]
-        row += [fmt.sig(held[m][name]) if name in held[m] else "none" for m in held_modes]
+        row += [fmt.sig(held[m][name]) for m in modes]
         trows.append(row)
 
     desc = (f"Grouped bar chart of search-set RMS error for {len(names)} classical methods under "
@@ -514,16 +490,14 @@ def archive_chart(rk):
         legend([(n, lab) for (n, lab, _) in series], R, 16),
         text(8, 38, "cumulative scored records (log scale)"),
     ]
-    down = ep["epoch2"].get("down_days") or {}
-    if down.get("from") and down.get("to"):
-        a = min(max(_day_index(d0, down["from"]), 0.0), float(span))
-        b = min(max(_day_index(d0, down["to"]), 0.0), float(span))
-        if b > a:
-            parts.append(f'<rect class="rk-band" x="{num(xs(a))}" y="{num(T)}" '
-                         f'width="{num(xs(b) - xs(a))}" height="{num(B - T)}" '
-                         f'fill="var(--grid)" fill-opacity="0.6"/>')
-            parts.append(text((xs(a) + xs(b)) / 2, T + 14, "run stopped", anchor="middle",
-                              muted=True))
+    down = ep["epoch2"]["down_days"]
+    a = min(max(_day_index(d0, down["from"]), 0.0), float(span))
+    b = min(max(_day_index(d0, down["to"]), 0.0), float(span))
+    parts.append(f'<rect class="rk-band" x="{num(xs(a))}" y="{num(T)}" '
+                 f'width="{num(xs(b) - xs(a))}" height="{num(B - T)}" '
+                 f'fill="var(--grid)" fill-opacity="0.6"/>')
+    parts.append(text((xs(a) + xs(b)) / 2, T + 14, "run stopped", anchor="middle",
+                      muted=True))
     parts.append(y_grid(ys, log_ticks(lo, hi), L, R))
     ticks = []
     for k in range(0, span, 7):
@@ -537,8 +511,7 @@ def archive_chart(rk):
         for r in rows:
             idx = (datetime.date.fromisoformat(r["day"][:10]) - d0).days
             pts.append((xs(idx + 0.5), ys(r["cumulative"])))
-        if len(pts) > 1:
-            parts.append(series_line(pts, n))
+        parts.append(series_line(pts, n))
     for (n, lab, rows) in series:
         for r in rows:
             idx = (datetime.date.fromisoformat(r["day"][:10]) - d0).days
@@ -562,9 +535,8 @@ def archive_chart(rk):
         f"log scale {claim_ref('R12')}. Epoch 1 and epoch 2 are separate series because they "
         f"were scored under different verifier hashes and cost models."
     )
-    if down.get("from") and down.get("to"):
-        caption += (f" The shaded band is the window from {esc(fmt.day(down['from']))} to "
-                    f"{esc(fmt.day(down['to']))} when the run was stopped.")
+    caption += (f" The shaded band is the window from {esc(fmt.day(down['from']))} to "
+                f"{esc(fmt.day(down['to']))} when the run was stopped.")
     caption += source_note(ep.get("source"))
     return {
         "id": "rk-archive-growth",

@@ -19,18 +19,11 @@ DESCRIPTION = (
 NOVEL_REPO = "Novel-Numerical-Integration-Methods"
 
 
-def _claim_ids(data):
-    return {c["id"] for c in data["claims"]["claims"]}
-
-
-def _cite(known, *ids):
+def _cite(*ids):
     """(R11) or (N2, N3), each id linked to its entry on the claims page."""
     parts = []
     for cid in ids:
-        if cid in known:
-            parts.append(f'<a href="claims.html#{fmt.esc(cid)}">{fmt.esc(cid)}</a>')
-        else:
-            parts.append(fmt.esc(cid))
+        parts.append(f'<a href="claims.html#{fmt.esc(cid)}">{fmt.esc(cid)}</a>')
     return "(" + ", ".join(parts) + ")"
 
 
@@ -38,14 +31,11 @@ def _repo(sources, name):
     for r in sources["repos"]:
         if r["name"] == name:
             return r
-    return None
 
 
 def _site_link(sources, name, text):
     repo = _repo(sources, name)
-    if repo and repo.get("site"):
-        return f'<a href="{fmt.esc(repo["site"])}">{fmt.esc(text)}</a>'
-    return fmt.esc(text)
+    return f'<a href="{fmt.esc(repo["site"])}">{fmt.esc(text)}</a>'
 
 
 def _code(s):
@@ -56,13 +46,13 @@ def _item(name, sentence):
     return f"<li><strong>{fmt.esc(name)}.</strong> {sentence}</li>"
 
 
-def _rk_section(data, known):
+def _rk_section(data):
     rk = data["rk"]
     sources = data["sources"]
     num = diagrams.rk_numbers(rk)
     snapshot = fmt.day(sources["snapshot_date"])
     heldout = diagrams.and_list(_code(p) for p in num["heldout"])
-    c = lambda *ids: _cite(known, *ids)  # noqa: E731
+    c = _cite
 
     items = [
         _item("Watchdog",
@@ -151,13 +141,12 @@ def _rk_section(data, known):
     )
 
 
-def _novel_section(data, known):
+def _novel_section(data):
     sources = data["sources"]
     num = diagrams.novel_numbers(data["novel"])
-    repo = _repo(sources, NOVEL_REPO)
-    commit = repo["commit"] if repo else ""
+    commit = _repo(sources, NOVEL_REPO)["commit"]
     missing = diagrams.and_list(_code(f) for f in num["missing_families"])
-    c = lambda *ids: _cite(known, *ids)  # noqa: E731
+    c = _cite
     rk4 = _code("RK4")
 
     items = [
@@ -238,7 +227,6 @@ def _more_section(data):
 
 
 def build(data):
-    known = _claim_ids(data)
     return (
         "<h1>How the two projects are built</h1>"
         '<p class="lead">The rk run is a long-lived system: a container that searches and '
@@ -247,7 +235,7 @@ def build(data):
         "tables, integrated generated ODEs with them and scored them against a reference "
         "solver. The second diagram marks where an audit in September 2026 found that pipeline "
         "broke.</p>"
-        + _rk_section(data, known)
-        + _novel_section(data, known)
+        + _rk_section(data)
+        + _novel_section(data)
         + _more_section(data)
     )

@@ -2,9 +2,7 @@
 
 Deterministic: no clock reads, no randomness, data order or sorted order only.
 Page SVGs paint only through CSS custom properties (var(--series-N), var(--grid),
-var(--text-2)) and currentColor. The standalone copies carry a <style> block
-with the light-theme values, because they are viewed outside the site's
-stylesheet (for example from the README).
+var(--text-2)) and currentColor.
 """
 
 import math
@@ -13,21 +11,6 @@ from web.fmt import esc
 
 W = 720
 CHAR_W = 6.8  # rough width of one character at font-size 12
-
-_STANDALONE_STYLE = (
-    "<style>"
-    "svg{--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100;"
-    "--surface:#fcfcfb;--text-1:#0b0b0b;--text-2:#52514e;--grid:#e4e3df;"
-    "color:#0b0b0b;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}"
-    ".rk-bg{fill:#fcfcfb}"
-    ".rk-s1{fill:#2a78d6}.rk-s2{fill:#eb6834}.rk-s3{fill:#1baf7a}"
-    ".rk-l1{stroke:#2a78d6;fill:none}.rk-l2{stroke:#eb6834;fill:none}.rk-l3{stroke:#1baf7a;fill:none}"
-    ".rk-grid,.rk-connector{stroke:#e4e3df}"
-    ".rk-axis,.rk-ref{stroke:#52514e}"
-    ".rk-muted{fill:#52514e}"
-    ".rk-band{fill:#e4e3df}"
-    "</style>"
-)
 
 
 def table(headers, rows, caption=None):
@@ -81,7 +64,6 @@ def log_floor(v):
     for m in (5, 2, 1):
         if mv(m, e) <= v * (1 + 1e-9):
             return (m, e)
-    return (5, e - 1)
 
 
 def log_ceil(v):
@@ -90,7 +72,6 @@ def log_ceil(v):
     for m, ee in ((1, e), (2, e), (5, e), (1, e + 1)):
         if mv(m, ee) >= v * (1 - 1e-9):
             return (m, ee)
-    return (2, e + 1)
 
 
 def log_domain(values):
@@ -124,7 +105,6 @@ def lin_domain(vmax, target):
     """(top, step, n, decimals) for a zero-based linear axis with about `target` steps."""
     raw = vmax / target
     e = math.floor(math.log10(raw))
-    step = mv(10, e)
     for m in (1, 2, 5, 10):
         step = mv(m, e)
         if step >= raw * (1 - 1e-9):
@@ -225,18 +205,12 @@ def x_axis(scale, ticks, left, right, bottom):
 
 # ---------------------------------------------------------------- figure wrappers
 
-def svg_markup(chart, standalone=False):
+def svg_markup(chart):
     cid = chart["id"]
     h = chart["height"]
     labelled = f'aria-labelledby="{cid}-title {cid}-desc"'
     head = (f'<title id="{cid}-title">{esc(chart["title"])}</title>'
             f'<desc id="{cid}-desc">{esc(chart["desc"])}</desc>')
-    if standalone:
-        return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{h}" '
-                f'viewBox="0 0 {W} {h}" role="img" {labelled}>'
-                + head + _STANDALONE_STYLE
-                + f'<rect class="rk-bg" x="0" y="0" width="{W}" height="{h}" fill="var(--surface)"/>'
-                + chart["inner"] + "</svg>\n")
     return f'<svg viewBox="0 0 {W} {h}" role="img" {labelled}>' + head + chart["inner"] + "</svg>"
 
 
@@ -247,7 +221,3 @@ def figure(chart):
             + '<details class="data"><summary>Data table</summary>'
             + chart["table"]
             + "</details></figure>")
-
-
-def standalone(chart):
-    return svg_markup(chart, standalone=True)
