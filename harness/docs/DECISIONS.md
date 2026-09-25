@@ -2244,6 +2244,14 @@ leaves one there and the runner clears locks at start only once they are ten min
 start soon after a kill would otherwise commit nothing for the whole run. A graceful stop waits
 for the cycle boundary (71 s for the owner's stop at 01:36Z on 2026-09-25); a forced one returns in a few seconds.
 
+**Amended 2026-09-25: the start command starts Docker Desktop.** Docker Desktop does not start
+with Windows on this machine, so the owner's first `start-integration-harness` after a reboot
+failed on the docker named pipe. `start.ps1` now runs `docker desktop start` when `docker info`
+fails (launching `Docker Desktop.exe` on a Docker without that command) and waits up to 300 s for
+the engine. It calls docker through `cmd` there, because under `$ErrorActionPreference = "Stop"`
+PowerShell 5.1 turned docker's stderr into the terminating error that replaced the script's own
+"Docker Desktop is not running" message. On 2026-09-25 the engine was ready 9 s after the start.
+
 ---
 
 ---

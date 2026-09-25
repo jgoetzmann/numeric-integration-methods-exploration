@@ -29,8 +29,26 @@ if (Test-Path $cfgFile) {
 }
 function Cfg($sec, $name, $default) { if ($cfg[$sec].ContainsKey($name) -and $null -ne $cfg[$sec][$name]) { return $cfg[$sec][$name] } else { return $default } }
 
-$null = docker info 2>$null
-if ($LASTEXITCODE -ne 0) { throw "Docker Desktop is not running - start it and retry" }
+# Docker Desktop does not start with Windows on this machine, so after a reboot the engine is
+# down and every docker call below fails. Start it and wait for the engine instead of failing.
+# docker is called through cmd: under $ErrorActionPreference = "Stop", PowerShell 5.1 turns a
+# native command's stderr into a terminating error, which is how the raw npipe message used to
+# replace the one this block throws.
+function Test-DockerEngine { cmd /c "docker info >nul 2>&1"; return ($LASTEXITCODE -eq 0) }
+if (-not (Test-DockerEngine)) {
+    $waitSeconds = 300
+    Write-Host "Docker Desktop is not running; starting it (up to $waitSeconds s)..."
+    cmd /c "docker desktop start --timeout $waitSeconds >nul 2>&1"
+    if ($LASTEXITCODE -ne 0) {
+        # older Docker Desktop has no "docker desktop" command: launch the app itself
+        $exe = Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"
+        if (Test-Path $exe) { Start-Process $exe | Out-Null }
+    }
+    $deadline = (Get-Date).AddSeconds($waitSeconds)
+    while (-not (Test-DockerEngine) -and (Get-Date) -lt $deadline) { Start-Sleep 3 }
+    if (-not (Test-DockerEngine)) { throw "Docker Desktop did not come up within $waitSeconds s - start it by hand and retry" }
+    Write-Host "Docker Desktop is up."
+}
 
 $runArgs = @{
     Harness   = ($harness -replace '\\','/')
