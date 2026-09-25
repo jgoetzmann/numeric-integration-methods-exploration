@@ -30,6 +30,7 @@ from rk_harness import ledger
 from rk_harness import lanesearch
 from rk_harness import literature
 from rk_harness import orderconditions
+from rk_harness import outcomes
 from rk_harness import prompts
 from rk_harness import search
 from rk_harness import sidetrack
@@ -357,13 +358,37 @@ def refuse_on_epoch_mismatch() -> bool:
 # LLM
 # ----------------------------------------------------------------------------
 
-def _call_codex(system: str, user: str, extra_args: list[str] | None = None, timeout: int = 600) -> tuple[str, float]:
+# Reasoning efforts `codex exec` accepts through -c model_reasoning_effort. Anything else in
+# RK_LLM_EFFORT is ignored rather than passed on, so a typo cannot fail every call.
+_LLM_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+
+
+def _llm_effort() -> str:
+    """RK_LLM_EFFORT when it names a known effort, else "" (the model's own default)."""
+    e = os.environ.get("RK_LLM_EFFORT", "").strip().lower()
+    return e if e in _LLM_EFFORTS else ""
+
+
+def _call_codex(system: str, user: str, extra_args: list[str] | None = None, timeout: int = 600,
+                effort: str = "") -> tuple[str, float]:
     """RK_LLM=codex: one `codex exec` call using the host-authenticated ~/.codex/auth.json mounted
     read-only into the container (HANDOFF §2.2). Plan-billed, so the metered cost is 0.0; the
-    monthly cap still governs the API-key path. Raises on any failure. No retries."""
+    monthly cap still governs the API-key path. Raises on any failure. No retries.
+
+    `effort` sets the reasoning effort for this call; empty leaves the model's default. The
+    calls that decide what to search (directives, hypotheses) and the published interpretation
+    pass RK_LLM_EFFORT; the literature digest does not, because it spends its tokens on web
+    results rather than on reasoning and was already half of all usage at the default."""
     exe = os.environ.get("RK_CODEX_BIN") or shutil.which("codex") or "codex"   # npm shim is codex.cmd on Windows
     model = os.environ.get("RK_LLM_MODEL", "")
     with_model = ["-m", model] if model else []
+    if effort:
+        with_model += ["-c", f'model_reasoning_effort="{effort}"']
+    # Codex 0.156 searches the web by default, which quadrupled a directive's input tokens in a
+    # test on 2026-09-24. Only the literature digest asks for it; every other call reads our
+    # own data. (tools.web_search=false no longer turns it off; web_search="disabled" does.)
+    if not any("web_search" in a for a in (extra_args or [])):
+        with_model += ["-c", 'web_search="disabled"']
     out_dir = work_dir() / ".codex-exec"
     out_dir.mkdir(parents=True, exist_ok=True)
     last = out_dir / "last_message.txt"
@@ -389,7 +414,8 @@ def _call_codex(system: str, user: str, extra_args: list[str] | None = None, tim
             continue
         if isinstance(ev, dict) and ev.get("type") == "turn.completed" and isinstance(ev.get("usage"), dict):
             tokens = {k: int(v) for k, v in ev["usage"].items() if isinstance(v, (int, float))}
-    log_event("codex_usage", tokens=tokens, **_codex_rate_limits())
+    log_event("codex_usage", tokens=tokens, model=model or "default", effort=effort or "default",
+              **_codex_rate_limits())
     return content, 0.0
 
 
@@ -438,7 +464,7 @@ def call_llm(system: str, user: str) -> tuple[str, float]:
     """One urllib POST to the chat completions endpoint, or one `codex exec` when RK_LLM=codex.
     Raises on any failure."""
     if os.environ.get("RK_LLM") == "codex":
-        return _call_codex(system, user)
+        return _call_codex(system, user, effort=_llm_effort())
     key = credentials.openai_key()
     if not key:
         raise RuntimeError("no API key available")
@@ -672,7 +698,8 @@ def _llm_directive(state: RunState, arch, phase: int, new_cycle_id: int, action_
         refuted = [h for h in hyps if h.get("verdict") == "refuted"]
         open_h = [h for h in hyps if h.get("verdict") is None]
         user = prompts.build_user_prompt(arch, state, refuted, open_h,
-                                         literature=literature.digest_for_prompt())
+                                         literature=literature.digest_for_prompt(),
+                                         history=outcomes.history_for_prompt())
         # The other three gates wrap their call for this reason and say so; this one did not,
         # so a codex failure (non-zero exit, auth, network, the 600 s timeout) propagated out
         # of the directive path and _abandon discarded the whole cycle. A directive is a
@@ -683,7 +710,13 @@ def _llm_directive(state: RunState, arch, phase: int, new_cycle_id: int, action_
             log_event("llm_call_failed", error=repr(e)[:300], gate="directive")
             return directive_mod.fallback_directive(arch, phase, new_cycle_id, policy), spent
         spent = cost
-        log_event("llm_call", cost_usd=cost, model=os.environ.get("RK_LLM_MODEL", "gpt-4.1-mini"),
+        # Under codex an unset RK_LLM_MODEL means the CLI's default; this event used to name
+        # the API path's default, gpt-4.1-mini, on every codex call.
+        if os.environ.get("RK_LLM") == "codex":
+            model_used = os.environ.get("RK_LLM_MODEL") or "codex default"
+        else:
+            model_used = os.environ.get("RK_LLM_MODEL", "gpt-4.1-mini")
+        log_event("llm_call", cost_usd=cost, model=model_used, effort=_llm_effort() or "default",
                   chars=len(content))
         try:
             d = directive_mod.parse_directive(content)
@@ -1010,7 +1043,7 @@ def _maybe_literature_review(state: RunState, arch, new_cycle_id: int) -> float:
         content, cost = _call_codex(
             prompts.LITERATURE_SYSTEM_PROMPT,
             prompts.build_literature_prompt(topic, state, open_h, digests),
-            extra_args=["-c", "tools.web_search=true"], timeout=900)
+            extra_args=["-c", 'web_search="live"'], timeout=900)
     except Exception as e:  # noqa: BLE001 - research must never fail the cycle
         log_event("literature_failed", error=repr(e), topic=topic)
         return 0.0
@@ -1059,7 +1092,8 @@ def _maybe_interpret(state: RunState, arch, new_cycle_id: int) -> float:
             prompts.INTERPRET_SYSTEM_PROMPT,
             prompts.build_interpretation_prompt(arch, state, refuted, open_h,
                                                 literature.digest_for_prompt(),
-                                                "\n".join(extra_lines))) if os.environ.get("RK_LLM") == "codex" else call_llm(
+                                                "\n".join(extra_lines)),
+            effort=_llm_effort()) if os.environ.get("RK_LLM") == "codex" else call_llm(
             prompts.INTERPRET_SYSTEM_PROMPT,
             prompts.build_interpretation_prompt(arch, state, refuted, open_h,
                                                 literature.digest_for_prompt(),
@@ -1085,6 +1119,16 @@ def _next_hypothesis_id() -> str:
     return f"H-{max(nums) + 1:03d}"
 
 
+def _same_predicate(predicate: str, hyps: list[dict]) -> str | None:
+    """The id of a hypothesis already in the ledger with this predicate, compared without case
+    or spacing, else None."""
+    key = " ".join(str(predicate).split()).lower()
+    for h in hyps:
+        if " ".join(str(h.get("predicate", "")).split()).lower() == key:
+            return str(h.get("id"))
+    return None
+
+
 def _maybe_propose_hypothesis(state: RunState, arch, action_kind: str, new_cycle_id: int) -> float:
     """On a HYPOTHESIZE escalation, ask the LLM for one hypothesis (HANDOFF section 6). The id and
     cycle are assigned here, the predicate must parse under the hand-written grammar, and the
@@ -1098,10 +1142,12 @@ def _maybe_propose_hypothesis(state: RunState, arch, action_kind: str, new_cycle
     hyps = ledger.load_hypotheses()
     refuted = [h for h in hyps if h.get("verdict") == "refuted"]
     open_h = [h for h in hyps if h.get("verdict") is None]
+    resolved = [h for h in hyps if h.get("verdict") in ("supported", "inconclusive")]
     try:
         content, cost = call_llm(prompts.HYPOTHESIS_SYSTEM_PROMPT,
                                  prompts.build_hypothesis_prompt(arch, state, refuted, open_h,
-                                                                 literature=literature.digest_for_prompt()))
+                                                                 literature=literature.digest_for_prompt(),
+                                                                 resolved=resolved))
     except Exception as e:  # noqa: BLE001 - a failed proposal never fails the cycle
         log_event("hypothesis_call_failed", error=repr(e))
         return 0.0
@@ -1127,6 +1173,12 @@ def _maybe_propose_hypothesis(state: RunState, arch, action_kind: str, new_cycle
             "predicate": str(raw["predicate"]),
             "min_samples": max(20, min(int(raw.get("min_samples", 200)), 100000)),
         }
+        # The same predicate again, whatever its wording, tests nothing new: drop it rather
+        # than spend min_samples of search on a question the ledger has already asked.
+        same = _same_predicate(h["predicate"], hyps)
+        if same is not None:
+            log_event("hypothesis_duplicate", predicate=h["predicate"], same_as=same, cost_usd=cost)
+            return cost
         ledger.append_hypothesis(h)
         log_event("hypothesis_proposed", id=h["id"], statement=h["statement"],
                   predicate=h["predicate"], min_samples=h["min_samples"], cost_usd=cost)

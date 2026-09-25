@@ -185,7 +185,10 @@ def test_C17_hypothesize_action_appends_a_validated_hypothesis(tmp_path, monkeyp
     hyps = ledger.load_hypotheses()
     assert len(hyps) == 1 and hyps[0]["id"] == "H-001" and hyps[0]["cycle_proposed"] == 10
     assert hyps[0]["verdict"] is None and hyps[0]["min_samples"] == 200
-    runner._maybe_propose_hypothesis(st, arch, "HYPOTHESIZE", 11)                    # ids increment
+    # ids increment (a second, different predicate: the same one again is dropped, see C51)
+    other = json.dumps({**json.loads(good), "predicate": "slow.p3s5.heldout < slow.p4s4.heldout"})
+    monkeypatch.setattr(runner, "call_llm", lambda s, u: (other, 0.0))
+    runner._maybe_propose_hypothesis(st, arch, "HYPOTHESIZE", 11)
     assert [h["id"] for h in ledger.load_hypotheses()] == ["H-001", "H-002"]
     # malformed predicate: rejected, nothing appended, cycle unaffected
     bad = json.dumps({"statement": "x", "mechanism": "y", "control": "z",
@@ -243,7 +246,7 @@ def test_C19_runner_literature_and_interpretation_gating(tmp_path, monkeypatch):
                       "key_points": ["naf is minimal"], "sources": [{"title": "t", "url": "https://x"}]})
     seen = []
 
-    def fake_codex(system, user, extra_args=None, timeout=600):
+    def fake_codex(system, user, extra_args=None, timeout=600, effort=""):
         seen.append(list(extra_args or []))
         return (dig if extra_args else "Para one interpreting the grids at length, easily long enough to pass the two-hundred-character floor for a published interpretation entry, with mechanism talk.\n\nPara two about the novel first results."), 0.0
     monkeypatch.setattr(runner, "_call_codex", fake_codex)
@@ -251,7 +254,7 @@ def test_C19_runner_literature_and_interpretation_gating(tmp_path, monkeypatch):
     assert runner._maybe_literature_review(st, arch, 3) == 0.0        # not due
     assert literature.load_digests() == []
     runner._maybe_literature_review(st, arch, 4)                      # due -> digest written via web search args
-    assert ["-c", "tools.web_search=true"] in seen
+    assert ["-c", 'web_search="live"'] in seen
     assert literature.load_digests()[0]["topic"] == "csd multipliers"
     assert runner._maybe_interpret(st, arch, 4) == 0.0                # not due
     runner._maybe_interpret(st, arch, 6)                              # due -> interpretation written, softened
@@ -719,3 +722,237 @@ def test_C32_a_lane_archive_that_does_not_exist_yet_shows_nothing(tmp_path, monk
         assert "candidates measured under code" in rows[0][1]
     watch._cache.pop(("lanesearch", "adaptive"), None)
     watch._cache.pop(("lanesearch", "implicit"), None)
+
+
+# ---------------------------------------------------------------- 2026-09-24: watcher and effort
+
+def test_C45_the_header_says_whether_a_stopped_run_was_stopped_on_purpose(tmp_path, monkeypatch):
+    """docker reports the same "exited" whether stop.ps1 stopped the run or it died, so the
+    header reads the stop records to tell the two apart, and flags a stale heartbeat."""
+    import datetime
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.setenv("RK_WORK_DIR", str(work))
+    from rk_harness import watch
+    now = datetime.datetime(2026, 9, 25, 3, 0, tzinfo=datetime.timezone.utc)
+    fresh, old = now - datetime.timedelta(seconds=20), now - datetime.timedelta(minutes=10)
+    assert "RUNNING" in watch.run_verdict({"status": "running"}, fresh, now, 120)
+    assert "STALLED" in watch.run_verdict({"status": "running"}, old, now, 120)
+    assert "STARTING" in watch.run_verdict({"status": "running"}, None, now, 120)
+    assert "PAUSED" in watch.run_verdict({"status": "paused"}, fresh, now, 120)
+    assert "UNKNOWN" in watch.run_verdict({}, None, now, 120)
+    assert "DOWN" in watch.run_verdict({"status": "exited"}, old, now, 120)
+    (tmp_path / "run-stopped.txt").write_text(
+        "stop.ps1 stopped the run at 2026-09-25T02:57:55Z. start.ps1 deletes this file; "
+        "autostart.ps1 will not start the run while it exists.", encoding="ascii")
+    v = watch.run_verdict({"status": "exited"}, old, now, 120)
+    assert "STOPPED ON PURPOSE" in v and "2026-09-24 21:57" in v
+    (work / "STOP").write_text("stop", encoding="ascii")
+    assert "STOPPING" in watch.run_verdict({"status": "exited"}, old, now, 120)
+
+
+def test_C46_one_failing_panel_costs_only_that_panel(tmp_path, monkeypatch):
+    """A panel that raises used to replace the whole live view with one "refresh failed" box
+    and to crash --once; now it renders its own error and every other panel still shows."""
+    work = tmp_path / "work"
+    work.mkdir()
+    _watch_events_file(work)
+    watch = _watch_module(tmp_path, monkeypatch, work)
+
+    def boom(*a, **k):
+        raise RuntimeError("half-written state file")
+    monkeypatch.setattr(watch, "llm_panel", boom)
+    text = watch.render_once(width=200)
+    assert "could not build this panel" in text and "half-written state file" in text
+    for needle in ("rk run", "progress", "health", "results", "what it is working on"):
+        assert needle in text, needle
+    # and a failure outside any panel still renders, as one panel, rather than raising
+    monkeypatch.setattr(watch, "load_events", boom)
+    assert "refresh failed" in watch.render_once(width=200)
+
+
+def test_C47_a_config_file_with_a_bad_section_does_not_break_the_view(tmp_path, monkeypatch):
+    work = tmp_path / "work"
+    work.mkdir()
+    _watch_events_file(work)
+    watch = _watch_module(tmp_path, monkeypatch, work)
+    cfg = tmp_path / "config.json"
+    cfg.write_text(json.dumps({"watcher": "oops", "run": {"llm": "codex"}}), encoding="utf-8")
+    assert watch.load_config() == {"run": {"llm": "codex"}}
+    cfg.write_text("[1, 2]", encoding="utf-8")
+    assert watch.load_config() == {}
+    assert "rk run" in watch.render_once(width=200)
+
+
+def test_C48_under_wsl_the_watchdog_is_found_through_windows_powershell(monkeypatch):
+    """watch-integration-harness runs this view under WSL's Python, where the watchdog (a
+    Windows process) used to read "n/a". Interop reaches powershell.exe by full path only."""
+    from rk_harness import watch
+    seen = {}
+
+    class P:
+        returncode, stdout, stderr = 0, "1\r\n", ""
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        return P()
+    monkeypatch.setattr(watch.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(watch.platform, "release", lambda: "6.18.33.1-microsoft-standard-WSL2")
+    monkeypatch.setattr(watch.Path, "exists", lambda self: str(self) == watch._WSL_POWERSHELL or False)
+    monkeypatch.setattr(watch.subprocess, "run", fake_run)
+    watch._cache.pop("watchdog", None)
+    assert watch.watchdog_running() is True
+    assert seen["cmd"][0] == watch._WSL_POWERSHELL
+    watch._cache.pop("watchdog", None)
+    monkeypatch.setattr(watch.platform, "release", lambda: "6.8.0-generic")
+    assert watch.watchdog_running() is None
+    watch._cache.pop("watchdog", None)
+
+
+def test_C49_reasoning_effort_reaches_codex_only_where_it_should(tmp_path, monkeypatch):
+    """run.llm_reasoning_effort flows config -> start.ps1 -> run.ps1 -> RK_LLM_EFFORT ->
+    `codex exec -c model_reasoning_effort=...`. An unknown value is dropped, not passed on,
+    and each usage event records the model and effort it ran at."""
+    import re
+    from rk_harness import runner
+    monkeypatch.setenv("RK_WORK_DIR", str(tmp_path / "work"))
+    calls = []
+
+    class P:
+        returncode, stderr = 0, ""
+        stdout = '{"type": "turn.completed", "usage": {"input_tokens": 5, "output_tokens": 1}}\n'
+
+    def fake_run(cmd, **kw):
+        calls.append(cmd)
+        out = cmd[cmd.index("--output-last-message") + 1]
+        Path(out).write_text("{}", encoding="utf-8")
+        return P()
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setattr(runner, "_codex_rate_limits", lambda: {})
+    monkeypatch.setenv("RK_LLM", "codex")
+    monkeypatch.setenv("RK_LLM_MODEL", "gpt-6-sol")
+    monkeypatch.setenv("RK_LLM_EFFORT", "HIGH")
+    assert runner._llm_effort() == "high"
+    runner.call_llm("sys", "user")
+    assert calls[-1][calls[-1].index("-m") + 1] == "gpt-6-sol"
+    assert 'model_reasoning_effort="high"' in calls[-1]
+    assert 'web_search="disabled"' in calls[-1]          # codex 0.156 searches unless told not to
+    runner._call_codex("sys", "user", extra_args=["-c", 'web_search="live"'])   # the literature call
+    assert not any("model_reasoning_effort" in a for a in calls[-1])
+    assert 'web_search="live"' in calls[-1] and 'web_search="disabled"' not in calls[-1]
+    monkeypatch.setenv("RK_LLM_EFFORT", "banana")
+    assert runner._llm_effort() == ""
+    runner.call_llm("sys", "user")
+    assert not any("model_reasoning_effort" in a for a in calls[-1])
+    ev = [json.loads(x) for x in (tmp_path / "work" / "events.jsonl").read_text(encoding="utf-8").splitlines()]
+    usage = [e for e in ev if e["kind"] == "codex_usage"]
+    assert usage[0]["model"] == "gpt-6-sol" and usage[0]["effort"] == "high"
+    assert usage[1]["effort"] == "default"
+    # the plumbing between the config and the container
+    schema = _schema()
+    assert schema["run.llm_reasoning_effort"][0] == ""
+    assert set(schema["run.llm_reasoning_effort"][2]) == {"", *runner._LLM_EFFORTS}
+    start = START_PS1.read_text(encoding="ascii")
+    assert re.search(r'LlmEffort\s*=\s*\[string\]\(Cfg "run" "llm_reasoning_effort" ""\)', start)
+    run_ps1 = (HARNESS / "scripts" / "run.ps1").read_text(encoding="ascii")
+    assert "[string]$LlmEffort" in run_ps1 and '"RK_LLM_EFFORT=$LlmEffort"' in run_ps1
+
+
+def test_C50_the_directive_prompt_shows_what_earlier_directives_produced(tmp_path, monkeypatch):
+    """Epoch 2 asked for order 4 at stages [5, 6] in 152 of 186 directives and none of those
+    islands reached order 4, because the prompt never showed the model its own results. The
+    tally attributes islands and elites to directive shapes and flags a dead end."""
+    from rk_harness import outcomes, prompts
+    from rk_harness.types import ArchiveState, RunState
+    ev = []
+    def d(did, order, stages, c_fixed=None, kind="directive_accepted"):
+        e = {"kind": kind, "directive_id": did, "target_order": order, "stages": stages,
+             "constraints": {"c_fixed": c_fixed} if c_fixed else {}, "source": "llm"}
+        ev.append(e)
+    def island(did, reached):
+        ev.append({"kind": "island_start", "directive_id": did})
+        ev.append({"kind": "island_done", "achieved_orders": reached})
+    d("D-1", 4, [6, 5])
+    for _ in range(25):
+        island("D-1", {"3": 6})
+    ev.append({"kind": "accepted", "directive_id": "D-1", "new_elite": True})
+    d("D-2", 3, [4])
+    for _ in range(3):
+        island("D-2", {"3": 5, "2": 1})
+    ev.append({"kind": "accepted", "directive_id": "D-2", "new_elite": True})
+    ev.append({"kind": "accepted", "directive_id": "D-2", "new_elite": False})
+    d("D-3", 4, [6], c_fixed={"1": "1/2"})
+    island("D-3", {"4": 1, "3": 2})
+    rows = outcomes.tally(ev)
+    by = {(r["target_order"], tuple(r["stages"]), r["c_fixed"]): r for r in rows}
+    r4 = by[(4, (5, 6), False)]
+    assert r4["islands"] == 25 and r4["reached"][3] == 150 and r4["reached"][4] == 0
+    assert r4["new_elites"] == 1 and r4["dead_end"] is True
+    r3 = by[(3, (4,), False)]
+    assert r3["islands"] == 3 and r3["accepted"] == 2 and r3["new_elites"] == 1 and not r3["dead_end"]
+    assert by[(4, (6,), True)]["reached"][4] == 1
+    assert rows[0]["c_fixed"] is True                       # most recently used shape first
+    text = outcomes.format_rows(rows)
+    assert "never reached its target order" in text.splitlines()[[i for i, l in enumerate(text.splitlines()) if l.startswith("4 | [5, 6]")][0]]
+    arch = ArchiveState(0, 0, {1: {}, 2: {}, 3: {}, 4: {}}, (), ())
+    st = RunState(1, 2, "2026-09-21T10:00:00Z", "2026-09-21T10:00:00Z", 0.0, 0, None)
+    prompt = prompts.build_user_prompt(arch, st, [], [], history=text)
+    assert "What recent directives produced" in prompt and '"c_fixed": {"1": "1/2"' in prompt
+    assert prompt.index("What recent directives produced") < prompt.index("## Directive format")
+    assert "What recent directives produced" not in prompts.build_user_prompt(arch, st, [], [])
+    # and the reader never raises: no file means no section
+    monkeypatch.setenv("RK_WORK_DIR", str(tmp_path / "nowhere"))
+    assert outcomes.history_for_prompt() == ""
+
+
+def test_C51_resolved_hypotheses_are_listed_and_a_repeated_predicate_is_dropped(tmp_path, monkeypatch):
+    """22 proposals held 10 distinct predicates, one proposed 7 times, because the prompt
+    listed only open and refuted hypotheses."""
+    from rk_harness import ledger, prompts, runner
+    from rk_harness.types import ArchiveState, RunState
+    arch = ArchiveState(0, 0, {1: {}, 2: {}, 3: {}, 4: {}}, (), ())
+    st = RunState(1, 2, "2026-09-21T10:00:00Z", "2026-09-21T10:00:00Z", 0.0, 0, None)
+    done = {"id": "H-004", "statement": "s", "predicate": "fast.p3s6.heldout < fast.p3s5.heldout",
+            "verdict": "inconclusive"}
+    text = prompts.build_hypothesis_prompt(arch, st, [], [], resolved=[done])
+    assert "H-004" in text and "(1)" in text
+    hyps = [done]
+    assert runner._same_predicate("FAST.p3s6.heldout <   fast.p3s5.heldout", hyps) == "H-004"
+    assert runner._same_predicate("fast.p3s6.heldout > fast.p3s5.heldout", hyps) is None
+    # end to end: the model proposes the same predicate again and the ledger does not grow
+    work = tmp_path / "work"
+    monkeypatch.setenv("RK_WORK_DIR", str(work))
+    monkeypatch.setenv("RK_LLM", "codex")
+    monkeypatch.setattr(runner, "_codex_capped", lambda gate: False)
+    monkeypatch.setattr(ledger, "load_hypotheses", lambda: hyps)
+    appended = []
+    monkeypatch.setattr(ledger, "append_hypothesis", lambda h: appended.append(h))
+    reply = json.dumps({"statement": "again", "mechanism": "m", "control": "c",
+                        "predicate": "fast.p3s6.heldout  <  fast.p3s5.heldout", "min_samples": 50})
+    monkeypatch.setattr(runner, "call_llm", lambda system, user: (reply, 0.0))
+    runner._maybe_propose_hypothesis(st, arch, "HYPOTHESIZE", 7)
+    assert appended == []
+    assert "hypothesis_duplicate" in (work / "events.jsonl").read_text(encoding="utf-8")
+
+
+def test_C52_the_view_shows_new_elites_and_what_recent_directive_shapes_reached(tmp_path, monkeypatch):
+    work = tmp_path / "work"
+    work.mkdir()
+    lines = [
+        {"ts": "2026-09-21T09:00:00Z", "kind": "directive_accepted", "directive_id": "D-9", "target_order": 4,
+         "stages": [5, 6], "constraints": {}, "source": "llm"},
+    ]
+    for i in range(21):
+        lines.append({"ts": "2026-09-21T09:%02d:00Z" % (i + 1), "kind": "island_start", "directive_id": "D-9"})
+        lines.append({"ts": "2026-09-21T09:%02d:30Z" % (i + 1), "kind": "island_done", "achieved_orders": {"3": 4}})
+    lines.append({"ts": "2026-09-21T09:50:00Z", "kind": "accepted", "directive_id": "D-9", "new_elite": True})
+    (work / "events.jsonl").write_text("".join(json.dumps(d) + chr(10) for d in lines), encoding="utf-8")
+    watch = _watch_module(tmp_path, monkeypatch, work)
+    watch._cache.pop("outcomes", None)
+    monkeypatch.setattr(watch, "_now", lambda: __import__("datetime").datetime(
+        2026, 9, 21, 12, 0, tzinfo=__import__("datetime").timezone.utc))
+    text = watch.render_once(width=220, height=120)
+    watch._cache.pop("outcomes", None)
+    assert "1 in the last 24 h" in _line_with(text, "new elites")
+    assert "order 4 stages [5, 6]: 21 islands" in _line_with(text, "recent shape")
+    assert "never reached its target" in text

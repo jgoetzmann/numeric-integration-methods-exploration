@@ -45,6 +45,40 @@ _DIRECTIVE_RULES = """Directive rules (every one is checked by code; a violation
 - The directive can only narrow the search. It cannot change the objective, the
   problems, the cost models, or how results are graded."""
 
+# The one directive shape that has produced order-4 candidates beyond the classical baseline
+# in this project: epoch 1's D-357A, 16 islands, 4 of 106 candidates at order 4, 2 new elites
+# (rk-work/epochs/1/events.jsonl). Epoch 2 had not run it by 2026-09-24.
+_ORDER4_SHAPE = {
+    "target_order": 4,
+    "stages": [6],
+    "constraints": {
+        "force_zero": [[5, 0]],
+        "dyadic_denominator_max": 16,
+        "c_fixed": {"1": "1/2", "2": "1/2", "3": "1", "5": "1"},
+        "b_nonneg": True,
+    },
+}
+
+
+def _history_section(history: str) -> list[str]:
+    """What earlier directives produced, from rk_harness.outcomes; empty when there is none."""
+    if not history:
+        return []
+    return [
+        "## What recent directives produced (from the event log, most recent shape first)",
+        history,
+        "Islands keep A on a dyadic grid and solve b exactly from the order conditions; a "
+        "candidate whose A cannot meet the target order is kept at the highest order it does "
+        "meet. A shape marked as never reaching its target order has not paid off at those "
+        "settings: change its constraints (pinning nodes with c_fixed matters most at order 4) "
+        "or choose a different target. Prefer the shapes that have produced new elites.",
+        "The one shape that has produced order-4 candidates here (epoch 1: 16 islands, 4 of 106 "
+        "candidates at order 4, 2 new elites):",
+        json.dumps(_ORDER4_SHAPE),
+        "",
+    ]
+
+
 SYSTEM_PROMPT = (
     "You direct a deterministic search for explicit Runge-Kutta tableaus that run in "
     "Q15 fixed point on Cortex-M0+ class microcontrollers at an equal cycle budget. "
@@ -158,7 +192,8 @@ def _state_section(state: RunState) -> list[str]:
     ]
 
 
-def build_user_prompt(arch: ArchiveState, state: RunState, refuted: list[dict], open_h: list[dict], literature: str = "") -> str:
+def build_user_prompt(arch: ArchiveState, state: RunState, refuted: list[dict], open_h: list[dict], literature: str = "",
+                      history: str = "") -> str:
     lines: list[str] = []
     lines.append("# Search directive request")
     lines.extend(_state_section(state))
@@ -184,6 +219,7 @@ def build_user_prompt(arch: ArchiveState, state: RunState, refuted: list[dict], 
     else:
         lines.append("  none open")
     lines.append("")
+    lines.extend(_history_section(history))
     lines.append("## Directive format")
     lines.append(_DIRECTIVE_RULES)
     lines.append("Example:")
@@ -212,14 +248,19 @@ HYPOTHESIS_SYSTEM_PROMPT = (
 )
 
 
-def build_hypothesis_prompt(arch: ArchiveState, state: RunState, refuted: list[dict], open_h: list[dict], literature: str = "") -> str:
+def build_hypothesis_prompt(arch: ArchiveState, state: RunState, refuted: list[dict], open_h: list[dict], literature: str = "",
+                            resolved: list[dict] | None = None) -> str:
+    """resolved: the supported and inconclusive ones. Listing only open and refuted
+    hypotheses let resolved ones come back: by 2026-09-24, 22 proposals held 10 distinct
+    predicates and one was proposed 7 times."""
+    resolved = list(resolved or [])
     lines = ["## Task", "Propose ONE new falsifiable hypothesis about the archive, as a single JSON object.", ""]
     lines.extend(_grid_section(arch))
     lines.append("")
-    lines.append(f"## Already proposed - do not repeat these ({len(refuted) + len(open_h)})")
-    for h in list(open_h) + list(refuted):
+    lines.append(f"## Already proposed - do not repeat these ({len(refuted) + len(open_h) + len(resolved)})")
+    for h in list(open_h) + list(refuted) + resolved:
         lines.append(_hyp_line(h))
-    if not (open_h or refuted):
+    if not (open_h or refuted or resolved):
         lines.append("  none yet")
     lines.extend(_literature_section(literature))
     return "\n".join(lines)

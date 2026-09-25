@@ -32,6 +32,8 @@ SCHEMA: dict[str, tuple] = {
     "run.llm":                    ("auto", str, ("auto", "codex", "on", "off"), "container",
                                    "LLM for directives: codex (mounted ~/.codex/auth.json), on (API key), off (deterministic fallback), auto = codex if auth.json exists else off"),
     "run.llm_model":              ("", str, None, "container", "model override (empty = the CLI/API default)"),
+    "run.llm_reasoning_effort":   ("", str, ("", "low", "medium", "high", "xhigh", "max"), "container",
+                                   "codex reasoning effort for directives, hypotheses and interpretations (empty = the model's default; literature digests always use the default)"),
     "run.eval_budget":            (200, int, (10, 100000), "container", "CMA-ES fitness evaluations per island per cycle (phases 2-3)"),
     "run.llm_every_cycles":       (5, int, (1, 1000), "container", "ask the LLM for a fresh directive every N cycles (and on every escalation); in between the last directive is reused"),
     "run.codex_usage_cap_percent": (80, int, (1, 100), "container", "skip LLM calls once Codex reports this much of the weekly plan limit used (falls back to the deterministic directive)"),

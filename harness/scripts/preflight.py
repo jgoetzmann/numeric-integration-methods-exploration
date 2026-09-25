@@ -844,6 +844,7 @@ RK_ENV_MAP: dict[str, tuple[str, str]] = {
     "RK_MAX_MINUTES": ("run", "auto_stop_minutes"),
     "RK_MAX_CYCLES": ("run", "auto_stop_cycles"),
     "RK_LLM_MODEL": ("run", "llm_model"),
+    "RK_LLM_EFFORT": ("run", "llm_reasoning_effort"),
     "RK_PHASE": ("run", "initial_phase"),
 }
 
@@ -1074,7 +1075,7 @@ def section_HOST(results, docker_ok: bool):
                 wrong = []
                 for name, (sec, key) in sorted(RK_ENV_MAP.items()):
                     if name not in live:
-                        continue                  # run.ps1 passes RK_LLM_MODEL and RK_PHASE conditionally
+                        continue                  # run.ps1 passes RK_LLM_MODEL, RK_LLM_EFFORT and RK_PHASE conditionally
                     want = (cfg.get(sec, {}) or {}).get(key, None)
                     got = live[name]
                     if name in ("RK_SITE", "RK_GIT_COMMIT"):

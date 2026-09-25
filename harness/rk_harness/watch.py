@@ -32,7 +32,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from rk_harness import archive, encourager, ledger, verifier_hash
+from rk_harness import archive, encourager, ledger, outcomes, verifier_hash
 from rk_harness import tableau as tableau_mod
 from rk_harness.paths import findings_dir, work_dir
 from rk_harness.timefmt import fmt_ct, to_ct
@@ -82,9 +82,13 @@ def _config_path() -> Path:
 def load_config() -> dict:
     try:
         data = json.loads(_config_path().read_text(encoding="utf-8"))
-        return {k: v for k, v in data.items() if not k.startswith("_")}
     except (OSError, ValueError):
         return {}
+    # Sections only: a hand edit that leaves a non-object where a section belongs would
+    # otherwise fail every panel that reads one.
+    if not isinstance(data, dict):
+        return {}
+    return {k: v for k, v in data.items() if not k.startswith("_") and isinstance(v, dict)}
 
 
 # events.jsonl has no rotation and is already past 45 MB. This view refreshes every few
@@ -183,8 +187,27 @@ def docker_info(name: str = "rk") -> dict:
     return info
 
 
+# Windows PowerShell as WSL reaches it: interop works by full path only (it is not on the
+# WSL PATH), and watch-integration-harness runs this view under WSL's own Python.
+_WSL_POWERSHELL = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+
+
+def _on_wsl() -> bool:
+    return platform.system() == "Linux" and "microsoft" in platform.release().lower()
+
+
+def _powershell() -> str | None:
+    """The Windows PowerShell this view can call, or None where there is none."""
+    if platform.system() == "Windows":
+        return "powershell"
+    if _on_wsl() and Path(_WSL_POWERSHELL).exists():
+        return _WSL_POWERSHELL
+    return None
+
+
 def watchdog_running() -> bool | None:
-    if platform.system() != "Windows":
+    ps = _powershell()
+    if ps is None:
         return None
     hit = _cache.get("watchdog")
     if hit and time.monotonic() - hit[0] < 30:
@@ -199,11 +222,11 @@ def watchdog_running() -> bool | None:
         # process that is running a Get-CimInstance query.
         # The pattern stays "watchdog.ps1" exactly, never "watchdog*.ps1": a second harness
         # on this host runs scripts/watchdog-<name>.ps1 and must not be counted as rk's.
-        p = subprocess.run(["powershell", "-NoProfile", "-Command",
+        p = subprocess.run([ps, "-NoProfile", "-Command",
                             "(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*-File*watchdog.ps1*'"
                             " -and $_.ProcessId -ne $PID -and $_.CommandLine -notlike '*Get-CimInstance*'"
                             " -and $_.CommandLine -notlike '*-Once*' } | Measure-Object).Count"],
-                           capture_output=True, text=True, timeout=15)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15)
         val = int(p.stdout.strip() or 0) > 0
     except Exception:  # noqa: BLE001
         val = None
@@ -244,12 +267,53 @@ def _kv_table(rows: list[tuple[str, str]], title: str) -> Panel:
     return Panel(t, title=title)
 
 
-def header(st, arch: ArchiveState, events: list[dict], dk: dict, now) -> Panel:
+def run_verdict(dk: dict, hb: datetime.datetime | None, now, stale_seconds: int) -> str:
+    """One line that says whether the run is up, and if it is down, whether on purpose.
+
+    The rest of the header gives the raw fields; this is the answer to the question they are
+    read for. A stopped container reads the same in docker whether stop.ps1 stopped it or it
+    died, so the stop records decide: rk-work/STOP (a graceful stop in progress) and the
+    workspace's run-stopped.txt (stop.ps1 was the last word, DECISIONS D47).
+    """
+    status = dk.get("status")
+    if status == "running":
+        if hb is None:
+            return "[yellow]STARTING[/] container up, no heartbeat yet"
+        age = (now - hb).total_seconds()
+        if age > stale_seconds:
+            return (f"[red]STALLED[/] heartbeat {_fmt_td(now - hb)} old, over the {stale_seconds} s "
+                    "limit; the watchdog kills and restarts a stale run")
+        return "[green]RUNNING[/]"
+    if status == "paused":
+        return "[yellow]PAUSED[/] by the watchdog's pause guard while the machine is busy"
+    if not status or status == "unknown":
+        return "[red]UNKNOWN[/] docker did not answer, so nothing is claimed about the container"
+    if (work_dir() / "STOP").exists():
+        return "[yellow]STOPPING[/] STOP is set; the runner exits at the cycle boundary"
+    marker = work_dir().parent / "run-stopped.txt"
+    if marker.exists():
+        when = "?"
+        try:
+            text = marker.read_text(encoding="utf-8", errors="replace")
+            when = fmt_ct(text.split(" at ", 1)[1].split(".", 1)[0].strip(), default="?")
+        except (OSError, IndexError):
+            pass
+        return f"[yellow]STOPPED ON PURPOSE[/] by stop.ps1 at {when}; start-integration-harness resumes it"
+    return ("[red]DOWN[/] container " + str(status) + " and no stop record; the watchdog restarts "
+            "its own stops, anything else needs start-integration-harness")
+
+
+def header(st, arch: ArchiveState, events: list[dict], dk: dict, now, cfg: dict | None = None) -> Panel:
     hb = None
     try:
         hb = _parse_ts((work_dir() / "HEARTBEAT").read_text(encoding="utf-8").strip())
     except OSError:
         pass
+    try:
+        stale = int((cfg or {}).get("watchdog", {}).get("heartbeat_stale_seconds", 120))
+    except (TypeError, ValueError):
+        stale = 120
+    verdict = run_verdict(dk, hb, now, stale)
     hb_age = _fmt_td(now - hb) if hb else "n/a"
     started = _parse_ts(dk.get("started", "")) if dk.get("status") == "running" else None
     up = _fmt_td(now - started) if started else "-"
@@ -259,6 +323,7 @@ def header(st, arch: ArchiveState, events: list[dict], dk: dict, now) -> Panel:
     wd = watchdog_running()
     wd_txt = {True: "[green]running[/]", False: "[red]NOT running[/]", None: "n/a"}[wd]
     txt = Text.from_markup(
+        f"{verdict}\n"
         f"container [{colour}]{status}[/]  up {up}   heartbeat age {hb_age}   watchdog {wd_txt}   "
         f"cycle {st.cycle_id}   phase {st.phase} = {name}   records {arch.n_records}   stall {st.stall_counter}\n"
         f"[dim]{desc}[/]   now {fmt_ct(now, seconds=True)}"
@@ -317,8 +382,34 @@ def progress_panel(st, arch: ArchiveState, events: list[dict], records, now, sco
     else:
         last_improved = "none yet" if scope == "this run" else f"none {scope}"
     rows.append(("last improvement", last_improved))
+    try:
+        ov = outcome_view(now)
+        span = "last 24 h" if ov["covers_24h"] else "last 24 h, at least (the tail is shorter)"
+        latest = fmt_ct(ov["last_elite"], default="?") if ov["last_elite"] else "none in the tail"
+        rows.append(("new elites", f"{ov['elites_24h']} in the {span}; latest {latest}"))
+    except Exception:  # noqa: BLE001 - an optional row
+        pass
     rows.append(("current cell", str(st.current_cell)))
     return _kv_table(rows, "progress")
+
+
+def outcome_view(now) -> dict:
+    """What recent directives produced (rk_harness.outcomes, the table the directive model
+    sees) and the new elites of the last 24 h, cached 60 s: it reads a 16 MB tail."""
+    hit = _cache.get("outcomes")
+    if hit and time.monotonic() - hit[0] < 60:
+        return hit[1]
+    events = outcomes.read_events()
+    elites = [e for e in events if e.get("kind") == "accepted" and e.get("new_elite")]
+    day_ago = now - datetime.timedelta(hours=24)
+    first = _parse_ts(events[0].get("ts")) if events and events[0].get("ts") else None
+    view = {"rows": outcomes.tally(events),
+            "elites_24h": sum(1 for e in elites if (_parse_ts(e.get("ts")) or day_ago) > day_ago),
+            "last_elite": elites[-1].get("ts") if elites else None,
+            # the tail may start inside the last 24 h, and then the count is a floor
+            "covers_24h": first is not None and first <= day_ago}
+    _cache["outcomes"] = (time.monotonic(), view)
+    return view
 
 
 def working_panel(events: list[dict], hyps: list[dict]) -> Panel:
@@ -343,6 +434,15 @@ def working_panel(events: list[dict], hyps: list[dict]) -> Panel:
     r = last("directive_rejected")
     if r:
         rows.append(("last rejected directive", str(r.get("error"))[:200]))
+    try:
+        for r in outcome_view(_now())["rows"][:3]:
+            reached = ", ".join(f"o{o}: {n}" for o, n in sorted(r["reached"].items(), reverse=True)) or "nothing"
+            flag = "  [red]never reached its target[/]" if r["dead_end"] else ""
+            rows.append(("recent shape", f"order {r['target_order']} stages {r['stages']}"
+                                         f"{' c_fixed' if r['c_fixed'] else ''}: {r['islands']} islands, "
+                                         f"reached {reached}, {r['new_elites']} new elites{flag}"))
+    except Exception:  # noqa: BLE001 - an optional row
+        pass
     isl = last("island_done")
     if isl:
         rows.append(("last island", f"order {isl.get('order')} stages {isl.get('stages')} seed {isl.get('seed')} yielded {isl.get('yielded')}"))
@@ -374,7 +474,9 @@ def llm_panel(events: list[dict], dk: dict, scope: str) -> Panel:
                 return e
         return None
     env = dk.get("env", {})
-    rows: list[tuple[str, str]] = [("mode", f"RK_LLM={env.get('RK_LLM', os.environ.get('RK_LLM', '?'))}  model={env.get('RK_LLM_MODEL', 'default')}")]
+    rows: list[tuple[str, str]] = [("mode", f"RK_LLM={env.get('RK_LLM', os.environ.get('RK_LLM', '?'))}  "
+                                            f"model={env.get('RK_LLM_MODEL') or 'default'}  "
+                                            f"effort={env.get('RK_LLM_EFFORT') or 'default'}")]
     calls = [e for e in events if e.get("kind") == "llm_call"]
     rows.append(("directive calls", f"{len(calls)} {scope}; last {fmt_ct(calls[-1].get('ts')) if calls else 'none'}"))
     u = last("codex_usage")
@@ -385,6 +487,8 @@ def llm_panel(events: list[dict], dk: dict, scope: str) -> Panel:
         tok = u.get("tokens") or {}
         rows.append(("codex usage", f"{used}% of the {span} {plan or ''} limit used, resets {when}"))
         rows.append(("last call tokens", f"in {tok.get('input_tokens', 0)} (cached {tok.get('cached_input_tokens', 0)})  out {tok.get('output_tokens', 0)}  reasoning {tok.get('reasoning_output_tokens', 0)}"))
+        if u.get("model") or u.get("effort"):
+            rows.append(("last call model", f"{u.get('model', '?')}  effort {u.get('effort', '?')}"))
     cd = last("cycle_done")
     if cd and "spend_usd" in cd:
         rows.append(("api spend", f"${float(cd.get('spend_usd', 0)):.4f} of ${float(cd.get('cap_usd', 0)):.2f} cap (metered path only; codex is plan-billed)"))
@@ -590,7 +694,8 @@ def machine_panel(dk: dict) -> Panel:
 
     cpu = st.host_cpu_percent(sample_seconds=0.15)
     rows.append(("host CPU", f"{cpu}% total (the pause guard uses host minus container)"
-                 if cpu is not None else "unknown"))
+                 if cpu is not None else
+                 ("unknown (Windows counters are not readable from WSL)" if _on_wsl() else "unknown")))
     mem = st.host_memory()
     if mem:
         rows.append(("memory", f"{mem['percent_used']}% used, {mem['free_gb']} GB free "
@@ -641,6 +746,16 @@ def events_panel(events: list[dict], n: int) -> Panel:
     return Panel(t, title=f"last {n} events")
 
 
+def _panel(title: str, fn, *args) -> Panel:
+    """fn(*args), or a panel saying why it failed. One bad read (a half-written state file, a
+    record shape an old view does not know) used to blank the whole live view behind a single
+    "refresh failed" box, and to crash --once outright; now it costs only its own panel."""
+    try:
+        return fn(*args)
+    except Exception as e:  # noqa: BLE001 - one panel must never take the view down
+        return Panel(Text(f"could not build this panel: {e!r}"[:400], style="red"), title=title)
+
+
 def build_layout(cells: bool = False) -> Layout:
     cfg = load_config()
     now = _now()
@@ -656,36 +771,48 @@ def build_layout(cells: bool = False) -> Layout:
     if cells:
         # display mode: the per-cell table at full width, with the header for context
         only = Layout(name="root")
-        only.split_column(Layout(name="head", size=4), Layout(name="cells"))
-        only["head"].update(header(st, arch, events, dk, now))
-        only["cells"].update(results_panel(arch, records))
+        only.split_column(Layout(name="head", size=5), Layout(name="cells"))
+        only["head"].update(_panel("rk run", header, st, arch, events, dk, now, cfg))
+        only["cells"].update(_panel("results", results_panel, arch, records))
         return only
     try:
         hyps = ledger.load_hypotheses()
     except Exception:  # noqa: BLE001
         hyps = []
-    n_tail = int(cfg.get("watcher", {}).get("events_tail", 25))
+    try:
+        n_tail = max(5, int(cfg.get("watcher", {}).get("events_tail", 25)))
+    except (TypeError, ValueError):
+        n_tail = 25
     root = Layout(name="root")
-    root.split_column(Layout(name="head", size=4), Layout(name="top", size=14), Layout(name="mid"), Layout(name="bottom", size=n_tail + 4))
+    root.split_column(Layout(name="head", size=5), Layout(name="top", size=14), Layout(name="mid"), Layout(name="bottom", size=n_tail + 4))
     root["top"].split_row(Layout(name="settings", ratio=3), Layout(name="llm", ratio=2))
     root["mid"].split_row(Layout(name="left"), Layout(name="right", ratio=2))
     root["left"].split_column(Layout(name="progress"), Layout(name="working"),
                               Layout(name="health"), Layout(name="machine", size=12))
-    root["head"].update(header(st, arch, events, dk, now))
-    root["settings"].update(settings_panel(cfg, dk))
-    root["llm"].update(llm_panel(events, dk, scope))
-    root["progress"].update(progress_panel(st, arch, events, records, now, scope))
-    root["working"].update(working_panel(events, hyps))
-    root["health"].update(health_panel(events, now, scope, dk, st.cycle_id))
-    root["machine"].update(machine_panel(dk))
-    root["right"].update(results_panel(arch, records))
-    root["bottom"].update(events_panel(events, n_tail))
+    root["head"].update(_panel("rk run", header, st, arch, events, dk, now, cfg))
+    root["settings"].update(_panel("settings", settings_panel, cfg, dk))
+    root["llm"].update(_panel("LLM / codex", llm_panel, events, dk, scope))
+    root["progress"].update(_panel("progress", progress_panel, st, arch, events, records, now, scope))
+    root["working"].update(_panel("what it is working on", working_panel, events, hyps))
+    root["health"].update(_panel("health", health_panel, events, now, scope, dk, st.cycle_id))
+    root["machine"].update(_panel("this machine", machine_panel, dk))
+    root["right"].update(_panel("results", results_panel, arch, records))
+    root["bottom"].update(_panel(f"last {n_tail} events", events_panel, events, n_tail))
     return root
+
+
+def safe_layout(cells: bool = False):
+    """build_layout, or one panel naming the failure: the view outlives anything the layout
+    itself trips on (the config, the event tail, docker), including on its first frame."""
+    try:
+        return build_layout(cells)
+    except Exception as e:  # noqa: BLE001 - never let the view die on a transient read
+        return Panel(Text(f"refresh failed: {e!r}"[:400], style="red"), title="rk run")
 
 
 def render_once(width: int = 160, height: int = 80, cells: bool = False) -> str:
     console = Console(width=width, height=height, record=True, force_terminal=False)
-    console.print(build_layout(cells), height=height)
+    console.print(safe_layout(cells), height=height)
     return console.export_text()
 
 
@@ -697,18 +824,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.once:
         base = Console()
         console = Console(width=max(base.width, 160), force_terminal=base.is_terminal)
-        console.print(build_layout(args.cells), height=max(base.height, 80))
+        console.print(safe_layout(args.cells), height=max(base.height, 80))
         return 0
-    refresh = int(load_config().get("watcher", {}).get("refresh_seconds", 5))
     console = Console()
     try:
-        with Live(build_layout(args.cells), console=console, screen=True, refresh_per_second=1) as live:
+        with Live(safe_layout(args.cells), console=console, screen=True, refresh_per_second=1) as live:
             while True:
-                time.sleep(max(1, refresh))
+                # Read each time, so an edit to watcher.refresh_seconds applies without a
+                # restart, and a bad value falls back to 5 s instead of ending the view.
                 try:
-                    live.update(build_layout(args.cells))
-                except Exception as e:  # noqa: BLE001 — never let the view die on a transient read
-                    live.update(Panel(f"refresh failed: {e!r}", title="rk run"))
+                    refresh = int(load_config().get("watcher", {}).get("refresh_seconds", 5))
+                except (TypeError, ValueError):
+                    refresh = 5
+                time.sleep(max(1, refresh))
+                live.update(safe_layout(args.cells))
     except KeyboardInterrupt:
         return 0
 

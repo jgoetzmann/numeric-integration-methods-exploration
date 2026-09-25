@@ -39,6 +39,7 @@ $runArgs = @{
     EnvFile   = ($envFile -replace '\\','/')
     Llm       = [string](Cfg "run" "llm" "auto")
     Model     = [string](Cfg "run" "llm_model" "")
+    LlmEffort = [string](Cfg "run" "llm_reasoning_effort" "")
     Cpus      = [double](Cfg "container" "cpus" 4)
     MemoryGB  = [double](Cfg "container" "memory_gb" 6)
     PidsLimit = [int](Cfg "container" "pids_limit" 512)

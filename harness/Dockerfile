@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir \
       rich==13.9.4 pytest==8.3.3
 # Codex CLI for RK_LLM=codex (HANDOFF §2.2: OAuth done on the host, auth.json mounted :ro).
 RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm \
- && npm install -g @openai/codex@0.151.0 \
+ && npm install -g @openai/codex@0.156.1 \
  && npm cache clean --force \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /work

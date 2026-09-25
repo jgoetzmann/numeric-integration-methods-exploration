@@ -10,6 +10,7 @@ param(
     [string]$CodexAuth = (Join-Path $env:USERPROFILE ".codex\auth.json"),
     [string]$Llm = "auto",          # auto | codex | on | off
     [string]$Model = "",
+    [string]$LlmEffort = "",        # "" = the model's default; see configure.py run.llm_reasoning_effort
     [double]$Cpus = 4,
     [double]$MemoryGB = 6,
     [int]$PidsLimit = 512,
@@ -73,7 +74,7 @@ if ($haveAuth) { $mounts += @("-v", "${CodexAuth}:/root/.codex/auth.json:ro") }
 else { Write-Host "note: $CodexAuth not found; Codex OAuth not mounted (authenticate on the host first)" }
 if ($Llm -eq "auto") { if ($haveAuth) { $Llm = "codex" } else { $Llm = "off" } }
 if ($Llm -eq "codex" -and -not $haveAuth) { Write-Host "warning: RK_LLM=codex requested but auth.json is missing; directives will fall back"; }
-Write-Host "LLM mode: RK_LLM=$Llm$(if ($Model) { " model=$Model" })"
+Write-Host "LLM mode: RK_LLM=$Llm$(if ($Model) { " model=$Model" })$(if ($LlmEffort) { " effort=$LlmEffort" })"
 
 $envFlags = @(
     "-e", "RK_LLM=$Llm",
@@ -97,6 +98,7 @@ $envFlags = @(
     "-e", "RK_MAX_CYCLES=$MaxCycles"
 )
 if ($Model) { $envFlags += @("-e", "RK_LLM_MODEL=$Model") }
+if ($LlmEffort) { $envFlags += @("-e", "RK_LLM_EFFORT=$LlmEffort") }
 if ($Phase -ne "") { $envFlags += @("-e", "RK_PHASE=$Phase") }
 
 $mem = "{0}g" -f $MemoryGB

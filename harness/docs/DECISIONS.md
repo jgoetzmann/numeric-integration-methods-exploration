@@ -2245,3 +2245,58 @@ start soon after a kill would otherwise commit nothing for the whole run. A grac
 for the cycle boundary (71 s for the owner's stop at 01:36Z on 2026-09-25); a forced one returns in a few seconds.
 
 ---
+
+---
+
+## D48 - Directives see what earlier directives produced, and the model moves to GPT-6-Sol at high effort (2026-09-24)
+
+**Decision.** The owner asked whether the run was still finding anything new, and to raise the
+model. A read of epoch 2's event stream answered the first question: still improving (the last
+new cell at 2026-09-25T00:43Z), but retracing epoch 1 with one systematic waste. 152 of 186
+directives asked for order 4 at stages [5, 6] without `c_fixed`, and none of those 5,237 islands
+yielded an order-4 candidate. The islands snap A to a dyadic grid and solve b exactly, and at
+order 4 that system is overdetermined unless the nodes are pinned. Over the last 300 cycles,
+order-3 directives ran 9% of the islands and made 9 of the 13 new elites. The directive prompt
+showed the grid, never what the model's own earlier directives had produced.
+
+(a) *Outcome history.* `rk_harness/outcomes.py` tallies, per directive shape (target order,
+stages, `c_fixed` set, source), the islands run, the orders the candidates reached and the new
+elites, from the last 16 MB of `events.jsonl`, and flags a shape with 20 or more islands that
+never reached its target order. `build_user_prompt` shows that table, with the one shape that
+has produced order-4 candidates here (epoch 1's D-357A: 16 islands, 4 of 106 candidates at
+order 4, 2 new elites).
+
+(b) *Hypotheses.* The hypothesis prompt lists supported and inconclusive hypotheses as well as
+open and refuted ones, and a proposal whose predicate matches one already in the ledger (case
+and spacing aside) is dropped with a `hypothesis_duplicate` event. 22 proposals had held 10
+distinct predicates, one of them proposed 7 times.
+
+(c) *Model.* The image moves from Codex CLI 0.151.0 to 0.156.1, the version already in use on
+the host, because the GPT-6 models refuse older clients. `run.llm_model` is `gpt-6-sol`, and a
+new key, `run.llm_reasoning_effort` (passed as `RK_LLM_EFFORT`, then `-c
+model_reasoning_effort`), is `high` for directives, hypotheses and interpretations. Directive
+calls had averaged about 120 reasoning tokens at the old default. The literature digest keeps
+the model's default effort. Codex 0.156 searches the web unless told not to, which quadrupled a
+test directive's input tokens, so every call except the digest passes
+`web_search="disabled"`, and the digest asks for `web_search="live"` (`tools.web_search=false` no
+longer turns search off). `codex_usage` and `llm_call` events record the model and effort; the
+`llm_call` event had named `gpt-4.1-mini` on every codex call.
+
+(d) *Budget and cadence.* The owner judged the weekly limit far away. It is closer than it looks:
+at the old settings a call cost about 0.06% of the weekly Plus limit, and at about 8 calls an
+hour the run alone would use about 80% of a full week. The previous week ended at 13% only
+because the run was down for five of its days. Literature digests were half of all input
+tokens (45 calls averaging 104k), so `run.litreview_every_cycles` goes from 8 to 25. Side-tracks
+are off (`run.sidetrack_every_cycles=0`): all 103 points were done by cycle 120. The lane
+schedule goes from EAI to EEA, because the implicit lane's 32 elites have tied at 2292 cycles
+since cycle 239. `run.codex_usage_cap_percent` (80) still stops LLM calls before the limit.
+
+(e) *Watcher.* One failing panel renders its own error instead of blanking the view, and a failed
+first frame or a bad `config.json` section no longer ends it. The header opens with a verdict
+(RUNNING, STARTING, STALLED, PAUSED, STOPPING, STOPPED ON PURPOSE, DOWN, UNKNOWN), reading
+`rk-work/STOP` and `run-stopped.txt` to tell a deliberate stop from a dead run. Under WSL, the
+view reaches Windows PowerShell by full path, so the watchdog shows instead of "n/a".
+
+**Epoch impact.** None. No pinned file moves; prompts and directives only narrow the search, and
+the grading is untouched. The Dockerfile change is an image rebuild, not an epoch boundary (D25).
+`lanesearch.py` is unchanged, so `lanesearch_code_hash` stays d99e4d2d.
