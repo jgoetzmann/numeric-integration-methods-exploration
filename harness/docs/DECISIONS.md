@@ -2232,4 +2232,16 @@ or went down. After a reboot the run is started by hand with the first of them. 
 describes the task as installed; that is no longer true. The stop marker `run-stopped.txt`
 still means what (b) says, for anyone who reinstalls the task.
 
+**Amended 2026-09-24: `stop-integration-harness --force`.** The wrappers splatted their raw
+arguments into `start.ps1` and `stop.ps1`, so `-Force` reached `stop.ps1` as a value for
+`-WaitMinutes` and the stop failed, and `-Build` failed the same way; the README said `-Force`
+passed through. `integration-harness.ps1` now matches `--force`, `--build`, `--restart` and
+`--once` by name (one dash or two, any case), passes them on as switches and refuses anything
+else. `stop.ps1 -Force` sends `docker kill` rather than `docker stop`: the runner ignores SIGTERM,
+so a stop only ever ended in SIGKILL once the stop timeout ran out. After any kill it removes
+lock files from the `rk-work` and `rk-findings` git directories, because a kill during a commit
+leaves one there and the runner clears locks at start only once they are ten minutes old, so a
+start soon after a kill would otherwise commit nothing for the whole run. A graceful stop waits
+for the cycle boundary (71 s for the owner's stop at 01:36Z on 2026-09-25); a forced one returns in a few seconds.
+
 ---
