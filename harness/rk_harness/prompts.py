@@ -71,7 +71,9 @@ def _history_section(history: str) -> list[str]:
         "candidate whose A cannot meet the target order is kept at the highest order it does "
         "meet. A shape marked as never reaching its target order has not paid off at those "
         "settings: change its constraints (pinning nodes with c_fixed matters most at order 4) "
-        "or choose a different target. Prefer the shapes that have produced new elites.",
+        "or choose a different target. Prefer shapes that are still producing new elites: a "
+        "shape with many islands since its latest new elite is spent at its current settings, "
+        "whatever its total, so vary its constraints, stages or target, or move to another cell.",
         "The one shape that has produced order-4 candidates here (epoch 1: 16 islands, 4 of 106 "
         "candidates at order 4, 2 new elites):",
         json.dumps(_ORDER4_SHAPE),

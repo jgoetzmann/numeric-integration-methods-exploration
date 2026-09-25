@@ -888,9 +888,11 @@ def test_C50_the_directive_prompt_shows_what_earlier_directives_produced(tmp_pat
     r4 = by[(4, (5, 6), False)]
     assert r4["islands"] == 25 and r4["reached"][3] == 150 and r4["reached"][4] == 0
     assert r4["new_elites"] == 1 and r4["dead_end"] is True
+    assert r4["islands_since_last_elite"] == 0             # its one elite came after all 25 islands
     r3 = by[(3, (4,), False)]
     assert r3["islands"] == 3 and r3["accepted"] == 2 and r3["new_elites"] == 1 and not r3["dead_end"]
     assert by[(4, (6,), True)]["reached"][4] == 1
+    assert by[(4, (6,), True)]["islands_since_last_elite"] is None      # no elite yet
     assert rows[0]["c_fixed"] is True                       # most recently used shape first
     text = outcomes.format_rows(rows)
     assert "never reached its target order" in text.splitlines()[[i for i, l in enumerate(text.splitlines()) if l.startswith("4 | [5, 6]")][0]]
@@ -952,7 +954,12 @@ def test_C52_the_view_shows_new_elites_and_what_recent_directive_shapes_reached(
     monkeypatch.setattr(watch, "_now", lambda: __import__("datetime").datetime(
         2026, 9, 21, 12, 0, tzinfo=__import__("datetime").timezone.utc))
     text = watch.render_once(width=220, height=120)
-    watch._cache.pop("outcomes", None)
     assert "1 in the last 24 h" in _line_with(text, "new elites")
     assert "order 4 stages [5, 6]: 21 islands" in _line_with(text, "recent shape")
-    assert "never reached its target" in text
+    # the whole row, from the panel alone, so the layout's column width cannot wrap it
+    from rich.console import Console
+    con = Console(width=400, record=True, force_terminal=False)
+    con.print(watch.working_panel(watch.load_events()[0], []))
+    row = _line_with(con.export_text(), "recent shape")
+    watch._cache.pop("outcomes", None)
+    assert "1 new elites (0 islands since the latest)" in row and "never reached its target" in row

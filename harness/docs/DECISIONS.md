@@ -2300,3 +2300,11 @@ view reaches Windows PowerShell by full path, so the watchdog shows instead of "
 **Epoch impact.** None. No pinned file moves; prompts and directives only narrow the search, and
 the grading is untouched. The Dockerfile change is an image rebuild, not an epoch boundary (D25).
 `lanesearch.py` is unchanged, so `lanesearch_code_hash` stays d99e4d2d.
+
+**Amended 2026-09-25: islands since the latest new elite.** In its first 1.4 hours the change did
+what it was for: the model moved to the D-357A shape at once, the first cycle filled the order-4,
+six-stage cell (bucket 3), and 32 cycles made 9 new elites. It then chose that shape five times
+running while its elites dried up (48 islands since the latest by 05:02Z), because the table
+showed each shape's total and not its recent yield. The table and the watcher now show the
+islands each shape has run since its latest new elite, and the prompt says a shape with many is
+spent at its current settings whatever its total.

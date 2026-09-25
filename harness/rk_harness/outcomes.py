@@ -73,7 +73,7 @@ def tally(events: list[dict]) -> list[dict]:
             key = _shape(ev)
             shape_of[ev.get("directive_id")] = key
             row = rows.setdefault(key, {"directives": 0, "islands": 0, "reached": Counter(),
-                                        "accepted": 0, "new_elites": 0})
+                                        "accepted": 0, "new_elites": 0, "islands_at_last_elite": None})
             row["directives"] += 1
             last_use[key] = i
         elif kind == "island_start":
@@ -93,12 +93,19 @@ def tally(events: list[dict]) -> list[dict]:
             key = shape_of.get(ev.get("directive_id"))
             if key is not None:
                 rows[key]["accepted"] += 1
-                rows[key]["new_elites"] += bool(ev.get("new_elite"))
+                if ev.get("new_elite"):
+                    rows[key]["new_elites"] += 1
+                    rows[key]["islands_at_last_elite"] = rows[key]["islands"]
     out = []
     for key, row in rows.items():
         order, stages, c_fixed, source = key
+        at = row.pop("islands_at_last_elite")
+        # Islands run since this shape's latest new elite: a shape can have a good total and
+        # be spent. After D48 the model chose the one productive order-4 shape five times
+        # running while its elites dried up, because the table showed only the total.
+        since = None if at is None else row["islands"] - at
         out.append({"target_order": order, "stages": list(stages), "c_fixed": c_fixed,
-                    "source": source, **row,
+                    "source": source, **row, "islands_since_last_elite": since,
                     "dead_end": row["islands"] >= _DEAD_END_ISLANDS and row["reached"][order] == 0})
     out.sort(key=lambda r: -last_use.get((r["target_order"], tuple(r["stages"]), r["c_fixed"],
                                           r["source"]), -1))
@@ -110,13 +117,14 @@ def format_rows(rows: list[dict], limit: int = 12) -> str:
     if not rows:
         return ""
     lines = ["target_order | stages | c_fixed | source | directives | islands | "
-             "candidates by order reached | new elites"]
+             "candidates by order reached | new elites | islands since the latest new elite"]
     for r in rows[:limit]:
         reached = ", ".join(f"order {o}: {n}" for o, n in sorted(r["reached"].items(), reverse=True)) or "none"
         flag = "   <- never reached its target order" if r["dead_end"] else ""
+        since = "-" if r["islands_since_last_elite"] is None else r["islands_since_last_elite"]
         lines.append(f"{r['target_order']} | {r['stages']} | {'yes' if r['c_fixed'] else 'no'} | "
                      f"{r['source']} | {r['directives']} | {r['islands']} | {reached} | "
-                     f"{r['new_elites']}{flag}")
+                     f"{r['new_elites']} | {since}{flag}")
     return "\n".join(lines)
 
 

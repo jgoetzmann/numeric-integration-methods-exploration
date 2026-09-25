@@ -440,7 +440,10 @@ def working_panel(events: list[dict], hyps: list[dict]) -> Panel:
             flag = "  [red]never reached its target[/]" if r["dead_end"] else ""
             rows.append(("recent shape", f"order {r['target_order']} stages {r['stages']}"
                                          f"{' c_fixed' if r['c_fixed'] else ''}: {r['islands']} islands, "
-                                         f"reached {reached}, {r['new_elites']} new elites{flag}"))
+                                         f"reached {reached}, {r['new_elites']} new elites"
+                                         + (f" ({r['islands_since_last_elite']} islands since the latest)"
+                                            if r.get("islands_since_last_elite") is not None else "")
+                                         + flag))
     except Exception:  # noqa: BLE001 - an optional row
         pass
     isl = last("island_done")
