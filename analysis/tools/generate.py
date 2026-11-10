@@ -382,6 +382,23 @@ def _frozen_banner() -> str:
         "shift-add chain and a hardware multiply.</p>")
 
 
+def _ended_banner() -> str:
+    """Run-ended banner, shown once the open epoch has a freeze record of its own.
+
+    Keyed on the same EPOCH_STATUS.json the findings site's epoch panel reads, through
+    sg.epoch_status_data, so the two sites agree on whether the run is over. The date is
+    the record's own frozen_at, so rebuilds of the same state stay byte-identical. The
+    owner ended the run on 2026-11-10 and froze epoch 2 that way; the banner says so on
+    every page, above the epoch 1 banner, which still labels the numbers below it."""
+    d = sg.epoch_status_data()
+    if d.get("state") != "frozen" or not d.get("frozen_at"):
+        return ""
+    date = timefmt.fmt_ct(d["frozen_at"])[:10]
+    return (
+        f'<p class="banner">The rk run ended on {date}. Epoch {d.get("epoch")} is frozen, '
+        "no further cycles will run, and neither site will change again.</p>")
+
+
 def _page(title: str, body: str, active: str, subtitle: str = "",
           head_extra: str = "", body_end: str = "", description: str = "") -> str:
     """The shared shell. description is the head's own string, not visible text.
@@ -392,8 +409,7 @@ def _page(title: str, body: str, active: str, subtitle: str = "",
     that does not exist. The findings site omits it for the same reason and a test there
     pins the absence."""
     sub = f'<p class="sub">{sg._esc(subtitle)}</p>' if subtitle else ""
-    frozen = _frozen_banner()
-    banner = f"{frozen}\n" if frozen else ""
+    banner = "".join(f"{b}\n" for b in (_ended_banner(), _frozen_banner()) if b)
     footer = T.FOOTER.format(date=SNAPSHOT_DATE, shas=COMMIT_SHAS)
     desc = description or subtitle or sg._DEFAULT_DESCRIPTION
     url = sg.OVERVIEW_URL + ("" if active in ("", "index.html") else active)
