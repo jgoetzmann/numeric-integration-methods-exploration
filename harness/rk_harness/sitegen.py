@@ -229,6 +229,8 @@ th.num,td.num{text-align:right}
 .badge-inconclusive{background:var(--warn-bg);color:var(--warn-fg)}
 .badge-active{background:var(--good-bg);color:var(--good-fg)}
 .badge-frozen{background:var(--mut-bg);color:var(--mut-fg)}
+.ended{background:var(--banner-bg);border:1px solid var(--banner-line);border-radius:10px;
+  padding:10px 16px;margin:16px 0 0;max-width:76ch;font-size:13.5px}
 .hash{word-break:break-all;font:12px ui-monospace,Consolas,monospace;color:var(--text-2);
   line-height:inherit}
 p.note .hash{word-break:normal;white-space:nowrap}
@@ -629,6 +631,35 @@ _DEFAULT_DESCRIPTION = (
 # own output depend on its environment. runner.py reads the SHAs and passes them in.
 _COMMIT_SHAS: tuple[tuple[str, str], ...] = ()
 
+# The run-ended notice every page carries once the open epoch is frozen, set by build()
+# and cleared in its finally, the way _COMMIT_SHAS is. build() reads the epoch state once
+# rather than letting each _page call rescan events.jsonl.
+_ENDED: str = ""
+
+HARNESS_REPO_URL = "https://github.com/jgoetzmann/rk-harness"
+
+
+def _ended_banner(d: dict) -> str:
+    """Run-ended notice for the top of every page, or "" while the open epoch is active.
+
+    Keyed on the open epoch's freeze record (EPOCH_STATUS.json, through
+    epoch_status_data), the same condition rk-overview's own run-ended banner reads, so
+    the two sites agree on whether the run is over. A frozen open epoch means no cycle
+    runs until a person opens the next one, and this run's owner ended it there on
+    2026-11-10. The date is the record's own frozen_at, so rebuilds of the same state stay
+    byte-identical. It quotes no count: the stamp under the index lead carries the final
+    cycle and record totals, and check_tallies holds those."""
+    if d.get("state") != "frozen" or not d.get("frozen_at"):
+        return ""
+    date = _ct(d["frozen_at"])[:10]
+    return (
+        f'<p class="ended">The rk run ended on {_esc(date)}, and no more compute goes to '
+        f"it. Epoch {_num(d.get('epoch'))} is frozen and these pages are its final "
+        "snapshot: the site is no longer rebuilt. The overview site sums up "
+        f'<a href="{OVERVIEW_URL}#final">the final findings</a>, and '
+        f'<a href="{HARNESS_REPO_URL}">the harness</a> is public for anyone to download '
+        "and run.</p>\n")
+
 
 def _doc_title(title: str) -> str:
     """The browser tab and the search result: the heading, plus the site it sits on.
@@ -690,6 +721,7 @@ def _page(title: str, body: str, active: str = "", subtitle: str = "",
         f'<a class="about" href="{OVERVIEW_URL}">About the project &#8599;</a></div>\n'
         "</div></header>\n"
         '<div class="wrap">\n'
+        f"{_ENDED}"
         f"{body}\n"
         "<footer>\n"
         "<p>rk-harness findings: Runge-Kutta integrators for a Cortex-M0+ "
@@ -2055,9 +2087,12 @@ def render_index(arch: ArchiveState, benchmark: dict | None = None,
         '<p class="lead">An automated search for Runge-Kutta methods that hold up in '
         + _gloss("q15", "Q15") + " fixed-point arithmetic on small microcontrollers. Cost "
         "is counted against a modeled Cortex-M0+ " + _gloss("cycle-budget", "cycle budget")
-        + " rather than measured on the chip. This site is rebuilt from the run's data at "
-        "the end of every cycle, and nobody edits it by hand. "
-        f'The <a href="{OVERVIEW_URL}">project overview</a> explains why the project '
+        + " rather than measured on the chip. "
+        + ("This site was rebuilt from the run's data at the end of every cycle until the "
+           "run ended, and nobody edits it by hand. " if _ENDED else
+           "This site is rebuilt from the run's data at the end of every cycle, and nobody "
+           "edits it by hand. ")
+        + f'The <a href="{OVERVIEW_URL}">project overview</a> explains why the project '
         "exists and how it works.</p>"
     ]
     stamp = _archive_stamp(arch)
@@ -8669,10 +8704,11 @@ def build(arch: ArchiveState, out_dir: Path, commit_shas=None) -> None:
     tests build into a directory with no git repository, and the container can see three
     of the four repositories anyway.
     """
-    global _PRESENT, _COMMIT_SHAS
+    global _PRESENT, _COMMIT_SHAS, _ENDED
     out_dir = Path(out_dir)
     _COMMIT_SHAS = tuple((str(k), str(v)) for k, v in
                          sorted((commit_shas or {}).items()) if v)
+    _ENDED = _ended_banner(epoch_status_data())
     validation = _load_validation()
     benchmark = _load_benchmark()
     sidetrack = _load_sidetrack()
@@ -8748,3 +8784,4 @@ def build(arch: ArchiveState, out_dir: Path, commit_shas=None) -> None:
     finally:
         _PRESENT = frozenset()
         _COMMIT_SHAS = ()
+        _ENDED = ""

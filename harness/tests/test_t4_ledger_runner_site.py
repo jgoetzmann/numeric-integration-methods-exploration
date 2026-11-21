@@ -2111,6 +2111,36 @@ def test_B65_epoch_panel_frozen_state_from_epoch_status_json(monkeypatch, tmp_pa
     check_banned(html)
 
 
+def test_a_frozen_open_epoch_puts_the_run_ended_notice_on_every_page(monkeypatch, tmp_path):
+    """The run-ended notice tops every page once the open epoch is frozen, and the hub's
+    lead stops saying the site is rebuilt every cycle. An active epoch gets neither, and
+    the notice is cleared after the build so a later render does not inherit it."""
+    work, arch = _site_archive(monkeypatch, tmp_path)
+    _write_progress_events(work)
+    active = tmp_path / "active"
+    build(arch, active)
+    for page in active.glob("*.html"):
+        assert 'class="ended"' not in page.read_text(encoding="utf-8")
+    (work / "EPOCH_STATUS.json").write_text(json.dumps({
+        "epoch": 1, "frozen_at": "2026-09-21T12:00:00Z",
+        "reason": "the owner ended the run"}), encoding="utf-8")
+    out = tmp_path / "docs"
+    build(arch, out)
+    pages = sorted(out.glob("*.html"))
+    assert pages
+    for page in pages:
+        html = page.read_text(encoding="utf-8")
+        assert html.count('<p class="ended">The rk run ended on 2026-09-21,') == 1, page.name
+        assert f'href="{sg.OVERVIEW_URL}#final"' in html
+        assert f'href="{sg.HARNESS_REPO_URL}"' in html
+        check_banned(html)
+    hub = (out / "index.html").read_text(encoding="utf-8")
+    assert "rebuilt from the run's data at the end of every cycle until the run ended" in hub
+    assert "This site is rebuilt from the run's data" not in hub
+    assert sg._ENDED == ""
+    assert sg._ended_banner({"state": "active", "frozen_at": None}) == ""
+
+
 def test_B65_epoch_status_data_defaults_on_a_fresh_work_dir(monkeypatch, tmp_path):
     _setup_env(monkeypatch, tmp_path)
     d = epoch_status_data()
