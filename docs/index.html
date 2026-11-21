@@ -27,7 +27,7 @@
 <main id="content">
 <h1>Two searches for better Runge-Kutta coefficients</h1>
 <p class="lead">Both projects asked whether a search can find Runge-Kutta coefficients that do better than the textbook ones. In float64, <a href="claims.html#U1">established methods were more accurate in both</a>, though the 2025 half of that is weak evidence. Inside Q15 fixed point with floor rounding, at a 65,536-cycle budget on the analytic cost model with magnitude weighting, the rk run found a three-stage method with <a href="claims.html#R1">2.95x lower held-out error</a> than the best of eight classical methods. That figure comes from the epoch-1 cost model, which a later trace found <a href="claims.html#R7">had <code>rk4</code> and <code>rk38</code> in the wrong order</a>; epoch 2 has not re-measured it, and it moves with the cost basis and the weighting.</p>
-<p class="note">Figures date from 2026-09-23; the rk run has kept going, and <a href="https://jgoetzmann.github.io/rk-findings/">its findings site</a> has current numbers.</p>
+<p class="note">Figures date from 2026-09-23. The rk run ended on 2026-11-10, after cycle 17,364, and no more compute goes to it; <a href="https://jgoetzmann.github.io/rk-findings/">its findings site</a> holds the final numbers, and <a href="https://github.com/jgoetzmann/rk-harness"><code>rk-harness</code></a>, the code behind them, stays public for anyone to download and run.</p>
 <h2 id="terms">Terms</h2>
 <dl class="terms">
 <dt>Q15</dt>

@@ -84,7 +84,19 @@ def _lead(rk):
     )
 
 
-def _dated(sources):
+def _dated(sources, rk):
+    """When the figures were read, and what happened to the run since: rk["run_end"] once
+    the owner ended it (2026-11-10), the run still going before that."""
+    end = rk.get("run_end")
+    if end:
+        return (
+            f'<p class="note">Figures date from {fmt.day(sources["snapshot_date"])}. The rk run '
+            f"ended on {fmt.day(end['ended'])}, after cycle {fmt.count(end['final_cycle'])}, and "
+            f"no more compute goes to it; {_link(FINDINGS_URL, 'its findings site')} holds the "
+            "final numbers, and "
+            f"{_link('https://github.com/jgoetzmann/rk-harness', '<code>rk-harness</code>')}, "
+            "the code behind them, stays public for anyone to download and run.</p>"
+        )
     return (
         f'<p class="note">Figures date from {fmt.day(sources["snapshot_date"])}; the rk run has '
         f"kept going, and {_link(FINDINGS_URL, 'its findings site')} has current numbers.</p>"
@@ -412,7 +424,7 @@ def build(data):
     parts = [
         "<h1>Two searches for better Runge-Kutta coefficients</h1>",
         _lead(rk),
-        _dated(sources),
+        _dated(sources, rk),
         _terms(rk),
         _projects(rk, novel, sources),
         _results(data),

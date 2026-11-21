@@ -101,6 +101,24 @@ def _tableau(ch):
 # ---------------------------------------------------------------- lead
 
 
+def _read_on(rk, sources):
+    """The snapshot date, and the run's end once rk["run_end"] records one."""
+    findings = f'<a href="{esc(FINDINGS_URL)}">rk-findings site</a>'
+    end = rk.get("run_end")
+    if end:
+        return (
+            f"<p>These numbers were read on {esc(fmt.day(sources['snapshot_date']))}. The run "
+            f"ended on {esc(fmt.day(end['ended']))}, after cycle "
+            f"{esc(fmt.count(end['final_cycle']))}, and no more compute goes to it. Epoch "
+            f"{esc(end['epoch'])} closed at {esc(fmt.count(end['final_records']))} archive "
+            f"records, and the {findings} is its final snapshot.</p>"
+        )
+    return (
+        f"<p>These numbers were read on {esc(fmt.day(sources['snapshot_date']))}. The run "
+        f"continues, and the {findings} rebuilds with current numbers every cycle.</p>"
+    )
+
+
 def _lead(rk, sources):
     ch = rk["champion"]
     gap = rk["float64_gap"]
@@ -130,10 +148,8 @@ def _lead(rk, sources):
                            f"{fmt.ratio(gap['champion_over_rk4_max'])} that of {code('rk4')}")
         + ". All the cycle counts come from a cost model or an emulator; none were measured on a "
         "physical chip.</p>"
-        f"<p>These numbers were read on {esc(fmt.day(sources['snapshot_date']))}. The run "
-        f'continues, and the <a href="{esc(FINDINGS_URL)}">rk-findings site</a> rebuilds with '
-        "current numbers every cycle.</p>"
-        "</section>"
+        + _read_on(rk, sources)
+        + "</section>"
     )
 
 

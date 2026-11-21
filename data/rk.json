@@ -872,6 +872,20 @@
    "proceed_fraction": 0.3
   }
  },
+ "run_end": {
+  "ended": "2026-11-10T19:35:17.558727+00:00",
+  "epoch": 2,
+  "final_cycle": 17364,
+  "final_records": 358752,
+  "note": "No more compute goes to the run. The findings site's final build is the last word on epoch 2.",
+  "source": {
+   "commit": "1f3214bad7dd",
+   "key": "frozen_at, epoch; cycle_id; line counts",
+   "path": "EPOCH_STATUS.json; RUNSTATE.json; archive/*.jsonl",
+   "repo": "rk-work",
+   "url": "https://github.com/jgoetzmann/rk-work"
+  }
+ },
  "setup": {
   "budget_cycles": 65536,
   "cost_model": "m0plus_fast",

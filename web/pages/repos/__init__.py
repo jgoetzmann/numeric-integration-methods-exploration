@@ -110,7 +110,8 @@ def build(data: dict) -> str:
         "is a browser demo that reimplements the Q15 solver in JavaScript and "
         '<a href="claims.html#R14">reproduces the Python evaluator in '
         f"{demo} fixture cases</a>. The overview goes stale between refreshes, while the "
-        "findings site rebuilds every cycle.</p>",
+        + ("findings site rebuilt every cycle until the run ended and is now its final "
+           "snapshot.</p>" if data["rk"].get("run_end") else "findings site rebuilds every cycle.</p>"),
         f"<p>{ml} stands alone and shares no code or data with the rk run. What the two "
         "projects share is the question they asked.</p>",
         '<p class="private-workspace">The four rk repositories sit side by side in one private '

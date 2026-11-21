@@ -317,6 +317,21 @@ def rk(ws: Path) -> dict:
         total2 += n
         e2days.append({"epoch": 2, "day": Path(p).stem, "records": n, "cumulative": total2})
     runstate = _load(work / "RUNSTATE.json")
+    # The run's end, once there is one: a freeze record (EPOCH_STATUS.json) naming the open
+    # epoch means no cycle runs after it. The owner ended the run that way on 2026-11-10.
+    # Its final cycle and the open epoch's archive total come from the same files the epoch 2
+    # block counts, so the two cannot disagree.
+    status = work / "EPOCH_STATUS.json"
+    st = _load(status) if status.is_file() else {}
+    if st.get("frozen_at") and st.get("epoch") == epoch.get("epoch"):
+        out["run_end"] = {
+            "ended": st["frozen_at"], "epoch": st["epoch"],
+            "final_cycle": runstate.get("cycle_id"), "final_records": total2,
+            "note": "No more compute goes to the run. The findings site's final build is the "
+                    "last word on epoch 2.",
+            "source": _src("rk-work", work, "EPOCH_STATUS.json; RUNSTATE.json; archive/*.jsonl",
+                           "frozen_at, epoch; cycle_id; line counts"),
+        }
     cycles = [json.loads(l) for l in open(work / "schedule" / "cycles.jsonl", encoding="utf-8") if l.strip()]
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
     out["epochs"] = {

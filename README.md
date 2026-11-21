@@ -8,6 +8,8 @@ Inside Q15 with floor rounding, at a 65,536-cycle budget on the analytic cost mo
 
 An audit of the 2025 project in September 2026 credits its harness and benchmark, and finds that [its claimed rediscovery of RK4 and Dormand-Prince does not hold](https://jgoetzmann.github.io/numeric-integration-methods-exploration/claims.html#N2): its search started from those two tables.
 
+**The rk run is over.** The owner ended it on 2026-11-10, after cycle 17,364, and no more compute goes to it. The headline results below are epoch 1's, which closed in September and are final; epoch 2's final archive is on [the findings site](https://jgoetzmann.github.io/rk-findings/), which is now a frozen snapshot. [rk-harness](https://github.com/jgoetzmann/rk-harness), the code that produced all of it, stays public for anyone to download, rerun or point at a search of their own.
+
 **Site:** [jgoetzmann.github.io/numeric-integration-methods-exploration](https://jgoetzmann.github.io/numeric-integration-methods-exploration/)
 
 ## Results
@@ -54,7 +56,7 @@ A host-side audit compiled the step with GCC 13.2.1 and traced it under an emula
 
 ## How the systems are built
 
-The rk run keeps everything that decides a score inside a container, behind a pinned hash, and everything that keeps the run alive or publishes it on the host. A start command brings up a container that mounts `rk-harness` read-only, and a host watchdog keeps it running. Each search cycle starts with a JSON directive from the language model. The runner then searches, with an exhaustive lattice of dyadic coefficients in early phases and CMA-ES over the stage matrix later. The pinned verifier checks each candidate's order conditions in exact rational arithmetic, and each survivor is scored in Q15 at the cycle budget and appended to `rk-work`. At the end of the cycle the container regenerates `rk-findings` and commits both repositories. No GitHub credential enters the container: it commits, and the host pushes. The one credential inside is the language model's sign-in file, mounted read-only. `rk-overview` is built by hand from `rk-work`, so it goes stale between refreshes, while the findings site rebuilds every cycle. `rk-dev`, the private superproject that pins the four rk repos, is also pinned under `repos/rk-dev`, where only its owner can open it.
+The rk run keeps everything that decides a score inside a container, behind a pinned hash, and everything that keeps the run alive or publishes it on the host. A start command brings up a container that mounts `rk-harness` read-only, and a host watchdog keeps it running. Each search cycle starts with a JSON directive from the language model. The runner then searches, with an exhaustive lattice of dyadic coefficients in early phases and CMA-ES over the stage matrix later. The pinned verifier checks each candidate's order conditions in exact rational arithmetic, and each survivor is scored in Q15 at the cycle budget and appended to `rk-work`. At the end of the cycle the container regenerates `rk-findings` and commits both repositories. No GitHub credential enters the container: it commits, and the host pushes. The one credential inside is the language model's sign-in file, mounted read-only. `rk-overview` is built by hand from `rk-work`, so it went stale between refreshes, while the findings site rebuilt every cycle until the run ended. `rk-dev`, the private superproject that pins the four rk repos, is also pinned under `repos/rk-dev`, where only its owner can open it.
 
 In the 2025 pipeline, a neural generator proposes tables, but its raw outputs never pass validation, so a random generator reseeded to 42 fills every slot. A surrogate model is trained alongside, and nothing reads its predictions. An evolutionary search starts from RK4 or Dormand-Prince. A fixed-step Butcher-table stepper runs each table on generated ODEs, a SciPy RK45 solver supplies the reference solutions, and a composite score clipped at 1 ranks the results. The project shares no code or data with the rk run.
 
@@ -64,7 +66,7 @@ In the 2025 pipeline, a neural generator proposes tables, but its raw outputs ne
 | --- | --- | --- | --- | --- |
 | `rk-harness` | code: the runner, the pinned verifier, the site generator, 1,908 tests | [GitHub](https://github.com/jgoetzmann/rk-harness) | none | `d1e41d5976a4` |
 | `rk-work` | run data: the append-only archive, lanes, validation, benchmark and trace documents | [GitHub](https://github.com/jgoetzmann/rk-work) | none | `59a43b36953c` |
-| `rk-findings` | the findings site the run regenerates every cycle | [GitHub](https://github.com/jgoetzmann/rk-findings) | [jgoetzmann.github.io/rk-findings](https://jgoetzmann.github.io/rk-findings/) | `9ff318dc5236` |
+| `rk-findings` | the findings site the run regenerated every cycle, now its final snapshot | [GitHub](https://github.com/jgoetzmann/rk-findings) | [jgoetzmann.github.io/rk-findings](https://jgoetzmann.github.io/rk-findings/) | `9ff318dc5236` |
 | `rk-overview` | the hand-built explainer site with an in-browser Q15 demo | [GitHub](https://github.com/jgoetzmann/rk-overview) | [jgoetzmann.github.io/rk-overview](https://jgoetzmann.github.io/rk-overview/) | `1a8e0a739ce4` |
 | `Novel-Numerical-Integration-Methods` | the 2025 ML project: generator, evolution, 10,000-ODE benchmark | [GitHub](https://github.com/jgoetzmann/Novel-Numerical-Integration-Methods) | none | `d89c2c809ee0` |
 
@@ -93,4 +95,4 @@ To refresh the figures from the source repositories, then rebuild:
 - `repos/`: the five repositories above as submodules, pinned at the commits in the table, plus the private `rk-dev`. `git clone --recurse-submodules` fetches the five public ones and skips `rk-dev`.
 - `tests/`: checks on the data, the pages and this README.
 
-Figures date from 2026-09-23, at the commits above; the rk run has kept going, and [its findings site](https://jgoetzmann.github.io/rk-findings/) has current numbers.
+Figures date from 2026-09-23, at the commits above. The rk run ended on 2026-11-10, after cycle 17,364, and no more compute goes to it; [its findings site](https://jgoetzmann.github.io/rk-findings/) holds the final numbers.
