@@ -8,7 +8,22 @@ project is, how it is built, the decisions behind it and what it found, and it r
 Q15 integrator in the browser.
 
 - Site: https://jgoetzmann.github.io/rk-overview/
-- Live findings: https://jgoetzmann.github.io/rk-findings/
+- Findings (final snapshot): https://jgoetzmann.github.io/rk-findings/
+
+**The run is over.** The owner ended it on 2026-11-10, after cycle 17,364, and no more
+compute goes to it. Epoch 2 is frozen, both sites are its final record, and every page here
+carries a run-ended banner. The front page closes with "The run is over" (`index.html#final`):
+the final findings and how anyone can download and run the harness. `generate.py` writes the
+banner, that section, the "final findings" nav link and the footer wording whenever the open
+epoch has a freeze record (`rk-work/EPOCH_STATUS.json`).
+
+The pages got those changes by hand this time, as the banner did on 2026-11-10: `generate.py`
+cannot rebuild today, because its forbidden-ratio gate and validation loader still read
+`rk-work/trace/results.json` and `rk-work/validation/results.json`, which the epoch 1
+relocation moved under `rk-work/epochs/1/`, and its record count would come from the epoch 2
+archive while every other number is epoch 1's. The hand edits are what the updated
+`generate.py` and `pages_text.py` emit, so a rebuild once those paths are settled comes out the
+same.
 
 ## The repositories
 
@@ -20,7 +35,7 @@ repository explains it.
 | --- | --- | --- |
 | [rk-harness](https://github.com/jgoetzmann/rk-harness) | The package the container runs: the hash-pinned verifier, cost model and evaluator, the search, the site generator, and the tests that gate all of it. | people |
 | [rk-work](https://github.com/jgoetzmann/rk-work) | Run data: the append-only archive, the hypothesis ledger, and the validation and benchmark outputs. | the container, per cycle |
-| [rk-findings](https://github.com/jgoetzmann/rk-findings) ([site](https://jgoetzmann.github.io/rk-findings/)) | The numbers site, rebuilt every cycle with no human in the loop. Deterministic and JavaScript-free. | the container, per cycle |
+| [rk-findings](https://github.com/jgoetzmann/rk-findings) ([site](https://jgoetzmann.github.io/rk-findings/)) | The numbers site, rebuilt every cycle with no human in the loop until the run ended, and now frozen as the final snapshot. Deterministic and JavaScript-free. | the container, per cycle |
 | [rk-overview](https://github.com/jgoetzmann/rk-overview) | This repository: the explainer pages, the interactive demo, and the tools that build both from the run archive. | people, on demand |
 
 A fifth, private repository holds the scripts and configuration that run all of this on
@@ -32,11 +47,11 @@ disagree, the machine-generated one is right and this one is stale.
 
 ## Pages
 
-Five pages in one nav row, followed by a link to the live findings site.
+Five pages in one nav row, followed by a link to the findings site ("final findings" once the run has ended, "live findings" before).
 
 | Page | What it holds |
 | --- | --- |
-| `index.html` (overview) | The ranking widget (eleven methods, floor against round-to-nearest), the problem, approach, result and verify steps, the three method classes with links to their findings pages, the scale of the run, and the four repositories. |
+| `index.html` (overview) | The ranking widget (eleven methods, floor against round-to-nearest), the problem, approach, result and verify steps, "The run is over" (`#final`: the run's end, the final findings and the harness, shown once the run has ended), the three method classes with links to their findings pages, the scale of the run, and the four repositories. |
 | `architecture.html` | The system as built: repository and trust-boundary diagrams, the cycle loop and how it rotates the three classes (`#lanes`), verification in order (`#verify`), arithmetic, the cost model, where candidates come from, the archive, the outer loop, the host layer, tests (`#tests`) and reproducibility (`#repro`). The findings methodology page deep-links `#arithmetic`, `#costmodel`, `#archive`, `#candidates`, `#outer`, `#verify`, `#tests` and `#repro`, so those ids must stay, and the build fails if one of them goes missing. |
 | `design-decisions.html` | The pre-build decisions from DESIGN.md, each with what the build did to it, the deliberate cuts and how two of them were revisited, and prior art. |
 | `results.html` (key findings) | The anchor result, six findings with their charts, discovered against classical against library methods (`#matrix`), measured speed (`#speed`), how the numbers were made (`#protocol`), the limits, and a pointer to the implicit and adaptive class pages on the findings site. |

@@ -342,12 +342,32 @@ body.home .herolead{font-size:18.5px;line-height:1.55;max-width:66ch;margin:14px
 
 
 def _nav(active: str) -> str:
-    """One row: the five pages, then the live findings site, styled apart as a link."""
+    """One row: the five pages, then the findings site, styled apart as a link.
+
+    The link reads "final findings" once the run has ended (_run_ended), "live findings"
+    while it runs."""
     tabs = "".join(
         f'<a href="{href}"{" class=" + chr(34) + "on" + chr(34) if href == active else ""}>'
         f"{sg._esc(label)}</a>" for href, label in _NAV)
+    kind = "final" if _run_ended() else "live"
     return (f'<nav class="tabs">{tabs}'
-            f'<a class="ext" href="{LIVE_URL}">live findings &#8599;</a></nav>')
+            f'<a class="ext" href="{LIVE_URL}">{kind} findings &#8599;</a></nav>')
+
+
+_ENDED_STATE: dict = {}
+
+
+def _run_ended() -> dict:
+    """The open epoch's freeze record when the run has ended, {} while it runs.
+
+    Read once per build through sg.epoch_status_data, the same record the findings site's
+    run-ended notice and epoch panel read, so the two sites agree on whether the run is
+    over. Every page asks, through _nav, _page and _index_page, and each call would
+    otherwise rescan events.jsonl."""
+    if "d" not in _ENDED_STATE:
+        d = sg.epoch_status_data()
+        _ENDED_STATE["d"] = d if d.get("state") == "frozen" and d.get("frozen_at") else {}
+    return _ENDED_STATE["d"]
 
 
 def _frozen_banner() -> str:
@@ -389,14 +409,34 @@ def _ended_banner() -> str:
     sg.epoch_status_data, so the two sites agree on whether the run is over. The date is
     the record's own frozen_at, so rebuilds of the same state stay byte-identical. The
     owner ended the run on 2026-11-10 and froze epoch 2 that way; the banner says so on
-    every page, above the epoch 1 banner, which still labels the numbers below it."""
-    d = sg.epoch_status_data()
-    if d.get("state") != "frozen" or not d.get("frozen_at"):
+    every page, above the epoch 1 banner, which still labels the numbers below it, and
+    links the index's closing section (T.FINAL)."""
+    d = _run_ended()
+    if not d:
         return ""
     date = timefmt.fmt_ct(d["frozen_at"])[:10]
     return (
-        f'<p class="banner">The rk run ended on {date}. Epoch {d.get("epoch")} is frozen, '
-        "no further cycles will run, and neither site will change again.</p>")
+        f'<p class="banner">The rk run ended on {date}, and no more compute goes to it. '
+        f'Epoch {d.get("epoch")} is frozen and both sites are its final snapshot. '
+        '<a href="index.html#final">The final findings, and how to download and run the '
+        "harness</a>.</p>")
+
+
+def _final_ctx(records) -> dict:
+    """The run's closing totals for T.FINAL, or {} while the run is still going.
+
+    records is archive.read_all(), the root archive, which D45 makes the open epoch's: at
+    the end that is the frozen epoch's whole archive, so its length and its highest
+    cycle_id are the run's final totals, the same two the findings site's stamp prints.
+    They differ from archive_n and cycles_n, which key_findings.json computed for the
+    epoch these pages are scored in."""
+    d = _run_ended()
+    if not d or not records:
+        return {}
+    return {"final_date": timefmt.fmt_ct(d["frozen_at"])[:10],
+            "final_epoch": d.get("epoch"),
+            "final_cycle": f"{max(r.cycle_id for r in records):,}",
+            "final_records": f"{len(records):,}"}
 
 
 def _page(title: str, body: str, active: str, subtitle: str = "",
@@ -410,7 +450,8 @@ def _page(title: str, body: str, active: str, subtitle: str = "",
     pins the absence."""
     sub = f'<p class="sub">{sg._esc(subtitle)}</p>' if subtitle else ""
     banner = "".join(f"{b}\n" for b in (_ended_banner(), _frozen_banner()) if b)
-    footer = T.FOOTER.format(date=SNAPSHOT_DATE, shas=COMMIT_SHAS)
+    footer = T.FOOTER.format(date=SNAPSHOT_DATE, shas=COMMIT_SHAS,
+                             kind="final" if _run_ended() else "live")
     desc = description or subtitle or sg._DEFAULT_DESCRIPTION
     url = sg.OVERVIEW_URL + ("" if active in ("", "index.html") else active)
     # A tab or a bookmark shows the head title alone, and "Architecture" there names no
@@ -4323,19 +4364,27 @@ def _index_page(ctx: dict, demo: dict) -> str:
     # become. The date is written into the page and the browser subtracts; the element
     # stays empty and hidden when script does not run, so nobody reads an age that nothing
     # computed. The findings site gets none of this and keeps its stored stamps.
-    stale = f'<p class="stale" id="stale" data-asof="{sg._esc(SNAPSHOT_DATE)}" hidden></p>'
+    # Once the run has ended there is nothing newer for the snapshot to fall behind, so the
+    # badge goes and HERO_JS finds no element and returns.
+    stale = ("" if _run_ended() else
+             f'<p class="stale" id="stale" data-asof="{sg._esc(SNAPSHOT_DATE)}" hidden></p>')
+    # The closing section: the run's end, the final findings and the harness (T.FINAL),
+    # only once the run has ended and _final_ctx has filled its totals.
+    final = (['<h2 id="final">The run is over</h2>', _t(T.FINAL, **ctx)]
+             if "final_date" in ctx else [])
     repos = '<div class="grid-cards">' + "".join(
         f'<a class="gcard" href="{url}"><div class="t">{sg._esc(name)} &#8599;</div>'
         f'<div class="d">{sg._esc(desc)}</div></a>' for name, url, desc in T.REPOS) + "</div>"
     _claim(all(m.get("origin") in ("classical", "discovered") for m in demo["methods"]),
            "the hero counts the widget's methods as classical or discovered")
     body = [_t(T.HERO_LEAD), _DEMO.hero_body(demo["methods"], demo["budget_cycles"]),
-            spine,
+            spine, *final,
             '<h2 id="boundary">Where these coefficients do not belong</h2>',
             _t(T.BOUNDARY, **ctx),
             '<h2 id="classes">Three method classes</h2>', _t(T.CLASSES_LEAD), classes,
             '<h2 id="scale">What it took</h2>', chips, stale, _t(T.SCALE_NOTE, **ctx),
             '<h2 id="source">The source</h2>', _t(T.SOURCE_LEAD), repos]
+    body = [b for b in body if b]
     hero = _hero_data(demo)
     return _page(T.HERO_TITLE, "\n".join(body), "index.html", T.HERO_SUB,
                  head_extra="<style>" + _DEMO.HERO_CSS + "</style>\n",
@@ -4499,6 +4548,7 @@ def build() -> None:
     orders = [archive.record_order(r) for r in records]
     ctx = _results_ctx(kf, vd, bench, _eff_ctx(kf, records, orders), trace, records)
     ctx.update(_trace_ctx(trace))
+    ctx.update(_final_ctx(records))
     ctx.update(gate=GATE_TESTS, tests=TESTS_TOTAL, tiers=len(SUITE_TIERS),
                demo_cases=len(demo["expected"]), t_golden=kinds["golden"],
                t_canary=kinds["canary"], t_other=kinds["other"])

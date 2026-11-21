@@ -33,7 +33,7 @@ LIVE_URL = "https://jgoetzmann.github.io/rk-findings/"
 # by generate._repo_shas, because a date is not something a reader can check out.
 FOOTER = (
     "Built by rk-overview/tools/generate.py from the run archive, data as of {date} (US "
-    "Central). This site is a snapshot; rk-findings carries the live numbers. Built from "
+    "Central). This site is a snapshot; rk-findings carries the {kind} numbers. Built from "
     "{shas}. Text drafted with Claude, edited and owned by the author.")
 
 # ------------------------------------------------------------------------------ index
@@ -109,9 +109,76 @@ class rather than for these coefficients.</p>
 {vd_records} archive records rather than at this page's snapshot.</p>
 """
 
+# The closing section on the front page, under "The run is over", placed by
+# generate._index_page only once the run has ended. The run's end and its final totals
+# come from generate._final_ctx (the freeze record and the root archive); the epoch 1
+# figures are the same ctx values the spine, finding 1 and BOUNDARY print, so none is typed
+# here.
+FINAL = """
+<p class="lead">The rk run ended on {final_date}, after cycle {final_cycle}, and no more
+compute goes to it. Epoch {final_epoch} is frozen at {final_records} archive records. Both
+sites are now the final record: the <a href="{live}">findings site</a> is no longer rebuilt,
+and this snapshot will not be refreshed.</p>
+<h3>Final findings</h3>
+<p>The numbers on this site come from epoch 1, which closed at {archive_n} verified
+tableaus over {cycles_n} search cycles. They are what the project found:</p>
+<ul>
+<li><strong>Floor rounding is a bias the search can use.</strong> Q15's round-down
+multiply adds about half an LSB to every product, and that alone reorders the textbook
+methods before any search starts.</li>
+<li><strong>Searched against that bias, the best coefficients are not the textbook
+ones.</strong> At a {budget}-cycle budget, under magnitude weighting on the analytic cost
+basis, the best discovered method has {best_x}&times; lower held-out error than the best
+classical method, and dropping any one held-out problem leaves a lead of {loo_min}&times; to
+{loo_max}&times;. <a href="results.html">Finding 1</a> shows how much of that lead holds
+under the other weightings and cost bases.</li>
+<li><strong>The lead holds across the grid.</strong> Each discovered elite was compared with
+every classical method of equal or lower per-step cost. {won_sentence} The median error
+ratio, discovered over classical, is {median_ratio}, and the best is {best_ratio}.</li>
+<li><strong>The coefficients belong to one regime.</strong> In float64 they run {f64_lo} to
+{f64_hi} times worse than rk4 across the {f64_n} validation problems where both finish, and
+on {stiff_none} of the {n_stiff} stiff problems every discovered tableau overflows Q15. They
+are for fixed-point targets with no FPU, at budgets where quantization dominates truncation
+(<a href="#boundary">where they do not belong</a>).</li>
+</ul>
+<p>Epoch 2 kept searching under the current pinned rule until the run ended. Its archive,
+every elite, and the implicit and adaptive measurements beside them are on the findings
+site, frozen as the run left them. Cycle counts throughout come from a Cortex-M0+ cost
+model, not from hardware.</p>
+<h3>The harness</h3>
+<p><a href="https://github.com/jgoetzmann/rk-harness">rk-harness</a> is the code that ran
+all of this, and it is public: anyone can clone it, rerun this search, or point it at a
+different one.</p>
+<ul>
+<li><strong>What it is.</strong> A container that proposes candidates, checks each one with
+a verifier it cannot edit (the container will not start if the pinned files' hash changes),
+files every verified record in an append-only archive, keeps the best one per MAP-Elites
+cell, and writes a deterministic static site after every cycle. A language model in the
+outer loop can choose where to search. It never touches the scorer, and the run works with
+it switched off.</li>
+<li><strong>Where it fits.</strong> Any search whose candidates can be checked exactly,
+scored by one fixed measurement and binned by a few descriptors. Here the candidates are
+Butcher tableaus, the check is the order conditions in exact rational arithmetic, the score
+is Q15 error at a cycle budget, and the cells are order, stage count and cost bucket.</li>
+<li><strong>Pointing it elsewhere.</strong> Replace the pinned scoring files (the problem
+set, the arithmetic, the cost model and the evaluator) with your own, pin the new hash and
+start from an empty rk-work. The archive only compares records scored by the same code, so
+a new scorer is a new epoch by design.</li>
+<li><strong>Running it.</strong> Python 3.12 and the pinned dependencies run the test suite
+and a local cycle with no credentials: <code>python -m rk_harness.runner --once</code>, with
+<code>RK_WORK_DIR</code> and <code>RK_FINDINGS_DIR</code> pointed at empty folders. The
+unattended run adds Docker and the start scripts in <code>scripts/</code>. The
+<a href="https://github.com/jgoetzmann/rk-harness#getting-started">repository's README</a>
+has every step.</li>
+</ul>
+<p class="note">The epoch 1 figures in this section come from tools/key_findings.json and
+rk-work/epochs/1/validation/results.json, the epoch {final_epoch} totals from the run
+archive.</p>
+"""
+
 CLASSES_LEAD = """
 <p class="lead">The run takes turns between three classes of integrator. Only the
-explicit class is scored by the pinned verifier. The live findings site gives each class
+explicit class is scored by the pinned verifier. The findings site gives each class
 its own page.</p>
 """
 
@@ -146,10 +213,10 @@ REPOS = (
      "generator, and the tests that gate all of it."),
     ("rk-work", "https://github.com/jgoetzmann/rk-work",
      "Run data: the append-only archive, the hypothesis ledger, and the validation and "
-     "benchmark results, written by the container every cycle."),
+     "benchmark results, written by the container on every cycle of the run."),
     ("rk-findings", "https://github.com/jgoetzmann/rk-findings",
-     "The numbers site, rebuilt by the container every cycle with no human in the "
-     "loop."),
+     "The numbers site, rebuilt by the container on every cycle with no human in the "
+     "loop, and frozen as the final snapshot when the run ended."),
     ("rk-overview", "https://github.com/jgoetzmann/rk-overview",
      "This site, and the tools that build it from the run archive."),
 )
