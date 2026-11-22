@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design decisions | rk-harness overview</title>
+<meta name="description" content="Every deliberate choice, and what the build did to it.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="rk-harness overview">
+<meta property="og:title" content="Design decisions | rk-harness overview">
+<meta property="og:description" content="Every deliberate choice, and what the build did to it.">
+<meta property="og:url" content="https://jgoetzmann.github.io/rk-overview/design-decisions.html">
+<meta name="twitter:card" content="summary">
+<style>
+:root{
+  color-scheme:light;
+  --surface-0:#f5f4f2;--surface-1:#fcfcfb;--line:#dedcd6;--grid:#eceae5;
+  --text-1:#0b0b0b;--text-2:#52514e;--text-3:#8a887f;
+  --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;
+  --good-bg:#e0f2e3;--good-fg:#0d5c1d;--warn-bg:#fdf0d3;--warn-fg:#7a5300;
+  --mut-bg:#eceae5;--mut-fg:#52514e;--bad-bg:#fbe3e3;--bad-fg:#8f1d1d;
+  --q1:#cde2fb;--q2:#9ec5f4;--q3:#6da7ec;--q4:#3987e5;--q5:#256abf;--q6:#184f95;--q7:#0d366b;
+  --on-q1:#0b0b0b;--on-q2:#0b0b0b;--on-q3:#0b0b0b;--on-q4:#0b0b0b;
+  --on-q5:#ffffff;--on-q6:#ffffff;--on-q7:#ffffff;
+  --banner-bg:#fdf0d3;--banner-line:#c98500;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme:dark;
+    --surface-0:#111110;--surface-1:#1a1a19;--line:#3a3936;--grid:#262523;
+    --text-1:#ffffff;--text-2:#c3c2b7;--text-3:#8a887f;
+    --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;
+    --good-bg:#123a1c;--good-fg:#9fdca9;--warn-bg:#42350b;--warn-fg:#ecc76a;
+    --mut-bg:#262523;--mut-fg:#c3c2b7;--bad-bg:#461414;--bad-fg:#f1a5a5;
+    --q1:#0d366b;--q2:#184f95;--q3:#256abf;--q4:#3987e5;--q5:#6da7ec;--q6:#9ec5f4;--q7:#cde2fb;
+    --on-q1:#ffffff;--on-q2:#ffffff;--on-q3:#ffffff;--on-q4:#0b0b0b;
+    --on-q5:#0b0b0b;--on-q6:#0b0b0b;--on-q7:#0b0b0b;
+    --banner-bg:#42350b;--banner-line:#ecc76a;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface-0);color:var(--text-1);
+  font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px 48px}
+header.site{background:var(--surface-1);border-bottom:1px solid var(--line);margin-bottom:28px}
+header.site .wrap{padding-top:22px;padding-bottom:0}
+h1{font-size:26px;margin:6px 0 2px;letter-spacing:-.015em}
+h2{font-size:18px;margin:36px 0 12px;letter-spacing:-.01em}
+h3{font-size:14px;margin:20px 0 6px;color:var(--text-2)}
+p{max-width:76ch}
+.sub{color:var(--text-2);margin:0 0 14px;font-size:14px}
+header.site .sub{max-width:none}
+nav.tabs{display:flex;gap:2px;flex-wrap:wrap;margin:14px 0 0}
+nav.tabs a{padding:8px 14px;border-radius:8px 8px 0 0;color:var(--text-2);
+  text-decoration:none;font-size:13.5px;border:1px solid transparent;border-bottom:none}
+nav.tabs a:hover{color:var(--text-1);background:var(--surface-0)}
+nav.tabs a.on{background:var(--surface-0);border-color:var(--line);color:var(--text-1);
+  font-weight:600;box-shadow:0 1px 0 var(--surface-0)}
+.navrow{display:flex;align-items:flex-end;justify-content:space-between;gap:4px 16px;
+  flex-wrap:wrap}
+a.about{font-size:13.5px;color:var(--text-1);text-decoration:none;white-space:nowrap;
+  padding:5px 12px;margin:0 0 6px;border:1px solid var(--line);border-radius:8px}
+a.about:hover{background:var(--surface-0);text-decoration:underline}
+a{color:var(--s1)}
+/* card rows are a grid, so every card in a row has the same width and the rows line up */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:12px;
+  margin:16px 0}
+.card{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  padding:12px 16px;min-width:0;display:flex;flex-direction:column}
+/* label, value and note line up across a row even where one label wraps to two lines:
+   each card takes its three rows from the row's own grid */
+.cards{grid-auto-rows:auto}
+.cards>.card:not(.klass){display:grid;grid-template-rows:subgrid;grid-row:span 3}
+.card .k{font-size:11px;color:var(--text-2);letter-spacing:.06em;text-transform:uppercase}
+.card .v{font-size:26px;font-weight:650;font-variant-numeric:tabular-nums;
+  letter-spacing:-.01em;line-height:1.25;margin:2px 0}
+.card .v.vh{font:600 17px/1.9 ui-monospace,Consolas,monospace;letter-spacing:0;
+  overflow-wrap:anywhere}
+.card .d{font-size:12px;color:var(--text-3);margin-top:auto}
+.panel{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  padding:16px 18px;margin:16px 0}
+/* a panel that holds one chart, one chart drawn at two widths, or one set of small
+   multiples is as wide as its content rather than the page */
+.panel:has(>figure>svg),.panel:has(>figure>.chart-wide),
+.panel:has(>figure>.multiples){width:fit-content;max-width:100%}
+figure{margin:0}
+figure figcaption{font-size:13px;color:var(--text-2);margin:0 0 10px;max-width:72ch;
+  line-height:1.5}
+/* the cap is what stops a legend from setting the panel width: the panel is fit-content,
+   and an uncapped flex row offers its whole single-line width as max-content, so five
+   long solver names would widen the panel past the charts they label */
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--text-2);
+  margin:2px 0 6px;max-width:640px}
+.legend .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;
+  vertical-align:-1px}
+.charts{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+svg{max-width:100%;height:auto;display:block}
+svg text{font:11px system-ui,-apple-system,"Segoe UI",sans-serif;fill:var(--text-2)}
+svg .lbl{font-weight:600;fill:var(--text-1);paint-order:stroke;stroke:var(--surface-1);
+  stroke-width:3px;stroke-linejoin:round}
+svg .cv{font-weight:600}
+svg .axis{stroke:var(--line)}
+svg .gridline{stroke:var(--grid)}
+svg .cellstroke{stroke:var(--surface-1);stroke-width:2px}
+/* A chart mark that is a link is a tab stop, and until now nothing marked which one had
+   the keyboard. The outline draws the ring; the stroke is the fallback for engines that
+   do not paint an outline on an SVG child. Only :focus-visible, so a mouse click on a
+   cell does not leave a ring behind it. */
+svg a:focus-visible rect,svg a:focus-visible circle,svg a:focus-visible path{
+  outline:2px solid var(--s1);outline-offset:2px;stroke:var(--s1);stroke-width:2.5px}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--s1);outline-offset:2px;
+  border-radius:3px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;margin:10px 0;font-size:13px;background:var(--surface-1);
+  border:1px solid var(--line);border-radius:8px}
+th,td{border-bottom:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}
+th{background:var(--surface-0);color:var(--text-2);font-weight:600;font-size:12px;
+  letter-spacing:.02em;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr:hover>td{background:var(--grid)}
+td{font-variant-numeric:tabular-nums}
+th.num,td.num{text-align:right}
+.tier,.badge{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11.5px;
+  font-weight:600;white-space:nowrap}
+.tier-heldout_verified{background:var(--good-bg);color:var(--good-fg)}
+.tier-search_only{background:var(--warn-bg);color:var(--warn-fg)}
+.tier-unreplicated{background:var(--mut-bg);color:var(--mut-fg)}
+/* The two tiers that replaced the merged unreplicated label. Neither is a grade, so both
+   wear the muted badge that label wore. */
+.tier-no_incumbent,.tier-no_improvement{background:var(--mut-bg);color:var(--mut-fg)}
+.badge-open{background:var(--mut-bg);color:var(--mut-fg)}
+.badge-supported{background:var(--good-bg);color:var(--good-fg)}
+.badge-refuted{background:var(--bad-bg);color:var(--bad-fg)}
+.badge-inconclusive{background:var(--warn-bg);color:var(--warn-fg)}
+.badge-active{background:var(--good-bg);color:var(--good-fg)}
+.badge-frozen{background:var(--mut-bg);color:var(--mut-fg)}
+.hash{word-break:break-all;font:12px ui-monospace,Consolas,monospace;color:var(--text-2);
+  line-height:inherit}
+p.note .hash{word-break:normal;white-space:nowrap}
+.mono{font:13px ui-monospace,Consolas,monospace}
+.note{font-size:13px;color:var(--text-2);font-style:italic}
+dl.meta{display:grid;grid-template-columns:max-content 1fr;gap:2px 16px;font-size:13px}
+dl.meta dt{color:var(--text-2)}
+dl.meta dd{margin:0}
+article.entry{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  padding:16px 20px;margin:14px 0}
+article.entry h2{margin-top:0}
+article.entry .when{font-size:12px;color:var(--text-3);margin:0 0 8px}
+.when{font-size:12px;color:var(--text-3)}
+p.lead{color:var(--text-2);font-size:13.5px;max-width:76ch;margin:10px 0 16px}
+details.explain{margin:10px 0;max-width:76ch;font-size:13px;color:var(--text-2);
+  border:1px solid var(--line);border-radius:8px;background:var(--surface-1)}
+details.explain summary{cursor:pointer;padding:6px 12px;color:var(--text-3);
+  font-size:12.5px;letter-spacing:.02em}
+details.explain summary:hover{color:var(--text-1)}
+details.explain[open] summary{border-bottom:1px solid var(--line);color:var(--text-2)}
+details.explain>div{padding:4px 12px 8px}
+details.explain p{margin:8px 0}
+details.fold{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  margin:10px 0}
+details.fold>summary{cursor:pointer;padding:10px 16px;font-size:13.5px}
+details.fold>summary:hover{color:var(--text-1)}
+details.fold[open]>summary{border-bottom:1px solid var(--line)}
+details.fold>div{padding:6px 16px 12px}
+footer{margin-top:48px;padding-top:14px;border-top:1px solid var(--line);
+  font-size:12px;color:var(--text-3)}
+footer p{margin:3px 0;max-width:none}
+footer p.prov a{color:var(--text-2)}
+table.side td{min-width:150px;max-width:34ch}
+dl.gloss{margin:10px 0;max-width:82ch}
+dl.gloss dt{font-weight:600;margin-top:12px}
+dl.gloss dd{margin:2px 0 0;font-size:13.5px}
+/* the methodology article: infobox, contents and references */
+.meth-infobox{float:right;width:320px;margin:4px 0 18px 24px;font-size:12.5px}
+.meth-infobox caption{caption-side:top;font-weight:700;font-size:13.5px;text-align:left;
+  padding:6px 2px;color:var(--text-1)}
+.meth-infobox th,.meth-infobox td{padding:4px 8px;white-space:normal;font-weight:400}
+.meth-infobox th{width:42%;color:var(--text-2);font-weight:600;font-size:12px}
+@media(max-width:760px){.meth-infobox{float:none;width:100%;margin:12px 0}}
+.meth-toc{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  padding:12px 18px 12px 40px;max-width:44ch;font-size:13.5px;margin:18px 0}
+.meth-toc li{margin:3px 0}
+.meth-refs{font-size:13px;max-width:82ch;padding-left:2.2em}
+.meth-refs li{margin:4px 0}
+sup.meth-cite{font-size:10.5px;line-height:0}
+sup.meth-cite a{text-decoration:none}
+
+/* the three method classes: one accent each, slots 1-3 of the validated palette */
+.cards:has(>.card.klass){grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.card.klass{border-left-width:3px;border-left-style:solid}
+.card.k-explicit{border-left-color:var(--s1)}
+.card.k-implicit{border-left-color:var(--s2)}
+.card.k-adaptive{border-left-color:var(--s3)}
+.card.klass .d{margin-top:0;margin-bottom:8px}
+.card.klass .n{font-size:12.5px;color:var(--text-2);margin:0 0 8px;max-width:none}
+.card.klass .g{font-size:12px;color:var(--text-3);margin:0 0 8px;max-width:none}
+.card.klass .go{font-size:13px;margin:auto 0 0;max-width:none}
+/* A class with nothing measured yet states that in words. Set smaller and in
+   the secondary color so it does not read as a headline figure sitting beside
+   one, which is the comparison the hub row invites. */
+.card.unmeasured .v{font-size:17px;font-weight:550;color:var(--text-2);letter-spacing:0}
+
+/* one-line ledger rows: the summary carries the whole record, the body carries prose */
+.ledger{min-width:820px}
+.ledhead,details.led>summary{display:grid;
+  grid-template-columns:14px 78px 104px 1fr 58px 62px 52px;
+  gap:12px;align-items:center;padding:6px 12px}
+.ledhead{font-size:11px;color:var(--text-2);font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase}
+details.led{background:var(--surface-1);border:1px solid var(--line);border-radius:8px;
+  margin:4px 0;font-size:12.5px}
+details.led>summary{cursor:pointer;list-style:none;font-variant-numeric:tabular-nums}
+details.led>summary::-webkit-details-marker{display:none}
+details.led>summary::before{content:"+";color:var(--text-3);font-weight:600}
+details.led[open]>summary::before{content:"\2212"}
+details.led[open]>summary{border-bottom:1px solid var(--line)}
+details.led>div{padding:10px 16px 12px 40px}
+details.led .pred{font:12px ui-monospace,Consolas,monospace;color:var(--text-2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* an open row shows its whole predicate, so no hover title has to repeat it */
+details.led[open] .pred{white-space:normal;overflow-wrap:anywhere}
+details.led .num,.ledhead .num{text-align:right}
+details.led .badge{justify-self:start}
+details.led .mono{font-size:12px;color:var(--text-2)}
+details.led .rep{color:var(--text-3);font-weight:600}
+details.led table{font-size:12px;margin:6px 0 0}
+.hash a,a.hash{font:12px ui-monospace,Consolas,monospace}
+/* class pages: the 2 by 2 heatmap grid, small multiples, legend keys drawn as marks */
+.charts.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;
+  align-items:stretch}
+.charts.grid2>.panel{margin:0}
+.ptitle{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--text-1)}
+/* the matched-accuracy table: columns 5 to 9 are numbers, aligned here once rather
+   than by a class on each of several hundred cells */
+table.matched td:nth-child(n+5):nth-child(-n+9){text-align:right}
+@media(max-width:900px){.charts.grid2{grid-template-columns:minmax(0,1fr)}}
+/* small multiples size the container, not the column: fixed tracks give the box a
+   max-content width of --cols panels, so the panel's fit-content wraps the charts
+   instead of resolving to one very long row and then clamping to the full width */
+.multiples{display:grid;grid-template-columns:repeat(var(--cols,3),minmax(0,var(--tw,272px)));
+  gap:10px 14px;margin-top:6px;width:fit-content;max-width:100%}
+.legend svg.key{display:inline-block;vertical-align:-1px;margin-right:5px;overflow:visible}
+dl.glance{max-width:100ch;margin:6px 0 4px}
+/* A chart drawn for a phone is emitted beside the wide one; only one of the two is ever
+   shown, so a narrow screen gets the marks inside its viewport instead of the left edge
+   of a 640-wide frame. */
+.chart-phone{display:none}
+/* phones: a chart keeps its drawn size and scrolls inside its figure or its panel, since
+   shrinking a 640-wide chart to fit leaves 5 px text. The gradients are the cue that a
+   figure scrolls: the pale pair hides where the content ends, the dark pair shows at an
+   edge with more content past it, and background-attachment:local moves them with the
+   scroll. The side-by-side table gives up its fixed widths so all four columns fit. */
+@media(max-width:640px){
+  figure{overflow-x:auto}
+  figure svg{max-width:none}
+  .charts.grid2>.panel{overflow-x:auto}
+  figure,.charts.grid2>.panel{
+    background:
+      linear-gradient(90deg,var(--surface-1) 30%,transparent),
+      linear-gradient(270deg,var(--surface-1) 30%,transparent) 100% 0,
+      radial-gradient(farthest-side at 0 50%,rgba(0,0,0,.18),transparent),
+      radial-gradient(farthest-side at 100% 50%,rgba(0,0,0,.18),transparent) 100% 0;
+    background-repeat:no-repeat;
+    background-size:28px 100%,28px 100%,14px 100%,14px 100%;
+    background-attachment:local,local,scroll,scroll}
+  .chart-wide{display:none}
+  .chart-phone{display:block}
+  table.side{table-layout:fixed;width:100%}
+  table.side th,table.side td{padding:6px;font-size:12px}
+  table.side th:nth-child(1){width:22%}
+  table.side th{white-space:normal;min-width:0}
+  table.side td{min-width:0;max-width:none;overflow-wrap:break-word}
+}
+
+.herolead{font-size:17.5px;line-height:1.6;max-width:74ch}
+nav.tabs a.ext{margin-left:auto;color:var(--s1);font-weight:600}
+nav.tabs a.ext:hover{color:var(--text-1)}
+/* On a phone the nav wraps rather than scrolling sideways: a scrolling row put the
+   active tab off-screen on the two right-most pages. Each tab becomes its own rounded
+   box, so a second row reads as part of the nav instead of a strip cut loose from the
+   rule under the header. */
+@media (max-width:560px){nav.tabs{flex-wrap:wrap;gap:4px}
+  nav.tabs a{padding:7px 10px;border-radius:8px;border:1px solid transparent}
+  nav.tabs a.on{border-color:var(--line);box-shadow:none}
+  nav.tabs a.ext{margin-left:0}}
+.banner{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;padding:10px 16px;margin:0 0 16px}
+.chips{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0 8px}
+.chip{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  padding:10px 16px;min-width:120px}
+.chip .v{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums;
+  letter-spacing:-.01em}
+.chip .k{font-size:12px;color:var(--text-2)}
+.grid-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+  gap:14px;margin:16px 0}
+a.gcard{display:block;background:var(--surface-1);border:1px solid var(--line);
+  border-radius:12px;padding:14px 18px;text-decoration:none;color:inherit}
+a.gcard:hover{border-color:var(--s1)}
+a.gcard .t{font-weight:650;color:var(--s1);margin:0 0 4px;font-size:15px}
+a.gcard .d{font-size:13px;color:var(--text-2)}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;
+  align-items:start}
+@media (max-width:900px){.two{grid-template-columns:minmax(0,1fr)}}
+.two>.panel{overflow-x:auto}
+/* On a phone every chart and diagram keeps its drawn size and scrolls inside its panel,
+   rather than shrinking until its labels cannot be read. The gradients are a scroll cue:
+   the inner pair fades the panel background over the cut edge and the outer pair is a
+   shadow that only shows while there is more to scroll to, so a diagram that runs past
+   the screen does not read as one box in an empty panel. */
+@media (max-width:700px){figure .scroll svg,.two>.panel svg{max-width:none}
+  figure .scroll,.two>.panel{background:
+    linear-gradient(90deg,var(--surface-1) 30%,transparent),
+    linear-gradient(270deg,var(--surface-1) 30%,transparent) 100% 0,
+    radial-gradient(farthest-side at 0 50%,rgba(0,0,0,.18),transparent),
+    radial-gradient(farthest-side at 100% 50%,rgba(0,0,0,.18),transparent) 100% 0;
+    background-repeat:no-repeat;
+    background-size:28px 100%,28px 100%,14px 100%,14px 100%;
+    background-attachment:local,local,scroll,scroll}}
+.wrap>ul li{max-width:82ch}
+p.verdict{font-size:16px;line-height:1.65;max-width:82ch}
+section.finding{margin:44px 0;scroll-margin-top:16px}
+section.finding h2{font-size:20px;margin-bottom:8px}
+.findnum{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:9px;
+  background:var(--s1);color:#fff;font-size:16px;font-weight:700;margin-right:12px;
+  vertical-align:-7px}
+figure .src{display:block;margin-top:6px;font-size:12px;color:var(--text-3)}
+pre.grammar{font:12.5px ui-monospace,Consolas,monospace;background:var(--surface-1);
+  border:1px solid var(--line);border-radius:8px;padding:10px 14px;overflow-x:auto}
+svg text{font-size:13px}
+svg .lbl{font-size:13px}
+svg .dlab{font-weight:600;fill:var(--text-1);paint-order:stroke;stroke:var(--surface-1);
+  stroke-width:3.5px;stroke-linejoin:round}
+svg .bt{font-weight:650;fill:var(--text-1);font-size:15px}
+svg .bs{fill:var(--text-2);font-size:14px}
+svg .alab{font-size:12.5px;fill:var(--text-3);paint-order:stroke;stroke:var(--surface-1);stroke-width:3px;stroke-linejoin:round}
+svg .box{fill:var(--surface-1);stroke:var(--line)}
+svg .boxhl{fill:var(--surface-0);stroke:var(--s1);stroke-width:1.5}
+svg .boxbad{fill:var(--bad-bg);stroke:var(--bad-fg)}
+svg .dashedbox{stroke-dasharray:6 4}
+svg .arrow{stroke:var(--text-3);fill:none;marker-end:url(#ah);stroke-width:1.5}
+svg .arrowdash{stroke-dasharray:6 4}
+svg .enclosure{fill:none;stroke:var(--text-3);stroke-dasharray:4 4;opacity:.7}
+svg a text{fill:var(--s1)}
+ol.checks li{margin:6px 0;max-width:82ch}
+ol.checks.foot{font-size:13.5px;list-style:none;padding-left:0}
+ul.toc{columns:2;column-gap:32px;font-size:13.5px;margin:8px 0 4px;padding-left:20px}
+ul.toc li{margin:3px 0}
+@media (max-width:700px){ul.toc{columns:1}}
+.decision{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  padding:16px 20px;margin:14px 0;scroll-margin-top:16px}
+.decision:target{border-color:var(--s1)}
+.decision h3{margin:0 0 6px;font-size:15px;color:var(--text-1)}
+.decision .orig{color:var(--text-2);border-left:3px solid var(--line);padding-left:12px;
+  margin:8px 0}
+.decision .asbuilt{margin:8px 0 0}
+.decision .tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;
+  font-weight:600;margin-left:8px;vertical-align:2px}
+.tag-kept{background:var(--good-bg);color:var(--good-fg)}
+.tag-changed{background:var(--warn-bg);color:var(--warn-fg)}
+.decision h3 a.perm{margin-left:8px;color:var(--text-3);text-decoration:none;font-weight:400}
+.decision h3 a.perm:hover{color:var(--s1)}
+
+/* Landing page: a bigger opening, then a four-step spine. The rest of the site keeps
+   the compact scale; only the front door is allowed to be loud. */
+body.home header.site h1{font-size:34px;line-height:1.15;max-width:22ch}
+@media (max-width:640px){body.home header.site h1{font-size:26px}}
+body.home .herolead{font-size:18.5px;line-height:1.55;max-width:66ch;margin:14px 0 0}
+.spine{display:grid;gap:0;margin:34px 0 8px;border-top:1px solid var(--line)}
+.spine section{padding:20px 0 18px;border-bottom:1px solid var(--line);
+  display:grid;grid-template-columns:120px minmax(0,1fr);gap:4px 28px;align-items:start}
+@media (max-width:760px){.spine section{grid-template-columns:1fr;gap:6px}}
+.spine .k{grid-row:1 / span 3;font-size:11px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--s1);padding-top:5px}
+@media (max-width:760px){.spine .k{grid-row:auto}}
+.spine h2{margin:0;font-size:19px;line-height:1.3;letter-spacing:-.012em;max-width:34ch}
+.spine p{margin:8px 0 0;font-size:14.5px;color:var(--text-2);max-width:70ch}
+.spine .more{font-size:13px;font-weight:600;text-decoration:none;margin-top:10px;
+  display:inline-block}
+.spine .more:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap">
+<h1>Design decisions</h1>
+<p class="sub">Every deliberate choice, and what the build did to it.</p>
+<nav class="tabs"><a href="index.html">overview</a><a href="architecture.html">architecture</a><a href="design-decisions.html" class="on">design decisions</a><a href="results.html">key findings</a><a href="demo.html">demo</a><a class="ext" href="https://jgoetzmann.github.io/rk-findings/">final findings &#8599;</a></nav>
+</div></header>
+<div class="wrap">
+<p class="banner">The rk run ended on 2026-11-10, and no more compute goes to it. Epoch 2 is frozen and both sites are its final snapshot. <a href="index.html#final">The final findings, and how to download and run the harness</a>.</p>
+<p class="banner">Epoch 1, frozen 2026-09-14. Every cycle count and score on these pages comes from epoch 1, scored under verifier hash de5bec22 with the retired rule that charges a coefficient the cheaper of a shift-add chain and a hardware multiply.</p>
+<p class="note">The 14 decisions from <a href="https://github.com/jgoetzmann/rk-overview/blob/main/DESIGN.md">DESIGN.md</a>, written before any code existed. Each gives the original context, then what the working system does now and what the choice cost; the tag says whether it survived the build (3 were revised).</p>
+<div class="decision" id="quantization"><h3>The problem is quantization, not coefficient prettiness<a class="perm" href="#quantization" aria-label="Link to this decision">#</a><span class="tag tag-kept">held up</span></h3><div class="orig"><strong>Before the build:</strong> In floating point, h&middot;b constant-folds and 1/3 costs the same as 0.25. The premise only survives in fixed point on an FPU-less MCU, where a power-of-two coefficient becomes a shift. Scope narrowed to that case.</div><div class="asbuilt"><strong>As built:</strong> Kept, and measured (<a href="results.html#crossover">key finding 3</a>).</div></div>
+<div class="decision" id="dyadic-theorem"><h3>Order &ge; 3 admits no all-dyadic tableau<a class="perm" href="#dyadic-theorem" aria-label="Link to this decision">#</a><span class="tag tag-kept">held up</span></h3><div class="orig"><strong>Before the build:</strong> Dyadic rationals are closed under addition and multiplication, and &Sigma; b&middot;c&sup2; = 1/3 is not dyadic. So the objective is to minimize non-dyadic multiplies subject to order, and the verifier code DYADIC_IMPOSSIBLE keeps the search out of the empty region.</div><div class="asbuilt"><strong>As built:</strong> Kept, and it shaped the search space. A is snapped to dyadic values but b is solved exactly over the rationals, because snapping b would run into this very theorem. The verifier rejects all-dyadic order-3 claims without evaluating them (tests V5 to V7).</div></div>
+<div class="decision" id="static-counting"><h3>Static cycle counting, not simulation, not hardware<a class="perm" href="#static-counting" aria-label="Link to this decision">#</a><span class="tag tag-kept">held up</span></h3><div class="orig"><strong>Before the build:</strong> The inner loop is branchless straight-line code, so summing instruction costs gives an exact count and a real worst-case figure, and host load cannot disturb the metric.</div><div class="asbuilt"><strong>As built:</strong> Kept, and sharpened: the count is analytic from the tableau, with no compiler or disassembly in the loop. One hand-counted ARMv6-M sequence, reproduced exactly by a test, ties the model to hardware, and emit_c exists for a one-off human cross-check.</div></div>
+<div class="decision" id="targets"><h3>Cortex-M0+ primary, AVR advisory, two M0+ multiplier variants<a class="perm" href="#targets" aria-label="Link to this decision">#</a><span class="tag tag-kept">held up</span></h3><div class="orig"><strong>Before the build:</strong> The M0+ has no FPU, divide or long multiply, so fixed point is forced. Running a 1-cycle and a 32-cycle multiplier model costs nothing and shows whether hardware awareness changes the ranking.</div><div class="asbuilt"><strong>As built:</strong> Kept, and under the frozen epoch-1 rule the ranking does change: it prices rk4 cheaper with the fast multiplier and rk38 with the slow one (the <a href="results.html#anchor">anchor result</a>, which also gives the compiled trace's counts for the same pair). After a live candidate was rejected on an infinity in the AVR column, verification was restricted to the primary-model columns.</div></div>
+<div class="decision" id="q15-overflow"><h3>Q15, wrapping semantics, overflow as a rejection<a class="perm" href="#q15-overflow" aria-label="Link to this decision">#</a><span class="tag tag-changed">revised in build</span></h3><div class="orig"><strong>Before the build:</strong> Q31 would have to be synthesized on the M0+, and saturation needs a compare and branch that breaks exact counting. Overflow at 2&times; amplitude is a verifier rejection, which makes it a property of the method rather than a runtime cost.</div><div class="asbuilt"><strong>As built:</strong> Revised on one point: nothing wraps. A value outside int16 raises Q15OverflowError and becomes a verifier rejection. One addition the spec missed: rc_thermal's derivative times its state scale leaves Q15 range, so derivatives carry a per-problem power-of-two scale (DERIV_SCALE, 1/8 there) that the step undoes through h. Floor rounding turned out to be an experimental variable in its own right (<a href="results.html#floor-flip">key finding 2</a>).</div></div>
+<div class="decision" id="inner-outer"><h3>Classical optimizer in the inner loop, LLM in the outer loop<a class="perm" href="#inner-outer" aria-label="Link to this decision">#</a><span class="tag tag-kept">held up</span></h3><div class="orig"><strong>Before the build:</strong> A six-parameter space has gradients, so CMA-ES does better than an LLM mutation operator at no cost. The LLM decides what to search and interprets what came back.</div><div class="asbuilt"><strong>As built:</strong> Kept. When order-4 islands produced nothing (an exact order-4 b is rarely solvable over a dyadic A), the fix was a projection fallback in the optimizer, not more LLM. The outer loop grew hypotheses and a literature loop.</div></div>
+<div class="decision" id="heldout-split"><h3>Search/<a href="https://jgoetzmann.github.io/rk-findings/methodology.html#held-out-set">held-out</a> split, enforced structurally<a class="perm" href="#heldout-split" aria-label="Link to this decision">#</a><span class="tag tag-kept">held up</span></h3><div class="orig"><strong>Before the build:</strong> The optimizer has no code path that reads HELDOUT_SET, and the held-out gap is a dashboard metric so it cannot rot unnoticed.</div><div class="asbuilt"><strong>As built:</strong> Kept literally: a test walks the optimizer's import graph to enforce it, and the D5 drill shows the gap collapsing when the optimizer is fed the held-out set (<a href="architecture.html#tests">testing</a>). The gap is also a caveat on the best numbers (<a href="results.html#efficiency">key finding 1</a>).</div></div>
+<div class="decision" id="map-elites"><h3>MAP-Elites, one grid per order<a class="perm" href="#map-elites" aria-label="Link to this decision">#</a><span class="tag tag-kept">held up</span></h3><div class="orig"><strong>Before the build:</strong> Descriptors are stage count and cycle-cost bucket, which gives a table of results rather than a single champion.</div><div class="asbuilt"><strong>As built:</strong> Kept unchanged. The findings site's explicit page and cell pages are built from these grids, and a cell's incumbent is what tier assignment compares against.</div></div>
+<div class="decision" id="equal-budget"><h3>Equal cycle budget, never equal step size<a class="perm" href="#equal-budget" aria-label="Link to this decision">#</a><span class="tag tag-kept">held up</span></h3><div class="orig"><strong>Before the build:</strong> A 2-stage method gets twice the steps of a 4-stage method for the same cost, and equal-h comparisons are the most common route to a wrong conclusion.</div><div class="asbuilt"><strong>As built:</strong> Kept, and it frames every result on the <a href="results.html">key findings page</a>: the rank flips and the efficiency frontier only exist at equal budget.</div></div>
+<div class="decision" id="resource-limits"><h3>Fixed resource limits plus a pause watchdog<a class="perm" href="#resource-limits" aria-label="Link to this decision">#</a><span class="tag tag-kept">held up</span></h3><div class="orig"><strong>Before the build:</strong> Low cpu-shares and docker pause on contention keep the run out of the way in about forty lines, with no dynamic allocation and no GPU.</div><div class="asbuilt"><strong>As built:</strong> Kept, and grown a little; the <a href="architecture.html#host">host layer</a> lists what the watchdog does now. Thresholds live in config.json rather than in code.</div></div>
+<div class="decision" id="credentials"><h3>Credentials outside the container, harness mounted read-only<a class="perm" href="#credentials" aria-label="Link to this decision">#</a><span class="tag tag-changed">revised in build</span></h3><div class="orig"><strong>Before the build:</strong> If the agent can write the verifier, the shortest path to a high score is editing the scorer. The token was to be scoped to rk-work and rk-findings, with the 403 on rk-harness as an acceptance test.</div><div class="asbuilt"><strong>As built:</strong> Half kept. The read-only mount and pinned hash stand, but the token scoping did not survive: the owner's token could write everywhere, and the 403 probe passed for the wrong reason. The credential now never enters the container; a filtered env file and host-side pushes make that independent of token scope.</div></div>
+<div class="decision" id="numbers-not-claims"><h3>Auto-publish numbers, never claims<a class="perm" href="#numbers-not-claims" aria-label="Link to this decision">#</a><span class="tag tag-changed">revised in build</span></h3><div class="orig"><strong>Before the build:</strong> The site emits values with mechanically assigned tiers, so a wrong result is a wrong number in a table, not a claim that needs retracting.</div><div class="asbuilt"><strong>As built:</strong> Amended by the owner, with the guard intact. The findings site also publishes model-written interpretations and literature digests, labeled as such and passed through a softener that replaces priority-claim words. The banned-words guard still fails any page it rejects, and it blocked real builds until the softener existed.</div></div>
+<div class="decision" id="encourager"><h3>The encourager may change direction but not stop<a class="perm" href="#encourager" aria-label="Link to this decision">#</a><span class="tag tag-kept">held up</span></h3><div class="orig"><strong>Before the build:</strong> Before a calendar date it can only redirect, widen, hypothesize or advance phase. A set-and-forget system with no calendar runs until the operator gets bored.</div><div class="asbuilt"><strong>As built:</strong> Kept. PACKAGE (re-verify everything, no new directions) opens 2026-11-20 and FREEZE 2026-12-05, property-tested over random states and exercised through the real clock path.</div></div>
+<div class="decision" id="falsification-first"><h3>Falsification experiment first<a class="perm" href="#falsification-first" aria-label="Link to this decision">#</a><span class="tag tag-kept">held up</span></h3><div class="orig"><strong>Before the build:</strong> If derivative evaluation swamps coefficient arithmetic, the thesis is dead, so find out in week one rather than month three.</div><div class="asbuilt"><strong>As built:</strong> Kept, and the verdict was stored as it came out, "mixed" (<a href="results.html#crossover">key finding 3</a> has the numbers).</div></div>
+<h2 id="cuts">What was deliberately cut</h2>
+
+<p>Adaptive step size and Newton-iteration implicit methods break the execution-time
+certificate that hard real-time needs, so they are wrong for the target whatever they
+cost. Order above 4 and linear multistep methods multiply the search space with no
+reason to expect a larger quantization effect. Rosenbrock methods remain the natural
+second project. The build added one item: round-to-nearest is measured as a
+counterfactual on the key findings page (<a href="results.html#floor-flip">finding
+2</a>) rather than searched over, because changing the arithmetic changes every score in
+the archive.</p>
+<p>Two of those cuts have since been revisited, on terms that narrow the real-time
+objection. The adaptive class uses a division-free controller and books each attempt at
+its worst-case cycles, though the number of attempts still depends on the data. The
+implicit class fixes its Newton iteration count so each step costs the same. Both are
+measured outside the scored archive, on the findings site's
+<a href="https://jgoetzmann.github.io/rk-findings/adaptive.html">adaptive</a> and <a href="https://jgoetzmann.github.io/rk-findings/implicit.html">implicit</a>
+pages.</p>
+
+<h2 id="prior-art">Related work, and where the gap is</h2>
+
+<p>RKTK (Zhang, 2019) already runs unstructured numerical searches over Butcher order
+conditions and holds a stage-count record at order 10, so numerical tableau search is not
+the contribution. That line of work optimizes order, stage count and error constants in
+exact arithmetic. It does not price coefficients against a hardware cost model or measure
+end-to-end error in fixed point, and that gap is narrow enough to finish.</p>
+<p>The closer line is the work on low-precision and reduced-precision time integration.
+Croci and Giles analyze Runge-Kutta discretizations of the heat equation under
+round-to-nearest and stochastic rounding, and show that the round-to-nearest solution stagnates once the
+timestep is small enough, with the global rounding error growing like the unit roundoff
+over the timestep until it does
+(<a href="https://academic.oup.com/imajna/article-abstract/43/3/1358/6570843">Effects of
+round-to-nearest and stochastic rounding in the numerical solution of the heat equation in
+low precision</a>, IMA J. Numer. Anal. 43(3)). Hopkins and coauthors measure
+reduced-precision fixed-point ODE solvers on neural models and find that the compiler's
+default downward rounding costs accuracy, while stochastic rounding recovers much of it
+(<a href="https://arxiv.org/abs/1904.11263">Stochastic rounding and reduced-precision
+fixed-point arithmetic for solving neural ordinary differential equations</a>). A survey
+of that rounding mode collects the error analysis behind both
+(<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC8905452/">Stochastic rounding:
+implementation, error analysis and applications</a>).</p>
+<p>Two things are different here. That work is about floating point at low precision under
+round-to-nearest or stochastic rounding, while this run is fixed-point Q15 with directed
+floor rounding, where every inexact product moves the same way instead of scattering about
+zero. And that work analyzes fixed methods under an arithmetic, while this run searches the
+tableau space against the bias. The stagnation result is a check on this harness rather
+than a rival to it: <a href="results.html#crossover">finding 3</a> measures the same
+turn-up in a different arithmetic, which is what a working measurement of a known effect
+should do. The run's literature loop keeps collecting adjacent work, and its digests are in
+the findings site's <a href="https://jgoetzmann.github.io/rk-findings/hypotheses.html#literature">research log</a>, labeled as
+model-written.</p>
+
+<footer>Built by rk-overview/tools/generate.py from the run archive, data as of 2026-09-10 (US Central). This site is a snapshot; rk-findings carries the final numbers. Built from rk-harness bff7544dd572, rk-work b5fc8b515845, rk-findings e743f5b6b38f and rk-overview a73d708ce0cb, the commit each repository was at when this page was written. Text drafted with Claude, edited and owned by the author.</footer>
+</div>
+</body>
+</html>

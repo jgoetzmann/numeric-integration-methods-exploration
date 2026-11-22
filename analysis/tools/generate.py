@@ -1,0 +1,4611 @@
+"""Build the rk-overview site into docs/.
+
+Snapshot semantics: run by hand. Reads the live rk-work archive, tools/key_findings.json
+(written by tools/key_findings.py), rk-work/validation/results.json,
+rk-work/benchmark/results.json, tools/demo_data.json and the rk-harness test collection,
+and writes five pages: index, architecture, design-decisions, results (key findings) and
+demo. It deletes the retired pages and any old docs/findings copy so GitHub Pages stops
+serving them. It reuses the findings site's style tokens and chart primitives so the two
+sites read as one system. Timezone policy: stored data is UTC; anything rendered for
+humans goes through rk_harness.timefmt (US Central), and SNAPSHOT_DATE is a Central date.
+
+The prose lives in pages_text.py as str.format templates; every number in it is filled
+here from the files above, and every pattern sentence is checked against the data
+(_claim) so a stale sentence fails the build instead of shipping.
+
+Before writing anything, every build checks the pages and fails loudly on unbalanced
+tags, SVG text that leaves its viewBox (_audit_svg_text estimates each text node's
+extent), and a bad link (_check_links: an internal href must name a page and an id on
+it; a link into rk-findings must name a current page, and any fragment must be an id
+that page is known to carry) or a dropped id (_check_incoming: every architecture id the
+findings methodology page deep-links still exists here). After writing, it runs the two
+headless node checks over
+the pages that ship JavaScript (_check_scripts). Without node on the PATH it prints a
+WARN, skips them and keeps the pages it wrote.
+
+    cd rk-overview
+    ..\\rk-harness\\.venv\\Scripts\\python.exe tools\\generate.py
+"""
+from __future__ import annotations
+
+import json
+import math
+import re
+import shutil
+import statistics
+import subprocess
+import sys
+from fractions import Fraction
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parent            # rk-overview/
+WS = ROOT.parent              # workspace
+sys.path.insert(0, str(WS / "rk-harness"))
+sys.path.insert(0, str(HERE))
+
+import demo_page as _DEMO  # noqa: E402
+import pages_text as T  # noqa: E402
+from rk_harness import archive, methodology as meth, sitegen as sg  # noqa: E402
+from rk_harness import coeffrep, costmodel  # noqa: E402
+from rk_harness import tableau as tableau_mod  # noqa: E402
+from rk_harness import timefmt  # noqa: E402
+
+# The date the snapshot was taken, US Central. Derived in build() from the newest archive
+# record, never hand-typed. The value below is only the fallback for an empty archive,
+# which fails the build anyway.
+SNAPSHOT_DATE = "unknown"
+# The commit each of the four repositories stood at, filled in build() from their .git
+# directories. A date is not something a reader can check out; a commit is. It stays
+# "unknown" for a build run outside a checkout, which is what such a build should print.
+COMMIT_SHAS = "unknown"
+# Per-document as-of stamps, filled in build(). Each names the document a figure reads and
+# the archive state that document was built at. This page mixes panels computed at
+# different states of the run, and one page-level date hides that rather than showing it.
+STAMP_KF = STAMP_VD = STAMP_BENCH = STAMP_ARCHIVE = STAMP_BUILD = ""
+DOCS = ROOT / "docs"
+LIVE_URL = T.LIVE_URL
+# This site's name in a link preview. sitegen.SITE_NAME names the other one, and a shared
+# link that called this site the findings site would send the reader to the wrong place.
+_SITE_NAME = "rk-harness overview"
+_TITLE_SUFFIX = f" | {_SITE_NAME}"
+# The unit beside every microsecond figure, matching the micro sign the findings site
+# prints. sitegen writes the &micro; entity, which it has to: its call sites escape the
+# string afterwards and would print the entity at the reader as text. Both call sites here
+# escape too, so the character itself is written instead. html.escape leaves it alone, the
+# page is written as UTF-8, and the arrows and middle dots further down this file are
+# already non-ASCII.
+_US_UNIT = "µs"
+
+# The five pages, in nav order, then the retired names the build deletes from docs/.
+_NAV = (
+    ("index.html", "overview"),
+    ("architecture.html", "architecture"),
+    ("design-decisions.html", "design decisions"),
+    ("results.html", "key findings"),
+    ("demo.html", "demo"),
+)
+_RETIRED = ("tradeoffs.html", "methodology.html", "tracks.html", "literature.html")
+
+# The findings site's current pages. A link into rk-findings must name one of these.
+_FINDINGS_PAGES = frozenset({"", "index.html", "explicit.html", "implicit.html",
+                             "adaptive.html", "validation.html", "hypotheses.html",
+                             "methodology.html"})
+# The fragments a link into rk-findings may carry, per page: the section ids the findings
+# generator publishes for linking, and on methodology.html every glossary term, read from
+# sitegen._GLOSSARY so a renamed term fails this build rather than leaving a dead link. A
+# page not listed here takes no fragment.
+_FINDINGS_FRAGMENTS = {
+    "validation.html": frozenset({"speed", "falsification", "trace"}),
+    "hypotheses.html": frozenset({"interpretation", "literature"}),
+    "methodology.html": frozenset({"costmodel", "ledger", "glossary", "related-work"}
+                                  | {anchor for anchor, _term, _paras in sg._GLOSSARY}),
+}
+
+# What each numbered test file covers. Counts are NOT here: they come from pytest
+# collection at build time (_collect_suite), because a hand-kept table goes stale the
+# first time anyone adds a test. A new tests/test_tN_*.py with no entry here fails the
+# build rather than appearing blank. rk-harness hygiene C36 parses this literal, so keep
+# its name and the closing brace in column 0.
+_SUITE_DESC = {
+    "T1": "fixed point, coefficient representation, cycle counting",
+    "T2": "order conditions, evaluator, verifier",
+    "T3": "archive, search, directive validation",
+    "T4": "ledger, runner, site generator, epoch panel",
+    "T5": "operational config, the watch view, status, checkout hygiene",
+    "T6": "Central-time display formatting",
+    "T7": "the findings methodology page",
+    "T8": "the practical validation suite, stiff subset included",
+    "T9": "the epoch saturation orchestrator",
+    "T10": "the library benchmark harness",
+    "T11": "the adaptive embedded-pair prototype",
+    "T12": "the SDIRK implicit prototype",
+    "T13": "the side-track executor and its ledger",
+    "T14": "second-pass metrics over the archive: cycles to tolerance, the stability frontier",
+    "T15": "the stiff-problem screen, admissions and rejections alike",
+    "T16": "the lane scheduler, the lane cycle and the lane search",
+    "T17": "the two-axis validation document across the three method classes",
+    "T18": "the per-class findings pages: explicit, implicit, adaptive",
+}
+
+# Filled by _collect_suite() at the top of build(); read by the diagrams and the
+# architecture page's testing section.
+TESTS_TOTAL = 0
+SUITE_TIERS: list[tuple[str, int, str]] = []
+GATE_TESTS = 0
+
+
+def _runs(python: Path) -> bool:
+    """True when the interpreter executes here. The pinned venv path ships on
+    every platform, but a Windows .exe does not run under WSL."""
+    try:
+        proc = subprocess.run(
+            [str(python), "--version"], capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return proc.returncode == 0
+
+
+def _harness_python(harness: Path) -> Path:
+    """Interpreter for suite collection: the pinned venv when it runs here,
+    else the interpreter running this build. Windows behavior is unchanged."""
+    venv = harness / ".venv" / "Scripts" / "python.exe"
+    if venv.exists() and _runs(venv):
+        return venv
+    return Path(sys.executable)
+
+
+def _collect_suite() -> tuple[list[tuple[str, int, str]], int]:
+    """Test counts straight from `pytest --collect-only` in rk-harness (about 2 seconds).
+
+    Returns the tiers in numeric order and their total."""
+    harness = WS / "rk-harness"
+    python = _harness_python(harness)
+    proc = subprocess.run(
+        [str(python), "-m", "pytest", "tests", "--collect-only", "-q"],
+        cwd=str(harness), capture_output=True, text=True,
+        encoding="utf-8", errors="replace", timeout=300)
+    rows: list[tuple[str, int]] = []
+    for line in proc.stdout.splitlines():
+        m = re.match(r"tests[/\\]test_(t\d+)_\w+\.py:\s*(\d+)\s*$", line.strip())
+        if m:
+            rows.append((m.group(1).upper(), int(m.group(2))))
+    if not rows:
+        tail = (proc.stdout[-800:] + proc.stderr[-800:]).strip()
+        raise SystemExit("could not collect the test suite; run pytest in rk-harness "
+                         f"first\n{tail}")
+    # A tier can span several files (test_t5_config_watch.py and test_t5_status.py both
+    # sit in T5), so counts are summed per tier rather than listed per file.
+    totals: dict[str, int] = {}
+    for tier, n in rows:
+        totals[tier] = totals.get(tier, 0) + n
+    undescribed = sorted(t for t in totals if t not in _SUITE_DESC)
+    if undescribed:
+        raise SystemExit(f"add {undescribed} to _SUITE_DESC in generate.py: the site says "
+                         "what every test tier covers, so a new tier needs a description")
+    tiers = [(t, totals[t], _SUITE_DESC[t]) for t in sorted(totals, key=lambda k: int(k[1:]))]
+    return tiers, sum(n for _t, n, _d in tiers)
+
+
+def _gate_count() -> int:
+    """Size of the container's start gate: the node ids in tests/golden_gate.txt."""
+    path = WS / "rk-harness" / "tests" / "golden_gate.txt"
+    lines = [ln.strip() for ln in path.read_text(encoding="utf-8").splitlines()]
+    n = sum(1 for ln in lines if ln and not ln.startswith("#"))
+    if not n:
+        raise SystemExit(f"{path} lists no tests")
+    return n
+
+
+def _collect_kinds() -> dict[str, int]:
+    """Collected tests by kind, counted from the node ids pytest prints without -q.
+
+    Golden (G) and canary (K) are the two kinds the suite names and the start gate selects.
+    Every other prefix is a per-area series rather than a kind (B numbers the ledger and
+    runner tests, S the saturation ones), so they are counted together instead of being
+    sorted into categories nothing defines. Parametrized cases count once each, the same
+    way the total does."""
+    harness = WS / "rk-harness"
+    python = _harness_python(harness)
+    proc = subprocess.run(
+        [str(python), "-m", "pytest", "tests", "--collect-only"],
+        cwd=str(harness), capture_output=True, text=True,
+        encoding="utf-8", errors="replace", timeout=300)
+    kinds = {"golden": 0, "canary": 0, "other": 0, "total": 0}
+    for raw in proc.stdout.splitlines():
+        line = raw.strip()
+        if not re.match(r"tests[/\\]\S+\.py::", line):
+            continue
+        kinds["total"] += 1
+        m = re.match(r"tests[/\\]\S+\.py::(?:\S+::)?test_([A-Za-z]+)\d", line)
+        prefix = m.group(1) if m else ""
+        kinds["golden" if prefix == "G" else "canary" if prefix == "K" else "other"] += 1
+    if not kinds["total"]:
+        tail = (proc.stdout[-800:] + proc.stderr[-800:]).strip()
+        raise SystemExit(f"could not read test node ids from pytest\n{tail}")
+    return kinds
+
+
+# Decisions whose plan changed on contact with the build (tagged on the page).
+REVISED_DECISIONS = {"credentials", "numbers-not-claims", "q15-overflow"}
+
+# Page-specific components only. All shared chrome (font stack, heading scale, nav,
+# footer, tables, figures, cards, details/summary, palette tokens) comes from
+# sitegen._STYLE unchanged, so the two sites read as siblings.
+_EXTRA_STYLE = """
+.herolead{font-size:17.5px;line-height:1.6;max-width:74ch}
+nav.tabs a.ext{margin-left:auto;color:var(--s1);font-weight:600}
+nav.tabs a.ext:hover{color:var(--text-1)}
+/* On a phone the nav wraps rather than scrolling sideways: a scrolling row put the
+   active tab off-screen on the two right-most pages. Each tab becomes its own rounded
+   box, so a second row reads as part of the nav instead of a strip cut loose from the
+   rule under the header. */
+@media (max-width:560px){nav.tabs{flex-wrap:wrap;gap:4px}
+  nav.tabs a{padding:7px 10px;border-radius:8px;border:1px solid transparent}
+  nav.tabs a.on{border-color:var(--line);box-shadow:none}
+  nav.tabs a.ext{margin-left:0}}
+.banner{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;padding:10px 16px;margin:0 0 16px}
+.chips{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0 8px}
+.chip{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  padding:10px 16px;min-width:120px}
+.chip .v{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums;
+  letter-spacing:-.01em}
+.chip .k{font-size:12px;color:var(--text-2)}
+.grid-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+  gap:14px;margin:16px 0}
+a.gcard{display:block;background:var(--surface-1);border:1px solid var(--line);
+  border-radius:12px;padding:14px 18px;text-decoration:none;color:inherit}
+a.gcard:hover{border-color:var(--s1)}
+a.gcard .t{font-weight:650;color:var(--s1);margin:0 0 4px;font-size:15px}
+a.gcard .d{font-size:13px;color:var(--text-2)}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;
+  align-items:start}
+@media (max-width:900px){.two{grid-template-columns:minmax(0,1fr)}}
+.two>.panel{overflow-x:auto}
+/* On a phone every chart and diagram keeps its drawn size and scrolls inside its panel,
+   rather than shrinking until its labels cannot be read. The gradients are a scroll cue:
+   the inner pair fades the panel background over the cut edge and the outer pair is a
+   shadow that only shows while there is more to scroll to, so a diagram that runs past
+   the screen does not read as one box in an empty panel. */
+@media (max-width:700px){figure .scroll svg,.two>.panel svg{max-width:none}
+  figure .scroll,.two>.panel{background:
+    linear-gradient(90deg,var(--surface-1) 30%,transparent),
+    linear-gradient(270deg,var(--surface-1) 30%,transparent) 100% 0,
+    radial-gradient(farthest-side at 0 50%,rgba(0,0,0,.18),transparent),
+    radial-gradient(farthest-side at 100% 50%,rgba(0,0,0,.18),transparent) 100% 0;
+    background-repeat:no-repeat;
+    background-size:28px 100%,28px 100%,14px 100%,14px 100%;
+    background-attachment:local,local,scroll,scroll}}
+.wrap>ul li{max-width:82ch}
+p.verdict{font-size:16px;line-height:1.65;max-width:82ch}
+section.finding{margin:44px 0;scroll-margin-top:16px}
+section.finding h2{font-size:20px;margin-bottom:8px}
+.findnum{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:9px;
+  background:var(--s1);color:#fff;font-size:16px;font-weight:700;margin-right:12px;
+  vertical-align:-7px}
+figure .src{display:block;margin-top:6px;font-size:12px;color:var(--text-3)}
+pre.grammar{font:12.5px ui-monospace,Consolas,monospace;background:var(--surface-1);
+  border:1px solid var(--line);border-radius:8px;padding:10px 14px;overflow-x:auto}
+svg text{font-size:13px}
+svg .lbl{font-size:13px}
+svg .dlab{font-weight:600;fill:var(--text-1);paint-order:stroke;stroke:var(--surface-1);
+  stroke-width:3.5px;stroke-linejoin:round}
+svg .bt{font-weight:650;fill:var(--text-1);font-size:15px}
+svg .bs{fill:var(--text-2);font-size:14px}
+svg .alab{font-size:12.5px;fill:var(--text-3);paint-order:stroke;stroke:var(--surface-1);stroke-width:3px;stroke-linejoin:round}
+svg .box{fill:var(--surface-1);stroke:var(--line)}
+svg .boxhl{fill:var(--surface-0);stroke:var(--s1);stroke-width:1.5}
+svg .boxbad{fill:var(--bad-bg);stroke:var(--bad-fg)}
+svg .dashedbox{stroke-dasharray:6 4}
+svg .arrow{stroke:var(--text-3);fill:none;marker-end:url(#ah);stroke-width:1.5}
+svg .arrowdash{stroke-dasharray:6 4}
+svg .enclosure{fill:none;stroke:var(--text-3);stroke-dasharray:4 4;opacity:.7}
+svg a text{fill:var(--s1)}
+ol.checks li{margin:6px 0;max-width:82ch}
+ol.checks.foot{font-size:13.5px;list-style:none;padding-left:0}
+ul.toc{columns:2;column-gap:32px;font-size:13.5px;margin:8px 0 4px;padding-left:20px}
+ul.toc li{margin:3px 0}
+@media (max-width:700px){ul.toc{columns:1}}
+.decision{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  padding:16px 20px;margin:14px 0;scroll-margin-top:16px}
+.decision:target{border-color:var(--s1)}
+.decision h3{margin:0 0 6px;font-size:15px;color:var(--text-1)}
+.decision .orig{color:var(--text-2);border-left:3px solid var(--line);padding-left:12px;
+  margin:8px 0}
+.decision .asbuilt{margin:8px 0 0}
+.decision .tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;
+  font-weight:600;margin-left:8px;vertical-align:2px}
+.tag-kept{background:var(--good-bg);color:var(--good-fg)}
+.tag-changed{background:var(--warn-bg);color:var(--warn-fg)}
+.decision h3 a.perm{margin-left:8px;color:var(--text-3);text-decoration:none;font-weight:400}
+.decision h3 a.perm:hover{color:var(--s1)}
+
+/* Landing page: a bigger opening, then a four-step spine. The rest of the site keeps
+   the compact scale; only the front door is allowed to be loud. */
+body.home header.site h1{font-size:34px;line-height:1.15;max-width:22ch}
+@media (max-width:640px){body.home header.site h1{font-size:26px}}
+body.home .herolead{font-size:18.5px;line-height:1.55;max-width:66ch;margin:14px 0 0}
+.spine{display:grid;gap:0;margin:34px 0 8px;border-top:1px solid var(--line)}
+.spine section{padding:20px 0 18px;border-bottom:1px solid var(--line);
+  display:grid;grid-template-columns:120px minmax(0,1fr);gap:4px 28px;align-items:start}
+@media (max-width:760px){.spine section{grid-template-columns:1fr;gap:6px}}
+.spine .k{grid-row:1 / span 3;font-size:11px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--s1);padding-top:5px}
+@media (max-width:760px){.spine .k{grid-row:auto}}
+.spine h2{margin:0;font-size:19px;line-height:1.3;letter-spacing:-.012em;max-width:34ch}
+.spine p{margin:8px 0 0;font-size:14.5px;color:var(--text-2);max-width:70ch}
+.spine .more{font-size:13px;font-weight:600;text-decoration:none;margin-top:10px;
+  display:inline-block}
+.spine .more:hover{text-decoration:underline}
+"""
+
+
+def _nav(active: str) -> str:
+    """One row: the five pages, then the findings site, styled apart as a link.
+
+    The link reads "final findings" once the run has ended (_run_ended), "live findings"
+    while it runs."""
+    tabs = "".join(
+        f'<a href="{href}"{" class=" + chr(34) + "on" + chr(34) if href == active else ""}>'
+        f"{sg._esc(label)}</a>" for href, label in _NAV)
+    kind = "final" if _run_ended() else "live"
+    return (f'<nav class="tabs">{tabs}'
+            f'<a class="ext" href="{LIVE_URL}">{kind} findings &#8599;</a></nav>')
+
+
+_ENDED_STATE: dict = {}
+
+
+def _run_ended() -> dict:
+    """The open epoch's freeze record when the run has ended, {} while it runs.
+
+    Read once per build through sg.epoch_status_data, the same record the findings site's
+    run-ended notice and epoch panel read, so the two sites agree on whether the run is
+    over. Every page asks, through _nav, _page and _index_page, and each call would
+    otherwise rescan events.jsonl."""
+    if "d" not in _ENDED_STATE:
+        d = sg.epoch_status_data()
+        _ENDED_STATE["d"] = d if d.get("state") == "frozen" and d.get("frozen_at") else {}
+    return _ENDED_STATE["d"]
+
+
+def _frozen_banner() -> str:
+    """Freeze banner for the epoch these pages were scored in (D45).
+
+    A pure function of rk-work/EPOCH.json's newest frozen block, so rebuilds of
+    the same state are byte-identical. It reads that block's own verifier hash
+    rather than rk-harness/VERIFIER_HASH: from the epoch-2 boundary the live pin
+    is 2db0816c, and quoting it here would attribute epoch-1 numbers to the rule
+    that replaced the one they were scored under. Before the boundary the state
+    came from EPOCH_STATUS.json at the work root, which the relocation moved to
+    epochs/1, so keying on it silently dropped the banner.
+
+    The banner stays while this site publishes a frozen epoch's numbers, which
+    is what keeps every one of them labelled. It retires when the overview
+    snapshots to docs/epoch-1/ and the root starts publishing the open epoch,
+    deferred by the work order until epoch 2 has a champion."""
+    frozen = sg.epoch_status_data().get("frozen_epochs") or []
+    if not frozen:
+        return ""
+    block = frozen[-1]
+    epoch, frozen_at = block.get("epoch"), block.get("frozen_at")
+    scored_under = block.get("verifier_hash")
+    if not (epoch and frozen_at and scored_under):
+        return ""
+    pin = scored_under[:8]
+    date = timefmt.fmt_ct(frozen_at)[:10]
+    return (
+        f'<p class="banner">Epoch {epoch}, frozen {date}. Every cycle count and score '
+        f"on these pages comes from epoch {epoch}, scored under verifier hash {pin} "
+        "with the retired rule that charges a coefficient the cheaper of a "
+        "shift-add chain and a hardware multiply.</p>")
+
+
+def _ended_banner() -> str:
+    """Run-ended banner, shown once the open epoch has a freeze record of its own.
+
+    Keyed on the same EPOCH_STATUS.json the findings site's epoch panel reads, through
+    sg.epoch_status_data, so the two sites agree on whether the run is over. The date is
+    the record's own frozen_at, so rebuilds of the same state stay byte-identical. The
+    owner ended the run on 2026-11-10 and froze epoch 2 that way; the banner says so on
+    every page, above the epoch 1 banner, which still labels the numbers below it, and
+    links the index's closing section (T.FINAL)."""
+    d = _run_ended()
+    if not d:
+        return ""
+    date = timefmt.fmt_ct(d["frozen_at"])[:10]
+    return (
+        f'<p class="banner">The rk run ended on {date}, and no more compute goes to it. '
+        f'Epoch {d.get("epoch")} is frozen and both sites are its final snapshot. '
+        '<a href="index.html#final">The final findings, and how to download and run the '
+        "harness</a>.</p>")
+
+
+def _final_ctx(records) -> dict:
+    """The run's closing totals for T.FINAL, or {} while the run is still going.
+
+    records is archive.read_all(), the root archive, which D45 makes the open epoch's: at
+    the end that is the frozen epoch's whole archive, so its length and its highest
+    cycle_id are the run's final totals, the same two the findings site's stamp prints.
+    They differ from archive_n and cycles_n, which key_findings.json computed for the
+    epoch these pages are scored in."""
+    d = _run_ended()
+    if not d or not records:
+        return {}
+    return {"final_date": timefmt.fmt_ct(d["frozen_at"])[:10],
+            "final_epoch": d.get("epoch"),
+            "final_cycle": f"{max(r.cycle_id for r in records):,}",
+            "final_records": f"{len(records):,}"}
+
+
+def _page(title: str, body: str, active: str, subtitle: str = "",
+          head_extra: str = "", body_end: str = "", description: str = "") -> str:
+    """The shared shell. description is the head's own string, not visible text.
+
+    It defaults to the page's subtitle, the way sitegen's shell does, so a page that says
+    nothing still ships a usable link preview. There is no og:image and the reason is not
+    an oversight: neither repository holds an image asset, so a card would name a file
+    that does not exist. The findings site omits it for the same reason and a test there
+    pins the absence."""
+    sub = f'<p class="sub">{sg._esc(subtitle)}</p>' if subtitle else ""
+    banner = "".join(f"{b}\n" for b in (_ended_banner(), _frozen_banner()) if b)
+    footer = T.FOOTER.format(date=SNAPSHOT_DATE, shas=COMMIT_SHAS,
+                             kind="final" if _run_ended() else "live")
+    desc = description or subtitle or sg._DEFAULT_DESCRIPTION
+    url = sg.OVERVIEW_URL + ("" if active in ("", "index.html") else active)
+    # A tab or a bookmark shows the head title alone, and "Architecture" there names no
+    # site. Every page but the landing page carries the site name after its own; the
+    # visible h1 keeps the page name only. _check_titles holds every page to this.
+    head_title = title if active in ("", "index.html") else f"{title}{_TITLE_SUFFIX}"
+    meta = (sg._meta("name", "description", desc)
+            + sg._meta("property", "og:type", "website")
+            + sg._meta("property", "og:site_name", _SITE_NAME)
+            + sg._meta("property", "og:title", head_title)
+            + sg._meta("property", "og:description", desc)
+            + sg._meta("property", "og:url", url)
+            + sg._meta("name", "twitter:card", "summary"))
+    # Only the landing page opens loud; every other page keeps the compact scale.
+    cls = ' class="home"' if active == "index.html" else ""
+    return (
+        "<!doctype html>\n"
+        '<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        f"<title>{sg._esc(head_title)}</title>\n{meta}"
+        f"<style>{sg._STYLE}{_EXTRA_STYLE}</style>\n{head_extra}</head>\n<body{cls}>\n"
+        '<header class="site"><div class="wrap">\n'
+        f"<h1>{sg._esc(title)}</h1>\n{sub}\n"
+        f"{_nav(active)}\n"
+        "</div></header>\n"
+        '<div class="wrap">\n'
+        f"{banner}"
+        f"{body}\n"
+        f"<footer>{sg._esc(footer)}</footer>\n"
+        "</div>\n"
+        f"{body_end}"
+        "</body>\n</html>\n"
+    )
+
+
+def _t(template: str, **ctx) -> str:
+    """Fill a pages_text template. {live} is always the findings site root."""
+    return template.format(live=LIVE_URL, **ctx)
+
+
+def _claim(ok: bool, what: str) -> None:
+    """A pattern sentence in pages_text must still match the data, or the build stops."""
+    if not ok:
+        raise SystemExit(f"pages_text no longer matches the data: {what}. Rewrite the "
+                         "sentence rather than publishing a stale claim.")
+
+
+def _fig(svg: str, caption_html: str, legend: str = "", source: str = "",
+         stamp: str = "") -> str:
+    """A key-findings figure, caption-first like the findings site's charts.
+
+    Every figure carries the document it was drawn from and the state of the run that
+    document was built at. _check_stamps fails the build on a figure without one, so a
+    chart computed at one archive state cannot quietly sit beside a chart computed at
+    another under a single page date."""
+    if not svg:
+        return ""
+    src = f'<span class="src">{sg._esc(source)}</span>' if source else ""
+    mark = f'<span class="src stamp">{sg._esc(stamp)}</span>' if stamp else ""
+    return (f'<figure class="panel"><figcaption>{caption_html}{src}{mark}</figcaption>'
+            + legend + f'<div class="scroll">{svg}</div></figure>')
+
+
+def _fold(summary: str, inner: str) -> str:
+    """A secondary figure behind a <details>, or nothing when the figure is absent."""
+    if not inner:
+        return ""
+    return (f'<details class="fold"><summary>{sg._esc(summary)}</summary><div>{inner}'
+            "</div></details>")
+
+
+def _chart_table(table_id: str, summary: str, head, rows, num=frozenset()) -> str:
+    """A chart's plotted values as a folded table, sitting directly under the chart.
+
+    role="img" makes a chart a single leaf node, so the numbers in its SVG titles are
+    reachable with a pointer and by no other route. This is that route, and it needs no
+    script. `num` is the set of column indices to right-align as numbers."""
+    if not rows:
+        return ""
+    def cell(tag: str, i: int, v) -> str:
+        cls = ' class="num"' if i in num else ""
+        return f"<{tag}{cls}>{sg._esc(v)}</{tag}>"
+    head_html = "".join(cell("th", i, h) for i, h in enumerate(head))
+    body = "".join("<tr>" + "".join(cell("td", i, v) for i, v in enumerate(r)) + "</tr>"
+                   for r in rows)
+    return (f'<details class="fold" id="{table_id}"><summary>{sg._esc(summary)} '
+            f'({len(rows)} rows)</summary><div><div class="scroll"><table><thead><tr>'
+            f"{head_html}</tr></thead><tbody>{body}</tbody></table></div></div></details>")
+
+
+def _describedby(table_id: str) -> str:
+    """Ties a chart to the table that carries its numbers."""
+    return f'aria-describedby="{table_id}" ' if table_id else ""
+
+
+def _short(v: float) -> str:
+    return f"{v:.3g}"
+
+
+def _fr(x) -> str:
+    """An exact fraction for prose: '13/16', '0', '-4'; minus signs typeset."""
+    return str(Fraction(str(x))).replace("-", "&minus;")
+
+
+def _pct(x: float, nd: int = 1) -> str:
+    s = f"{100 * x:.{nd}f}"
+    return s.rstrip("0").rstrip(".") if "." in s else s
+
+
+def _stages(n) -> str:
+    """"1 stage", "3 stages". Every stage count the site prints goes through here."""
+    return f"{n} stage" if n == 1 else f"{n} stages"
+
+
+def _head_sha(repo: Path, n: int = 12) -> str:
+    """The commit a checkout stands at, read from .git rather than from a git subprocess.
+
+    Reading the ref files needs no git on the PATH and cannot block on a lock. Anything
+    unreadable returns "unknown": a provenance line in a footer must never be the reason a
+    build fails."""
+    git = repo / ".git"
+    try:
+        if git.is_file():      # a worktree or submodule points at its real git directory
+            git = (repo / git.read_text(encoding="utf-8").split(":", 1)[1].strip()).resolve()
+        head = (git / "HEAD").read_text(encoding="utf-8").strip()
+        if not head.startswith("ref:"):
+            return head[:n]
+        ref = head.split(":", 1)[1].strip()
+        loose = git / ref
+        if loose.exists():
+            return loose.read_text(encoding="utf-8").strip()[:n]
+        for line in (git / "packed-refs").read_text(encoding="utf-8").splitlines():
+            sha, _sp, name = line.partition(" ")
+            if name.strip() == ref:
+                return sha[:n]
+    except (OSError, IndexError, ValueError):
+        pass
+    return "unknown"
+
+
+def _repo_shas() -> str:
+    """The four repositories, and the commit each stood at when the page was written."""
+    return (_join([f"{name} {_head_sha(WS / name)}"
+                   for name in ("rk-harness", "rk-work", "rk-findings", "rk-overview")])
+            + ", the commit each repository was at when this page was written")
+
+
+# ----------------------------------------------------------------------------- diagrams
+# Boxes are sized from their content: ~8.6 px/char for 15px semibold titles and
+# ~7.35 px/char for 14px body lines, plus padding, so labels never overflow.
+
+_TCH, _LCH = 8.6, 7.35
+
+
+def _natw(title: str, lines: list[str], pad: int = 26) -> int:
+    widths = [len(title) * _TCH] + [len(ln) * _LCH for ln in lines]
+    return int(max(widths) + pad)
+
+
+def _nath(lines: list[str]) -> int:
+    return 40 if not lines else 44 + 19 * len(lines)
+
+
+def _marker_sprite() -> str:
+    """The arrowhead the architecture diagrams share, defined once at the top of the page.
+
+    One zero-size svg holds the definition, so the page has a single id="ah" however many
+    diagrams it draws. display:none would stop Chrome drawing the markers."""
+    return ('<svg width="0" height="0" aria-hidden="true" style="position:absolute">'
+            '<defs><marker id="ah" markerWidth="9" markerHeight="9" refX="8" refY="4.5" '
+            'orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--text-3)"/></marker>'
+            '</defs></svg>')
+
+
+def _box(x, y, w, title, lines, cls="box", extra_cls="") -> str:
+    h = _nath(lines)
+    c = f"{cls} {extra_cls}".strip()
+    out = [f'<rect class="{c}" x="{x}" y="{y}" width="{w}" height="{h}" rx="9"/>',
+           f'<text class="bt" x="{x + 13}" y="{y + 23}">{sg._esc(title)}</text>']
+    for i, ln in enumerate(lines):
+        out.append(f'<text class="bs" x="{x + 13}" y="{y + 45 + 19 * i}">{sg._esc(ln)}</text>')
+    return "".join(out)
+
+
+def _arrow(x1, y1, x2, y2, label="", lx=None, ly=None, dashed=False,
+           anchor="middle") -> str:
+    cls = "arrow arrowdash" if dashed else "arrow"
+    out = [f'<path class="{cls}" d="M {x1} {y1} L {x2} {y2}"/>']
+    if label:
+        out.append(f'<text class="alab" x="{lx if lx is not None else (x1 + x2) / 2}" '
+                   f'y="{ly if ly is not None else (y1 + y2) / 2 - 6}" '
+                   f'text-anchor="{anchor}">{sg._esc(label)}</text>')
+    return "".join(out)
+
+
+def _shapes(parts: list[str]) -> tuple[int, int]:
+    """(boxes, flows) actually drawn, counted from the markup rather than from a tally
+    kept by hand beside it, so an added box cannot leave the label behind."""
+    s = "".join(parts)
+    return s.count('class="box'), s.count('class="arrow')
+
+
+def _badge(x, y, text, bg, fg) -> str:
+    w = len(text) * 7 + 14
+    return (f'<rect x="{x}" y="{y}" width="{w}" height="19" rx="9" fill="{bg}"/>'
+            f'<text x="{x + w / 2}" y="{y + 13.5}" text-anchor="middle" '
+            f'style="font-size:11px;font-weight:700;fill:{fg}">{sg._esc(text)}</text>')
+
+
+def repo_diagram() -> str:
+    """The four public repositories, with the live/snapshot cue for the two sites."""
+    b1t, b1l = "rk-harness", ["the scorer: verifier, evaluator,",
+                              f"cost models, {TESTS_TOTAL:,} tests",
+                              "read-only in the container"]
+    b2t, b2l = "rk-work", ["run data: append-only archive,",
+                           "hypothesis ledger, results",
+                           "the one writable mount"]
+    b3t, b3l = "rk-findings", ["machine-generated numbers site,",
+                               "rebuilt by the run every cycle"]
+    b4t, b4l = "rk-overview  (this site)", ["hand-written explainer pages,",
+                                            "built from the archive by hand"]
+    lab_a, lab_b = "verifies + scores", "rebuilt every cycle"
+    w1, w2 = _natw(b1t, b1l), _natw(b2t, b2l)
+    w3 = max(_natw(b3t, b3l), int(len(b3t) * _TCH) + 13 + 58 + 18)
+    # room for the corner badge beside the title
+    w4 = max(_natw(b4t, b4l), int(len(b4t) * _TCH) + 13 + 84 + 18)
+    gap_a = int(len(lab_a) * 6.4) + 26   # arrow gaps sized to their labels
+    gap_b = int(len(lab_b) * 6.4) + 26
+    x1, y1 = 20, 46
+    x2 = x1 + w1 + gap_a
+    x3 = x2 + w2 + gap_b
+    h1, h2, h3, h4 = _nath(b1l), _nath(b2l), _nath(b3l), _nath(b4l)
+    y4 = y1 + max(h1, h2) + 96
+    live_lab = "jgoetzmann.github.io/rk-findings ↗ (live)"
+    W = int(max(x3 + w3, x3 + len(live_lab) * 6.9, x2 + w4)) + 20
+    H = y4 + h4 + 46
+    p = []
+    # container enclosure around the two mounted repos
+    p.append(f'<rect class="enclosure" x="{x1 - 10}" y="{y1 - 26}" '
+             f'width="{x2 + w2 - x1 + 20}" height="{max(h1, h2) + 40}" rx="12"/>')
+    p.append(f'<text class="alab" x="{x1 - 2}" y="{y1 - 32}">mounted into the run container</text>')
+    p.append(_box(x1, y1, w1, b1t, b1l, cls="boxhl"))
+    p.append(_box(x2, y1, w2, b2t, b2l))
+    p.append(_box(x3, y1, w3, b3t, b3l))
+    p.append(_badge(x3 + w3 - 58, y1 + 10, "LIVE", "var(--good-bg)", "var(--good-fg)"))
+    p.append(_box(x2, y4, w4, b4t, b4l, extra_cls="dashedbox"))
+    p.append(_badge(x2 + w4 - 84, y4 + 10, "SNAPSHOT", "var(--mut-bg)", "var(--mut-fg)"))
+    p.append(_arrow(x1 + w1, y1 + h1 / 2, x2, y1 + h2 / 2, lab_a))
+    p.append(_arrow(x2 + w2, y1 + h2 / 2, x3, y1 + h3 / 2, lab_b))
+    ax = x2 + 40
+    p.append(f'<path class="arrow arrowdash" d="M {ax} {y1 + h2} L {ax} {y4 - 2}"/>')
+    p.append(f'<text class="alab" x="{ax + 10}" y="{y1 + max(h1, h2) + 38}">'
+             f"read by a hand-run build, {SNAPSHOT_DATE}</text>")
+    p.append(f'<a href="{LIVE_URL}"><text class="alab" x="{x3}" y="{y1 + h3 + 18}" '
+             f'style="fill:var(--s1)">{live_lab}</text></a>')
+    p.append(f'<text class="alab" x="{x2}" y="{y4 + h4 + 18}">'
+             "jgoetzmann.github.io/rk-overview (you are here)</text>")
+    n_box, n_flow = _shapes(p)
+    svg = (f'<svg viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" '
+           f'aria-label="Repository diagram, {n_box} repositories joined by {n_flow} '
+           'flows: rk-harness and rk-work mounted into the container, rk-findings rebuilt '
+           'every cycle and published live, rk-overview a snapshot built from rk-work by '
+           'hand">' + "".join(p) + "</svg>")
+    return _fig(svg,
+                "One writer and one trust level per repository. Boxes are git "
+                "repositories and the dashed enclosure is the container boundary. The "
+                "findings site moves with the run; this site is a snapshot.",
+                source="drawn from the repository layout; the test count is the suite as "
+                       "collected at build time",
+                stamp=STAMP_BUILD)
+
+
+def system_diagram() -> str:
+    hostt = "Windows host"
+    hostl = ["watchdog: heartbeat kill,",
+             "spend / disk stop, battery pause,",
+             "git pushes + config + watcher"]
+    credt = "credentials"
+    credl = ["GitHub PAT: host only, not mounted",
+             "Codex auth: mounted read-only"]
+    harnt = "rk-harness  (read-only mount)"
+    harnl = ["verifier + evaluator + cost models", "sha256 pinned, checked at start"]
+    runt, runl = "runner", ["cycle loop; the only LLM caller"]
+    seat, seal = "search", ["CMA-ES islands + enumeration"]
+    workt = "rk-work  (writable mount)"
+    workl = ["append-only archive, events, ledger"]
+    cxt, cxl = "Codex (planning)", ["directives, hypotheses, digests"]
+    fint, finl = "rk-findings", ["auto site, rebuilt every cycle"]
+    pgt, pgl = "GitHub Pages", ["deploys on push from the host"]
+
+    c1w = max(_natw(hostt, hostl), _natw(credt, credl))
+    iw = max(_natw(harnt, harnl), _natw(workt, workl),
+             _natw(runt, runl) + 12 + _natw(seat, seal))
+    c2w = iw + 32
+    c3w = max(_natw(cxt, cxl), _natw(fint, finl), _natw(pgt, pgl))
+    lab_run, lab_push = "docker run", "git push (host)"
+    lab_llm, lab_commit = "throttled LLM calls", "commit each cycle"
+    gap1 = max(96, int(max(len(lab_run), len(lab_push)) * 6.4) + 26)
+    gap2 = max(96, int(max(len(lab_llm), len(lab_commit)) * 6.4) + 26)
+    x1, x2 = 16, 16 + c1w + gap1
+    x3 = x2 + c2w + gap2
+    W = x3 + c3w + 16
+
+    p = []
+    y = 16
+    p.append(_box(x1, y, c1w, hostt, hostl))
+    hosth = _nath(hostl)
+    p.append(_box(x1, y + hosth + 18, c1w, credt, credl))
+    # container: outer box drawn manually so inner boxes stack inside it
+    ih_harn, ih_run, ih_work = _nath(harnl), _nath(runl), _nath(workl)
+    inner_y = y + 36
+    cont_h = 36 + ih_harn + 12 + ih_run + 12 + ih_work + 16
+    p.append(f'<rect class="box" x="{x2}" y="{y}" width="{c2w}" height="{cont_h}" rx="10"/>')
+    p.append(f'<text class="bt" x="{x2 + 13}" y="{y + 24}">run container (docker)</text>')
+    p.append(_box(x2 + 16, inner_y, iw, harnt, harnl, cls="boxhl"))
+    ry = inner_y + ih_harn + 12
+    rw = _natw(runt, runl)
+    p.append(_box(x2 + 16, ry, rw, runt, runl))
+    p.append(_box(x2 + 16 + rw + 12, ry, iw - rw - 12, seat, seal))
+    wy = ry + ih_run + 12
+    p.append(_box(x2 + 16, wy, iw, workt, workl))
+    # right column
+    cxh, finh = _nath(cxl), _nath(finl)
+    y_cx = 16
+    y_fin = y_cx + cxh + 26
+    y_pg = y_fin + finh + 26
+    p.append(_box(x3, y_cx, c3w, cxt, cxl))
+    p.append(_box(x3, y_fin, c3w, fint, finl))
+    p.append(_box(x3, y_pg, c3w, pgt, pgl))
+    # arrows
+    p.append(_arrow(x1 + c1w, y + 44, x2, y + 44, lab_run))
+    # Diagonal labels sit beside their arrows, never on them. The push label rides above
+    # the start of its falling line. The two rising lines into the right column run nearly
+    # parallel, so the LLM label goes above its line near the arrowhead and the commit
+    # label below its line near the start, each where the other line is far away.
+    p.append(_arrow(x1 + c1w, y + hosth + 60, x2, wy + 20, lab_push,
+                    lx=x1 + c1w + 8, ly=y + hosth + 60 - 8, anchor="start"))
+    p.append(_arrow(x2 + c2w, ry + ih_run / 2, x3, y_cx + cxh / 2, lab_llm,
+                    lx=x3 - 10, ly=y_cx + cxh / 2 - 10, anchor="end"))
+    p.append(_arrow(x2 + c2w, wy + 20, x3, y_fin + finh / 2, lab_commit,
+                    lx=x2 + c2w + 8, ly=wy + 20 + 18, anchor="start"))
+    p.append(_arrow(x3 + c3w / 2, y_fin + finh, x3 + c3w / 2, y_pg))
+    H = max(y + cont_h, y_pg + _nath(pgl)) + 16
+    n_box, n_flow = _shapes(p)
+    svg = (f'<svg viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" '
+           f'aria-label="System diagram, {n_box} boxes joined by {n_flow} flows: the '
+           'Windows host, the run container with the read-only harness inside it, and the '
+           'services the run talks to">' + "".join(p) + "</svg>")
+    return _fig(svg,
+                "The system as built, left to right: the Windows host, the docker "
+                "container, and the services the run talks to. The verifier sits inside "
+                "the read-only mount, and no arrow carries the GitHub credential into the "
+                "container.",
+                source="drawn from the run scripts and the container configuration",
+                stamp=STAMP_BUILD)
+
+
+def cycle_diagram() -> str:
+    steps = [
+        ("replay", "archive → state"),
+        ("encourager", "ladder + calendar"),
+        ("candidates", "enumerate / CMA-ES"),
+        ("verify ×9", "nine checks, exact"),
+        ("evaluate", "Q15, 3 cost models"),
+        ("tier", "vs cell incumbent"),
+        ("append", "fsync JSONL"),
+        ("ledger", "verdicts by code"),
+        ("site", "rebuild + guard"),
+        ("commit", "host pushes later"),
+    ]
+    bw = max(_natw(t, [s]) for t, s in steps)
+    bh = _nath(["x"])
+    gap, row_gap = 44, 52
+    p = []
+    for i, (t, s) in enumerate(steps):
+        row, col = divmod(i, 5)
+        x = 16 + col * (bw + gap)
+        y = 16 + row * (bh + row_gap)
+        p.append(_box(x, y, bw, t, [s], cls="boxhl" if t.startswith("verify") else "box"))
+        if col < 4:
+            p.append(_arrow(x + bw, y + bh / 2, x + bw + gap, y + bh / 2))
+    # wrap arrow from the end of row 1 down and back to the start of row 2
+    x_last = 16 + 4 * (bw + gap)
+    y2 = 16 + bh + row_gap
+    p.append(f'<path class="arrow" d="M {x_last + bw / 2} {16 + bh} '
+             f'L {x_last + bw / 2} {16 + bh + row_gap / 2} '
+             f'L {16 + bw / 2} {16 + bh + row_gap / 2} L {16 + bw / 2} {y2 - 2}"/>')
+    W = 16 * 2 + 5 * bw + 4 * gap
+    H = 16 * 2 + 2 * bh + row_gap
+    svg = (f'<svg viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" '
+           f'aria-label="Explicit cycle, {len(steps)} steps in order: '
+           + ", ".join(t for t, _s in steps) + '">' + "".join(p) + "</svg>")
+    return _fig(svg, "One explicit cycle, along the top row and then the bottom.",
+                source="drawn from the runner's cycle loop",
+                stamp=STAMP_BUILD)
+
+
+def pipeline_diagram() -> str:
+    """The container start gate, in execution order, with the exit-1 branch."""
+    chain = [
+        ("container start", []),
+        ("1 · write heartbeat", ["the first line of the entrypoint"]),
+        ("2 · read-only probe", ["a write to /harness must fail"]),
+        ("3 · verifier hash check", ["sha256 over ten files vs the pinned value"]),
+        ("4 · golden + canary tests", [f"{GATE_TESTS} cases with pytest"]),
+        ("runner starts", ["science on a proven environment only"]),
+    ]
+    failt = "exit 1"
+    faill = ["the runner never starts;", "the watchdog restarts, the gate re-runs"]
+    cw = max(_natw(t, ls) for t, ls in chain)
+    fw = _natw(failt, faill)
+    gap_y = 30
+    x, y = 16, 16
+    fx = x + cw + 96
+    p = []
+    ys = []
+    for t, ls in chain:
+        h = _nath(ls)
+        hl = t == "runner starts"
+        p.append(_box(x, y, cw, t, ls, cls="boxhl" if hl else "box"))
+        ys.append((y, h))
+        y += h + gap_y
+    for (by, bh), (ny, _nh) in zip(ys, ys[1:]):
+        p.append(_arrow(x + cw / 2, by + bh, x + cw / 2, ny - 2))
+    # exit-1 branch: a rail collecting the three steps that can fail. The heartbeat write
+    # ends in `|| true` in entrypoint.sh, so it has no failure path.
+    checks = ys[2:5]
+    fail_top = checks[0][0]
+    fail_bot = checks[-1][0] + checks[-1][1]
+    fh = _nath(faill)
+    fy = (fail_top + fail_bot) / 2 - fh / 2
+    railx = x + cw + 46
+    p.append(f'<rect class="boxbad" x="{fx}" y="{fy}" width="{fw}" height="{fh}" rx="9"/>')
+    p.append(f'<text x="{fx + 13}" y="{fy + 23}" style="font-weight:650;font-size:15px;'
+             f'fill:var(--bad-fg)">{failt}</text>')
+    for i, ln in enumerate(faill):
+        p.append(f'<text x="{fx + 13}" y="{fy + 45 + 19 * i}" style="font-size:14px;'
+                 f'fill:var(--bad-fg)">{sg._esc(ln)}</text>')
+    for by, bh in checks:
+        p.append(f'<path d="M {x + cw} {by + bh / 2} L {railx} {by + bh / 2}" '
+                 'stroke="var(--bad-fg)" fill="none" opacity=".55"/>')
+    # The rail runs from the top stub to the bottom one, so every check reaches it.
+    top_mid = checks[0][0] + checks[0][1] / 2
+    p.append(f'<path d="M {railx} {top_mid} L {railx} {checks[-1][0] + checks[-1][1] / 2}" '
+             'stroke="var(--bad-fg)" fill="none" opacity=".55"/>')
+    p.append(f'<path d="M {railx} {fy + fh / 2} L {fx - 2} {fy + fh / 2}" '
+             'stroke="var(--bad-fg)" fill="none" marker-end="url(#ah)"/>')
+    p.append(f'<text class="alab" x="{railx}" y="{top_mid - 10}" '
+             'text-anchor="middle" style="fill:var(--bad-fg)">any failure</text>')
+    W = fx + fw + 16
+    H = y - gap_y + 16
+    svg = (f'<svg viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" '
+           f'aria-label="Start gate, {len(chain)} steps in order of which {len(checks)} '
+           'can fail: heartbeat, read-only probe, hash check, golden and canary tests, '
+           'then the runner; a failed check exits">' + "".join(p) + "</svg>")
+    return _fig(svg,
+                "The start gate, top to bottom, on every container start. The runner "
+                "starts only after the read-only probe, the hash check and the golden and "
+                "canary tests pass against the harness as mounted. The tests run at start "
+                "rather than at image build, so every restart repeats them.",
+                source="drawn from entrypoint.sh; the gate size is the node ids in "
+                       "tests/golden_gate.txt",
+                stamp=STAMP_BUILD)
+
+
+# ----------------------------------------------------------------------------- key-findings charts
+
+def _kf_load() -> dict:
+    path = HERE / "key_findings.json"
+    if not path.exists():
+        raise SystemExit("tools/key_findings.json is missing; run tools/key_findings.py first")
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        raise SystemExit("tools/key_findings.json is unparsable; rerun tools/key_findings.py")
+
+
+def _series(kf: dict, finding: str, name: str):
+    s = kf.get(finding, {}).get("series", {}).get(name)
+    if isinstance(s, list) and s:
+        return s
+    if isinstance(s, dict) and s and "absent" not in s:
+        return s
+    print(f"WARN: series {finding}.{name} empty or absent; chart skipped")
+    return None
+
+
+def _logpos(v, lo, hi, a, b) -> float:
+    t = (math.log10(v) - math.log10(lo)) / (math.log10(hi) - math.log10(lo))
+    return a + t * (b - a)
+
+
+def _tickfmt(v: float) -> str:
+    return f"{v:g}"
+
+
+def frontier_chart(kf: dict, basis: str = "", tier_of: dict | None = None) -> str:
+    rows = _series(kf, "efficiency", "frontier_cycles_vs_heldout")
+    if not rows:
+        return ""
+    # The tier each point prints is the live archive's, not the analysis document's, so
+    # the column stays true after the tier backfill (see _live_tier_lookup).
+    tier_of = tier_of or {}
+    rows = [dict(r, tier=tier_of.get(r.get("tableau_hash"))) for r in rows]
+    budget = kf["efficiency"]["numbers"]["budget_cycles"]
+    w, h, ml, mr, mt, mb = 880, 470, 66, 26, 18, 52
+    xlo, xhi, ylo, yhi = 4, 95, 0.02, 0.45
+    fx = lambda v: _logpos(v, xlo, xhi, ml, w - mr)
+    fy = lambda v: h - mb - (_logpos(v, ylo, yhi, 0, h - mt - mb))
+    p = []
+    for tv in (5, 10, 20, 40, 80):
+        p.append(f'<line class="gridline" x1="{sg._fmt(fx(tv))}" y1="{mt}" x2="{sg._fmt(fx(tv))}" y2="{h - mb}"/>')
+        p.append(f'<text x="{sg._fmt(fx(tv))}" y="{h - mb + 18}" text-anchor="middle">{tv}</text>')
+    for tv in (0.02, 0.05, 0.1, 0.2, 0.4):
+        p.append(f'<line class="gridline" x1="{ml}" y1="{sg._fmt(fy(tv))}" x2="{w - mr}" y2="{sg._fmt(fy(tv))}"/>')
+        p.append(f'<text x="{ml - 8}" y="{sg._fmt(fy(tv) + 4)}" text-anchor="end">{_tickfmt(tv)}</text>')
+    p.append(f'<line class="axis" x1="{ml}" y1="{h - mb}" x2="{w - mr}" y2="{h - mb}"/>')
+    p.append(f'<line class="axis" x1="{ml}" y1="{mt}" x2="{ml}" y2="{h - mb}"/>')
+    p.append(f'<text x="{sg._fmt((ml + w - mr) / 2)}" y="{h - 8}" text-anchor="middle">cycles per step at one state (log)</text>')
+    p.append(f'<text x="14" y="{sg._fmt((mt + h - mb) / 2)}" text-anchor="middle" '
+             f'transform="rotate(-90 14 {sg._fmt((mt + h - mb) / 2)})">held-out error (log)</text>')
+    classical = [r for r in rows if r.get("kind") == "classical"]
+    discovered = [r for r in rows if r.get("kind") == "discovered"]
+    best_classical = min((r["heldout_error"] for r in classical), default=None)
+    if best_classical:
+        yy = fy(best_classical)
+        p.append(f'<line x1="{ml}" y1="{sg._fmt(yy)}" x2="{w - mr}" y2="{sg._fmt(yy)}" '
+                 'stroke="var(--s2)" stroke-dasharray="5 4" opacity=".7"/>')
+        p.append(f'<text class="dlab" x="{w - mr - 4}" y="{sg._fmt(yy - 7)}" text-anchor="end">'
+                 f'best classical method ({_short(best_classical)})</text>')
+    for i, r in enumerate(sorted(classical, key=lambda r: r["cycles"])):
+        px, py = fx(r["cycles"]), fy(r["heldout_error"])
+        p.append(f'<circle cx="{sg._fmt(px)}" cy="{sg._fmt(py)}" r="5.5" fill="var(--s2)" class="cellstroke">'
+                 f'<title>{sg._esc(r.get("name"))} (classical): {r["cycles"]} cycles/step, '
+                 f'held-out error {_short(r["heldout_error"])}</title></circle>')
+        dy = -10 if i % 2 == 0 else 20
+        p.append(f'<text class="dlab" x="{sg._fmt(px)}" y="{sg._fmt(py + dy)}" '
+                 f'text-anchor="middle">{sg._esc(r.get("name"))}</text>')
+    best = min(discovered, key=lambda r: r["heldout_error"], default=None)
+    for r in discovered:
+        px, py = fx(r["cycles"]), fy(r["heldout_error"])
+        p.append(f'<circle cx="{sg._fmt(px)}" cy="{sg._fmt(py)}" r="5.5" fill="var(--s1)" class="cellstroke">'
+                 f'<title>discovered, order {r.get("order")}, {_stages(r.get("stages"))}: '
+                 f'{r["cycles"]} cycles/step, held-out error {_short(r["heldout_error"])}, '
+                 f'tier {sg._esc(r.get("tier") or _NA)}</title></circle>')
+    if best:
+        px, py = fx(best["cycles"]), fy(best["heldout_error"])
+        p.append(f'<circle cx="{sg._fmt(px)}" cy="{sg._fmt(py)}" r="10" fill="none" '
+                 'stroke="var(--s1)" stroke-width="1.5"/>')
+        p.append(f'<text class="dlab" x="{sg._fmt(px + 14)}" y="{sg._fmt(py + 4)}">'
+                 f'best discovered: {_short(best["heldout_error"])} at {best["cycles"]} cycles</text>')
+    svg = (f'<svg viewBox="0 0 {w} {h}" width="{w}" height="{h}" role="img" '
+           'aria-describedby="frontier-table" '
+           f'aria-label="Efficiency frontier: per-step cycles against held-out error for '
+           f'{len(discovered) + len(classical)} methods, {len(discovered)} discovered and '
+           f'{len(classical)} classical, both axes log">' + "".join(p) + "</svg>")
+    caption = (f"Per-step cost against held-out error at the shared {budget:,}-cycle budget, "
+               "both on log scales, so down and left is better. Every blue dot under the "
+               f"dashed line has lower error than every classical method. {basis}".strip())
+    legend = sg._legend([("var(--s1)", "discovered (best per grid cell)"),
+                         ("var(--s2)", "classical methods")])
+    return (_fig(svg, caption, legend,
+                 "data: key_findings.json, series frontier_cycles_vs_heldout",
+                 stamp=STAMP_KF)
+            + _frontier_table(rows))
+
+
+def _frontier_table(rows: list[dict]) -> str:
+    """The frontier chart's points as a table, in the order the chart draws them.
+
+    A chart wrapped in role="img" is one leaf node to a screen reader, so the values in its
+    SVG titles are reachable with a pointer and by no other route. The table is that route,
+    and it needs no script."""
+    plotted = [r for r in rows if isinstance(r.get("heldout_error"), (int, float))]
+    body = "".join(
+        "<tr><td>"
+        + sg._esc(r.get("name") or f'discovered {str(r.get("tableau_hash", ""))[:12]}')
+        + f'</td><td>{sg._esc(r.get("kind"))}</td>'
+        f'<td class="num">{r.get("order") if r.get("order") is not None else _NA}</td>'
+        f'<td class="num">{r.get("stages")}</td>'
+        f'<td class="num">{r.get("cycles")}</td>'
+        f'<td class="num">{_short(r["heldout_error"])}</td>'
+        f'<td>{sg._esc(r.get("tier") or _NA)}</td></tr>' for r in plotted)
+    return ('<details class="fold" id="frontier-table"><summary>The same points as a table '
+            f'({len(plotted)} rows)</summary><div><div class="scroll"><table><thead><tr>'
+            '<th>method</th><th>kind</th><th class="num">order</th>'
+            '<th class="num">stages</th><th class="num">cycles/step</th>'
+            '<th class="num">held-out error</th><th>tier</th></tr></thead><tbody>'
+            + body + "</tbody></table></div>"
+            '<p class="note">Held-out error here is the published figure, magnitude weighting '
+            "on the analytic basis. The tier is read from the archive at build time: for a "
+            "method that holds a cell it is the stored tier of that cell's elite, for a "
+            "classical method that holds no cell it is the stored tier of its one seed "
+            "record, and a method with no archive record prints n/a.</p></div></details>")
+
+
+def flip_slope_chart(kf: dict) -> str:
+    agg = kf.get("floor_bias_flip", {}).get("numbers", {}).get("aggregate", {})
+    try:
+        fl = agg["floor"]["search_rms"]
+        rd = agg["round_to_nearest"]["search_rms"]
+    except KeyError:
+        print("WARN: floor_bias_flip aggregate numbers missing; slope chart skipped")
+        return ""
+    methods = sorted(fl["rank"], key=lambda m: fl["rank"][m])
+    w, h = 660, 330
+    xr, xf = 218, 452
+    y0, dy = 92, 62
+    colors = {"euler": "var(--s1)", "rk4": "var(--s2)"}
+    p = [f'<text class="dlab" x="{xr}" y="40" text-anchor="middle">round-to-nearest</text>',
+         f'<text class="alab" x="{xr}" y="56" text-anchor="middle">(counterfactual)</text>',
+         f'<text class="dlab" x="{xf}" y="40" text-anchor="middle">floor (ASRS)</text>',
+         f'<text class="alab" x="{xf}" y="56" text-anchor="middle">(what the hardware does)</text>']
+    for rank in range(1, len(methods) + 1):
+        p.append(f'<text x="40" y="{y0 + (rank - 1) * dy + 4}" text-anchor="middle">rank {rank}</text>')
+    for m in methods:
+        yr = y0 + (rd["rank"][m] - 1) * dy
+        yf = y0 + (fl["rank"][m] - 1) * dy
+        c = colors.get(m, "var(--text-3)")
+        p.append(f'<path d="M {xr} {yr} L {xf} {yf}" stroke="{c}" stroke-width="2.5" fill="none" '
+                 f'opacity="{1 if m in colors else 0.65}"/>')
+        for (xx, yy) in ((xr, yr), (xf, yf)):
+            p.append(f'<circle cx="{xx}" cy="{yy}" r="5" fill="{c}" class="cellstroke">'
+                     f'<title>{sg._esc(m)}: search-set RMS {_short(rd["error"][m])} under '
+                     f'round-to-nearest, {_short(fl["error"][m])} under floor</title></circle>')
+        p.append(f'<text class="dlab" x="{xr - 14}" y="{yr + 4}" text-anchor="end">'
+                 f'{sg._esc(m)} · {_short(rd["error"][m])}</text>')
+        p.append(f'<text class="dlab" x="{xf + 14}" y="{yf + 4}">'
+                 f'{sg._esc(m)} · {_short(fl["error"][m])}</text>')
+    svg = (f'<svg viewBox="0 0 {w} {h}" width="{w}" height="{h}" role="img" '
+           + _describedby("flip-slope-table")
+           + f'aria-label="Rank slope chart: {len(methods)} methods ranked by search-set RMS '
+           'error under round-to-nearest against floor rounding">' + "".join(p) + "</svg>")
+    caption = ("Each line is one method, ranked by search-set RMS error under each rounding "
+               "mode, with the value beside each end. Blue is euler, orange rk4. "
+               "Round-to-nearest was rerun outside the archive as the counterfactual.")
+    table = _chart_table(
+        "flip-slope-table", "The same ranks and errors as a table",
+        ["method", "rank, round-to-nearest", "RMS, round-to-nearest", "rank, floor",
+         "RMS, floor"],
+        [[m, rd["rank"][m], _short(rd["error"][m]), fl["rank"][m], _short(fl["error"][m])]
+         for m in methods], num=frozenset({1, 2, 3, 4}))
+    return _fig(svg, caption, "", "data: key_findings.json, numbers aggregate.search_rms",
+                stamp=STAMP_KF) + table
+
+
+_PROBLEM_ORDER = ("dahlquist", "damped_osc", "vanderpol_mild",
+                  "pendulum", "dc_motor", "rc_thermal", "quaternion")
+_METHOD_ORDER = ("euler", "heun2", "rk4", "rk38")
+# What a problem the degeneracy detector flags carries wherever its per-problem errors are
+# printed, with one note per table naming the field the verdict was computed over. The
+# findings validation page marks the same verdict with the same word.
+_FLAG_MARK = " (flagged)"
+
+
+def flip_problem_chart(kf: dict) -> str:
+    rows = _series(kf, "floor_bias_flip", "per_problem_floor_vs_round")
+    if not rows:
+        return ""
+    by = {(r["problem"], r["method"]): r for r in rows}
+    w, ml, mr = 880, 160, 26
+    xlo, xhi = 3e-5, 1.0
+    fx = lambda v: _logpos(v, xlo, xhi, ml, w - mr)
+    head_h, row_h, group_pad = 24, 22, 14
+    problems = [pr for pr in _PROBLEM_ORDER if any(k[0] == pr for k in by)]
+    H = 16 + sum(head_h + row_h * len(_METHOD_ORDER) + group_pad for _ in problems) + 52
+    # The verdicts come first, so a flagged problem is marked on the drawing as well as in
+    # the table under it (DECISIONS.md D44, D-f).
+    cf = _cf_load(kf)
+    deg = _cf_degeneracy(cf, kf)
+    mark = {pr: _FLAG_MARK if deg[pr]["four"][0] else "" for pr in problems}
+    p = []
+    for tv in (1e-4, 1e-3, 1e-2, 1e-1, 1):
+        px = fx(tv)
+        p.append(f'<line class="gridline" x1="{sg._fmt(px)}" y1="10" x2="{sg._fmt(px)}" y2="{H - 48}"/>')
+        p.append(f'<text x="{sg._fmt(px)}" y="{H - 30}" text-anchor="middle">{sg._pow_label(tv)}</text>')
+    p.append(f'<text x="{sg._fmt((ml + w - mr) / 2)}" y="{H - 10}" text-anchor="middle">'
+             'final-state error at the shared budget (log)</text>')
+    y = 16
+    for pr in problems:
+        p.append(f'<text class="dlab" x="8" y="{y + 14}">{sg._esc(pr + mark[pr])}</text>')
+        y += head_h
+        for m in _METHOD_ORDER:
+            r = by.get((pr, m))
+            if r is None:
+                continue
+            cy = y + row_h / 2
+            fxv, rxv = fx(r["floor_error"]), fx(r["round_error"])
+            p.append(f'<text x="{ml - 10}" y="{sg._fmt(cy + 4)}" text-anchor="end">{sg._esc(m)}</text>')
+            p.append(f'<line x1="{sg._fmt(min(fxv, rxv))}" y1="{sg._fmt(cy)}" '
+                     f'x2="{sg._fmt(max(fxv, rxv))}" y2="{sg._fmt(cy)}" stroke="var(--line)" stroke-width="2"/>')
+            title = (f"{pr}{mark[pr]} / {m}: floor {_short(r['floor_error'])} "
+                     f"(rank {r['floor_rank']}), "
+                     f"round-to-nearest {_short(r['round_error'])} (rank {r['round_rank']})")
+            p.append(f'<circle cx="{sg._fmt(fxv)}" cy="{sg._fmt(cy)}" r="4.5" fill="var(--s1)" '
+                     f'class="cellstroke"><title>{sg._esc(title)}</title></circle>')
+            p.append(f'<circle cx="{sg._fmt(rxv)}" cy="{sg._fmt(cy)}" r="4.5" fill="var(--s2)" '
+                     f'class="cellstroke"><title>{sg._esc(title)}</title></circle>')
+            y += row_h
+        y += group_pad
+    pairs = sum(1 for pr in problems for m in _METHOD_ORDER if (pr, m) in by)
+    svg = (f'<svg viewBox="0 0 {w} {H}" width="{w}" height="{H}" role="img" '
+           + _describedby("flip-problem-table")
+           + f'aria-label="Error under floor and round-to-nearest for {pairs} problem and '
+           f'method pairs, {len(problems)} problems by {len(_METHOD_ORDER)} classical '
+           'methods, log scale">' + "".join(p) + "</svg>")
+    caption = ("Final-state error per problem and method, log scale, left is better. The "
+               "bar between the two dots is what the rounding mode alone changes.")
+    legend = sg._legend([("var(--s1)", "floor (ASRS, as measured)"),
+                         ("var(--s2)", "round-to-nearest (counterfactual)")])
+    # This table feeds two RMS aggregates, so each row carries the weight its problem
+    # actually has in one: the square of its error over the sum of squares across its own
+    # set. The shares are computed from this table's own numbers rather than read from the
+    # counterfactual document, and then checked against it, so the column cannot drift away
+    # from the errors printed beside it.
+    set_of = {r["problem"]: r["set"] for r in cf["series"]["per_method"]}
+
+    def share(pr: str, m: str, key: str) -> float:
+        tot = sum(by[(p2, m)][key] ** 2 for p2 in problems
+                  if (p2, m) in by and set_of[p2] == set_of[pr])
+        return by[(pr, m)][key] ** 2 / tot if tot else 0.0
+
+    doc = {(r["method"], r["problem"]): r for r in cf["series"]["per_method"]
+           if r["basis"] == "analytic"}
+    for pr in problems:
+        for m in _METHOD_ORDER:
+            if (pr, m) in by and (m, pr) in doc:
+                _claim(abs(share(pr, m, "floor_error")
+                           - doc[(m, pr)]["share_magnitude"]) < 1e-9,
+                       f"the floor weight share printed for {m} on {pr} reproduces the "
+                       "share the counterfactual document publishes for the same cell")
+    table = _chart_table(
+        "flip-problem-table", "The same pairs as a table",
+        ["problem", "method", "floor error", "floor weight share", "floor rank",
+         "round-to-nearest error", "round-to-nearest weight share",
+         "round-to-nearest rank", "verdict over these 4 methods"],
+        [[pr, m, _short(by[(pr, m)]["floor_error"]), _cf_pct(share(pr, m, "floor_error")),
+          by[(pr, m)]["floor_rank"], _short(by[(pr, m)]["round_error"]),
+          _cf_pct(share(pr, m, "round_error")), by[(pr, m)]["round_rank"],
+          "degenerate" if deg[pr]["four"][0] else "clean"]
+         for pr in problems for m in _METHOD_ORDER if (pr, m) in by],
+        num=frozenset({2, 3, 4, 5, 6, 7}))
+    note = ('<p class="note">The weight share is the problem\'s share of the sum of squares '
+            "behind its own aggregate, the search set or the held-out set, which is the "
+            "weight an RMS gives it. The verdict is the findings site's own degeneracy "
+            "detector run over the four methods in this table, and it names that field "
+            "because a verdict belongs to the field it was computed over; the drawing marks "
+            "the same problems (flagged). The table under the Dahlquist paragraph gives "
+            "every problem's verdict on this field and on two others.</p>")
+    return _fig(svg, caption, legend,
+                "data: key_findings.json, series per_problem_floor_vs_round",
+                stamp=STAMP_KF) + table + note
+
+
+def crossover_chart(kf: dict) -> str:
+    sweeps = _series(kf, "crossover", "sweeps")
+    if not sweeps:
+        return ""
+    nums = kf.get("crossover", {}).get("numbers", {})
+    methods = nums.get("methods", {})
+    w, h, ml, mr, mt, mb = 880, 480, 70, 36, 44, 52
+    xlo, ylo, yhi = 0.008, 1e-11, 1e2
+
+    # The findings site leaves out float64 points whose error is above 1
+    # (sitegen._sweep_chart): no Q15 state can hold a value that large, and plotting those
+    # runs stretches the axis over twenty decades until the Q15 curves are a few pixels
+    # tall. Applying the same rule here keeps the two sites on one point set of the same
+    # experiment, and the caption names the step sizes left out. The x domain follows the
+    # points that survive, so a run the rule keeps cannot fall off the right edge.
+    def shown(r, key: str) -> bool:
+        v = r.get(key)
+        return (isinstance(v, (int, float)) and ylo <= v <= yhi
+                and not (key == "float_error" and v > 1.0))
+
+    dropped = {m: sorted(r["h"] for r in sweeps.get(m, [])
+                         if r.get("h") and isinstance(r.get("float_error"), (int, float))
+                         and r["float_error"] > 1.0)
+               for m in ("rk4", "heun2")}
+    drawn_h = [r["h"] for m in ("rk4", "heun2") for r in sweeps.get(m, [])
+               if r.get("h") and (shown(r, "q15_error") or shown(r, "float_error"))]
+    xhi = max(1.6, 1.1 * max(drawn_h)) if drawn_h else 1.6
+    fx = lambda v: _logpos(v, xlo, xhi, ml, w - mr)
+    fy = lambda v: h - mb - _logpos(v, ylo, yhi, 0, h - mt - mb)
+    p = []
+    for tv in [t for t in (0.01, 0.05, 0.1, 0.5, 1, 2) if t < xhi]:
+        p.append(f'<line class="gridline" x1="{sg._fmt(fx(tv))}" y1="{mt}" x2="{sg._fmt(fx(tv))}" y2="{h - mb}"/>')
+        p.append(f'<text x="{sg._fmt(fx(tv))}" y="{h - mb + 18}" text-anchor="middle">{_tickfmt(tv)}</text>')
+    for e in range(-10, 3, 2):
+        tv = 10.0 ** e
+        p.append(f'<line class="gridline" x1="{ml}" y1="{sg._fmt(fy(tv))}" x2="{w - mr}" y2="{sg._fmt(fy(tv))}"/>')
+        p.append(f'<text x="{ml - 8}" y="{sg._fmt(fy(tv) + 4)}" text-anchor="end">1e{e}</text>')
+    p.append(f'<line class="axis" x1="{ml}" y1="{h - mb}" x2="{w - mr}" y2="{h - mb}"/>')
+    p.append(f'<line class="axis" x1="{ml}" y1="{mt}" x2="{ml}" y2="{h - mb}"/>')
+    p.append(f'<text x="{sg._fmt((ml + w - mr) / 2)}" y="{h - 8}" text-anchor="middle">step size h (log; smaller steps to the left)</text>')
+    p.append(f'<text x="14" y="{sg._fmt((mt + h - mb) / 2)}" text-anchor="middle" '
+             f'transform="rotate(-90 14 {sg._fmt((mt + h - mb) / 2)})">final-state error (log)</text>')
+    colors = {"rk4": "var(--s1)", "heun2": "var(--s2)"}
+    for mname, cross_label_y in (("rk4", mt + 14), ("heun2", mt + 30)):
+        cross = methods.get(mname, {}).get("crossover_h")
+        if isinstance(cross, (int, float)) and xlo < cross < xhi:
+            px = fx(cross)
+            p.append(f'<line x1="{sg._fmt(px)}" y1="{mt}" x2="{sg._fmt(px)}" y2="{h - mb}" '
+                     'stroke="var(--text-3)" stroke-dasharray="4 3"/>')
+            p.append(f'<text class="dlab" x="{sg._fmt(px + 5)}" y="{cross_label_y}">'
+                     f'{sg._esc(mname)} crossover h = {_short(cross)}</text>')
+    for mname in ("rk4", "heun2"):
+        rows = [r for r in sweeps.get(mname, []) if r.get("h")]
+        c = colors[mname]
+        for key, dash in (("q15_error", ""), ("float_error", ' stroke-dasharray="6 4"')):
+            pts = [(r["h"], r[key]) for r in rows if shown(r, key)]
+            if len(pts) < 2:
+                continue
+            pts.sort()
+            path = " ".join(f"{'M' if i == 0 else 'L'} {sg._fmt(fx(hv))} {sg._fmt(fy(ev))}"
+                            for i, (hv, ev) in enumerate(pts))
+            p.append(f'<path d="{path}" fill="none" stroke="{c}" stroke-width="2"{dash}/>')
+            for hv, ev in pts:
+                p.append(f'<circle cx="{sg._fmt(fx(hv))}" cy="{sg._fmt(fy(ev))}" r="3.5" fill="{c}" '
+                         f'class="cellstroke"><title>{sg._esc(mname)} '
+                         f'{"Q15" if key == "q15_error" else "float64"} at h = {_short(hv)}: '
+                         f'error {_short(ev)}</title></circle>')
+            if key == "float_error":
+                # one direct label per method, at the left end of its float64 line,
+                # where the two methods sit decades apart
+                h0, e0 = pts[0]
+                p.append(f'<text class="dlab" x="{sg._fmt(fx(h0) + 10)}" '
+                         f'y="{sg._fmt(fy(e0) - 8)}">{sg._esc(mname)}</text>')
+    problem = nums.get("problem", "the test problem")
+    svg = (f'<svg viewBox="0 0 {w} {h}" width="{w}" height="{h}" role="img" '
+           + _describedby("crossover-table")
+           + f'aria-label="Step-size sweep on {sg._esc(problem)}: Q15 and float64 error for '
+           f'2 methods, rk4 and heun2, over {len(set(drawn_h))} step sizes, log-log, with '
+           'crossover markers">' + "".join(p) + "</svg>")
+    def _hs(vals) -> str:
+        s = [_short(v) for v in vals]
+        return s[0] if len(s) == 1 else ", ".join(s[:-1]) + " and " + s[-1]
+
+    off = "; ".join(f"{mname} at h = {_hs(dropped[mname])}"
+                    for mname in ("rk4", "heun2") if dropped[mname])
+    caption = (f"Final-state error on {sg._esc(problem)} against step size, both axes log. "
+               "Solid lines are Q15, dashed lines float64 over the same steps. Left of each "
+               "vertical marker the Q15 line turns up while float64 keeps falling. Q15 runs "
+               "that overflowed at the largest steps are left out."
+               + (f" So are float64 errors above 1, which no Q15 state can hold: {off}."
+                  if off else ""))
+    legend = sg._legend([("var(--s1)", "rk4 (solid Q15, dashed float64)"),
+                         ("var(--s2)", "heun2 (solid Q15, dashed float64)")])
+    table = _chart_table(
+        "crossover-table", "Every sweep point as a table, the ones the chart leaves out "
+        "included",
+        ["method", "step size h", "Q15 error", "float64 error"],
+        [[mname, _short(r["h"]),
+          _short(r["q15_error"]) if isinstance(r.get("q15_error"), (int, float)) else _NA,
+          _short(r["float_error"]) if isinstance(r.get("float_error"), (int, float)) else _NA]
+         for mname in ("rk4", "heun2")
+         for r in sorted((x for x in sweeps.get(mname, []) if x.get("h")),
+                         key=lambda x: x["h"])],
+        num=frozenset({1, 2, 3}))
+    return _fig(svg, caption, legend,
+                "data: key_findings.json, series sweeps (falsification run)",
+                stamp=STAMP_KF) + table
+
+
+_RC_ORDER = ("euler", "midpoint", "heun2", "ralston2", "heun3", "kutta3", "rk4", "rk38")
+
+
+def rc_chart(kf: dict) -> str:
+    rows = _series(kf, "rc_thermal_collapse", "per_method")
+    if not rows:
+        return ""
+    nums = kf.get("rc_thermal_collapse", {}).get("numbers", {})
+    ref = nums.get("reference_norm")
+    best = nums.get("best_discovered_rc_thermal", {})
+    by = {r["method"]: r for r in rows}
+    order = [m for m in _RC_ORDER if m in by] + sorted(m for m in by if m not in _RC_ORDER)
+    groups = [(m, by[m]) for m in order] + ([("best discovered", None)] if best else [])
+    w, h, ml, mr, mt, mb = 880, 400, 64, 20, 24, 66
+    ymax = 0.22
+    fy = lambda v: h - mb - (v / ymax) * (h - mt - mb)
+    p = []
+    for tv in (0, 0.05, 0.10, 0.15, 0.20):
+        p.append(f'<line class="gridline" x1="{ml}" y1="{sg._fmt(fy(tv))}" x2="{w - mr}" y2="{sg._fmt(fy(tv))}"/>')
+        p.append(f'<text x="{ml - 8}" y="{sg._fmt(fy(tv) + 4)}" text-anchor="end">{_tickfmt(tv)}</text>')
+    p.append(f'<line class="axis" x1="{ml}" y1="{h - mb}" x2="{w - mr}" y2="{h - mb}"/>')
+    p.append(f'<text x="14" y="{sg._fmt((mt + h - mb) / 2)}" text-anchor="middle" '
+             f'transform="rotate(-90 14 {sg._fmt((mt + h - mb) / 2)})">final-state error</text>')
+    gw = (w - ml - mr) / len(groups)
+    bar_w, gap = 26, 4
+    n_round = 0
+    for gi, (name, r) in enumerate(groups):
+        cx = ml + gw * gi + gw / 2
+        if r is not None:
+            fe, re_ = r["floor_error"], r.get("round_error")
+            bx = cx - (bar_w + gap / 2 if re_ is not None else bar_w / 2)
+            p.append(sg._round_top_bar(bx, fy(fe), bar_w, (h - mb) - fy(fe), "var(--s1)",
+                                       f"{name} floor: error {_short(fe)}; {r['steps']:,} steps; "
+                                       f"final Q15 state {tuple(r['final_state_q15'])}"))
+            if re_ is not None:
+                n_round += 1
+                bx2 = cx + gap / 2
+                p.append(sg._round_top_bar(bx2, fy(re_), bar_w, (h - mb) - fy(re_), "var(--s2)",
+                                           f"{name} round-to-nearest: error {_short(re_)}"))
+                if name in ("rk38", "rk4"):
+                    p.append(f'<text class="lbl" x="{sg._fmt(bx2 + bar_w / 2)}" '
+                             f'y="{sg._fmt(fy(re_) - 5)}" text-anchor="middle">{_short(re_)}</text>')
+        else:
+            bx = cx - bar_w / 2
+            fe = best["error"]
+            p.append(sg._round_top_bar(bx, fy(fe), bar_w, (h - mb) - fy(fe), "var(--s3)",
+                                       f"best discovered (order {best.get('order')}, "
+                                       f"{_stages(best.get('stages'))}, {best.get('cycles')} cycles/step), "
+                                       f"still under floor: error {_short(fe)}"))
+            p.append(f'<text class="lbl" x="{sg._fmt(cx)}" y="{sg._fmt(fy(fe) - 5)}" '
+                     f'text-anchor="middle">{_short(fe)}</text>')
+        if name == "best discovered":
+            p.append(f'<text x="{sg._fmt(cx)}" y="{h - mb + 18}" text-anchor="middle">best</text>')
+            p.append(f'<text x="{sg._fmt(cx)}" y="{h - mb + 34}" text-anchor="middle">discovered</text>')
+        else:
+            p.append(f'<text x="{sg._fmt(cx)}" y="{h - mb + 18}" text-anchor="middle">{sg._esc(name)}</text>')
+    if isinstance(ref, (int, float)):
+        p.append(f'<line x1="{ml}" y1="{sg._fmt(fy(ref))}" x2="{w - mr}" y2="{sg._fmt(fy(ref))}" '
+                 'stroke="var(--text-1)" stroke-dasharray="5 4" opacity=".6"/>')
+        p.append(f'<text class="dlab" x="{w - mr - 4}" y="{sg._fmt(fy(ref) - 7)}" text-anchor="end">'
+                 f'true solution norm {_short(ref)}</text>')
+    lo, hi = nums.get("floor_error_min"), nums.get("floor_error_max")
+    if isinstance(lo, (int, float)) and isinstance(hi, (int, float)):
+        # Halfway between the tallest bar (or the reference line) and the top of the
+        # plot, so the note crosses no bar.
+        ann = (max(hi, ref if isinstance(ref, (int, float)) else hi) + ymax) / 2
+        p.append(f'<text class="dlab" x="{ml + 6}" y="{sg._fmt(fy(ann) + 4)}">'
+                 f'floor: {_short(lo)} to {_short(hi)} for all {len(rows)}</text>')
+    svg = (f'<svg viewBox="0 0 {w} {h}" width="{w}" height="{h}" role="img" '
+           + _describedby("rc-table")
+           + f'aria-label="rc_thermal error for {len(rows)} classical methods under floor '
+           f'and round-to-nearest plus the best discovered method, {len(groups)} bars in '
+           'all, with the reference norm marked">' + "".join(p) + "</svg>")
+    caption = ("Final-state error on rc_thermal. Every floor bar (blue) reaches the dashed "
+               "line, the size of the true solution, because the state collapsed to near "
+               f"zero. Orange: round-to-nearest, measured for {n_round} methods. Green: the "
+               "best discovered method on rc_thermal (not the finding 1 champion), under "
+               "the same floor arithmetic.")
+    legend = sg._legend([("var(--s1)", "floor (ASRS, as measured)"),
+                         ("var(--s2)", "round-to-nearest (counterfactual)"),
+                         ("var(--s3)", "best discovered, still under floor")])
+    # rc_thermal is one term of every method's held-out RMS, so each row carries the share
+    # of that method's held-out sum of squares it holds (DECISIONS.md D44, D-d), read from
+    # the counterfactual document and checked to be a share of the error printed beside it.
+    cf = _cf_load(kf)
+    deg = _cf_degeneracy(cf, kf)
+    share = {r["method"]: r for r in cf["series"]["per_method"]
+             if r["problem"] == "rc_thermal" and r["basis"] == "analytic"}
+    for name, r in groups:
+        if r is not None and name in share:
+            _claim(abs(share[name]["error"] - r["floor_error"]) <= 1e-9 * r["floor_error"],
+                   f"the rc_thermal share printed for {name} is a share of the floor error "
+                   "printed beside it")
+    table = _chart_table(
+        "rc-table", "The same bars as a table",
+        ["method", "floor error", "share of its held-out sum of squares",
+         "round-to-nearest error", "steps", "final Q15 state"],
+        [([name, _short(r["floor_error"]),
+           _cf_pct(share[name]["share_magnitude"]) if name in share else _NA,
+           _short(r["round_error"]) if isinstance(r.get("round_error"), (int, float)) else _NA,
+           f"{r['steps']:,}", str(tuple(r["final_state_q15"]))] if r is not None
+          else ["best discovered, under floor", _short(best["error"]), _NA, _NA, _NA, _NA])
+         for name, r in groups],
+        num=frozenset({1, 2, 3, 4}))
+    d = deg["rc_thermal"]
+    fields = [f"the {d['n_four']} methods finding 2 publishes"] + (
+        [f"the {d['n_nine']} methods finding 1's counterfactual scores on the analytic basis"]
+        if d["nine"][0] else [])
+    note = ('<p class="note">The share is rc_thermal\'s part of that method\'s held-out sum of '
+            "squares under magnitude weighting on the analytic basis, from "
+            "<code>counterfactual.series.per_method</code>; the best discovered method on "
+            "rc_thermal is not one of the methods scored there, so its row has none. "
+            f"rc_thermal{_FLAG_MARK}: the degeneracy detector flags it over "
+            f'{_join(fields)} (<a href="#floor-flip">finding 2</a>).</p>'
+            if d["four"][0] else "")
+    return _fig(svg, caption, legend, "data: key_findings.json, series per_method",
+                stamp=STAMP_KF) + table + note
+
+
+def phase0_chart(kf: dict) -> str:
+    rows = _series(kf, "phase0_exhaustive", "all_members")
+    if not rows:
+        return ""
+    rows = sorted(rows, key=lambda r: Fraction(r["a21"]))
+    n = len(rows)
+    n_named = sum(1 for r in rows if r.get("name"))
+    w, h, ml, mr, mt, mb = 880, 380, 64, 20, 24, 58
+    ylo, yhi = 0.05, 0.145
+    fy = lambda v: h - mb - (v - ylo) / (yhi - ylo) * (h - mt - mb)
+    slot = (w - ml - mr) / n
+    p = []
+    for tv in (0.06, 0.08, 0.10, 0.12, 0.14):
+        p.append(f'<line class="gridline" x1="{ml}" y1="{sg._fmt(fy(tv))}" x2="{w - mr}" y2="{sg._fmt(fy(tv))}"/>')
+        p.append(f'<text x="{ml - 8}" y="{sg._fmt(fy(tv) + 4)}" text-anchor="end">{_tickfmt(tv)}</text>')
+    p.append(f'<line class="axis" x1="{ml}" y1="{h - mb}" x2="{w - mr}" y2="{h - mb}"/>')
+    p.append(f'<text x="{sg._fmt((ml + w - mr) / 2)}" y="{h - 8}" text-anchor="middle">'
+             f'a21, ordered by value (one dot per exactly representable tableau, {n} in all)</text>')
+    p.append(f'<text x="14" y="{sg._fmt((mt + h - mb) / 2)}" text-anchor="middle" '
+             f'transform="rotate(-90 14 {sg._fmt((mt + h - mb) / 2)})">held-out error</text>')
+    for i, r in enumerate(rows):
+        cx = ml + slot * i + slot / 2
+        cy = fy(r["heldout_error"])
+        named = r.get("name")
+        fill = "var(--s1)" if r["rank"] == 1 else ("var(--s2)" if named else "var(--text-3)")
+        title = (f"a21 = {r['a21']}, b = ({r['b'][0]}, {r['b'][1]}): held-out error "
+                 f"{_short(r['heldout_error'])}, {r['cycles']} cycles/step, rank {r['rank']} of {n}"
+                 + (f" ({named})" if named else ""))
+        p.append(f'<circle cx="{sg._fmt(cx)}" cy="{sg._fmt(cy)}" r="6" fill="{fill}" class="cellstroke">'
+                 f'<title>{sg._esc(title)}</title></circle>')
+        if r["rank"] == 1:
+            p.append(f'<circle cx="{sg._fmt(cx)}" cy="{sg._fmt(cy)}" r="11" fill="none" '
+                     'stroke="var(--s1)" stroke-width="1.5"/>')
+            p.append(f'<text class="dlab" x="{sg._fmt(cx)}" y="{sg._fmt(cy - 18)}" '
+                     f'text-anchor="middle">optimum {_short(r["heldout_error"])}</text>')
+        elif r["rank"] == 2:
+            p.append(f'<text class="dlab" x="{sg._fmt(cx)}" y="{sg._fmt(cy + 26)}" '
+                     f'text-anchor="middle">near-tie {_short(r["heldout_error"])}</text>')
+        elif named:
+            dy = -12 if named == "heun2" else 22
+            p.append(f'<text class="dlab" x="{sg._fmt(cx)}" y="{sg._fmt(cy + dy)}" '
+                     f'text-anchor="middle">{sg._esc(named)}</text>')
+        p.append(f'<text x="{sg._fmt(cx)}" y="{h - mb + 18}" text-anchor="middle" '
+                 f'class="mono" style="font-size:12px">{sg._esc(r["a21"])}</text>')
+    svg = (f'<svg viewBox="0 0 {w} {h}" width="{w}" height="{h}" role="img" '
+           + _describedby("phase0-table")
+           + f'aria-label="Phase 0 exhaustive: held-out error for all {n} two-stage order-2 '
+           'tableaus in the lattice, ordered by a21">' + "".join(p) + "</svg>")
+    caption = (f"All {n} members of the phase-0 space by a21, held-out error on a linear "
+               f"scale (lower is better). Blue is the optimum, orange the {n_named} textbook "
+               "methods, gray the rest.")
+    table = _chart_table(
+        "phase0-table", "The same members as a table, best first",
+        ["a21", "b", "held-out error", "cycles/step", "rank", "textbook name"],
+        [[r["a21"], f'({r["b"][0]}, {r["b"][1]})', _short(r["heldout_error"]), r["cycles"],
+          r["rank"], r.get("name") or ""]
+         for r in sorted(rows, key=lambda x: x["rank"])],
+        num=frozenset({2, 3, 4}))
+    return _fig(svg, caption, "", "data: key_findings.json, series all_members",
+                stamp=STAMP_KF) + table
+
+
+def _validation_load() -> dict:
+    return _json_file(WS / "rk-work" / "validation" / "results.json",
+                      "validation results.json")
+
+
+def validation_chart(vd: dict) -> str:
+    """Dumbbell per practical problem: best classical vs best discovered Q15 error.
+    Scoped to the non-stiff problems; the stiff subset is overflow, not accuracy, and
+    lives on the findings validation page."""
+    per = (vd.get("verdicts") or {}).get("per_problem") or {}
+    order = [p.get("name") for p in vd.get("problems", []) if p.get("name") in per]
+    order += sorted(k for k in per if k not in set(order))
+    rows = [(name, per[name]) for name in order
+            if not per[name].get("stiff")
+            and isinstance(per[name].get("best_classical_q15_error"), (int, float))
+            and isinstance(per[name].get("best_discovered_q15_error"), (int, float))]
+    if not rows:
+        print("WARN: validation per-problem verdicts empty; chart skipped")
+        return ""
+    budget = vd.get("budget_cycles")
+    vals = [v for _n, d in rows for v in (d["best_classical_q15_error"],
+                                          d["best_discovered_q15_error"])]
+    w, ml, mr = 880, 150, 30
+    xlo = 10 ** math.floor(math.log10(min(vals)))
+    xhi = 10 ** math.ceil(math.log10(max(vals)))
+    fx = lambda v: _logpos(v, xlo, xhi, ml, w - mr)
+    row_h = 56
+    H = 16 + row_h * len(rows) + 54
+    p = []
+    tv = xlo
+    while tv <= xhi * 1.0001:
+        px = fx(tv)
+        p.append(f'<line class="gridline" x1="{sg._fmt(px)}" y1="10" x2="{sg._fmt(px)}" y2="{H - 50}"/>')
+        p.append(f'<text x="{sg._fmt(px)}" y="{H - 32}" text-anchor="middle">{sg._pow_label(tv)}</text>')
+        tv *= 10
+    p.append(f'<text x="{sg._fmt((ml + w - mr) / 2)}" y="{H - 10}" text-anchor="middle">'
+             f'final-state Q15 error at the {budget:,}-cycle budget (log)</text>')
+    for i, (name, d) in enumerate(rows):
+        cy = 16 + row_h * i + row_h / 2
+        cx_c, cx_d = fx(d["best_classical_q15_error"]), fx(d["best_discovered_q15_error"])
+        p.append(f'<text class="dlab" x="{ml - 12}" y="{sg._fmt(cy + 4)}" text-anchor="end">{sg._esc(name)}</text>')
+        p.append(f'<line x1="{sg._fmt(min(cx_c, cx_d))}" y1="{sg._fmt(cy)}" '
+                 f'x2="{sg._fmt(max(cx_c, cx_d))}" y2="{sg._fmt(cy)}" stroke="var(--line)" stroke-width="3"/>')
+        ratio = d.get("ratio_discovered_over_classical")
+        title = (f"{name}: best classical {d.get('best_classical')} at "
+                 f"{_short(d['best_classical_q15_error'])}, best discovered at "
+                 f"{_short(d['best_discovered_q15_error'])}"
+                 + (f" (ratio {_short(ratio)})" if isinstance(ratio, (int, float)) else ""))
+        p.append(f'<circle cx="{sg._fmt(cx_c)}" cy="{sg._fmt(cy)}" r="6.5" fill="var(--s2)" '
+                 f'class="cellstroke"><title>{sg._esc(title)}</title></circle>')
+        p.append(f'<circle cx="{sg._fmt(cx_d)}" cy="{sg._fmt(cy)}" r="6.5" fill="var(--s1)" '
+                 f'class="cellstroke"><title>{sg._esc(title)}</title></circle>')
+        lab_c = f"{sg._esc(str(d.get('best_classical')))} {_short(d['best_classical_q15_error'])}"
+        lab_d = _short(d["best_discovered_q15_error"])
+        if cx_d <= cx_c:   # discovered wins: its label to the left, classical's to the right
+            sides = ((cx_d, cy, lab_d, "left"), (cx_c, cy, lab_c, "right"))
+        else:
+            sides = ((cx_c, cy, lab_c, "left"), (cx_d, cy, lab_d, "right"))
+        for cx, yy, lab, side in sides:
+            est = len(lab) * 7.3   # ~13px semibold advance width, conservative
+            if side == "left" and cx - 11 - est >= ml - 6:
+                p.append(f'<text class="dlab" x="{sg._fmt(cx - 11)}" y="{sg._fmt(yy + 4)}" '
+                         f'text-anchor="end">{lab}</text>')
+            elif side == "right" and cx + 11 + est <= w - 6:
+                p.append(f'<text class="dlab" x="{sg._fmt(cx + 11)}" y="{sg._fmt(yy + 4)}">{lab}</text>')
+            else:   # no horizontal room: sit the label above its dot instead
+                p.append(f'<text class="dlab" x="{sg._fmt(cx)}" y="{sg._fmt(yy - 13)}" '
+                         f'text-anchor="middle">{lab}</text>')
+    svg = (f'<svg viewBox="0 0 {w} {H}" width="{w}" height="{H}" role="img" '
+           + _describedby("validation-table")
+           + f'aria-label="Best classical against best discovered Q15 error on each of the '
+           f'{len(rows)} practical validation problems, log scale">'
+           + "".join(p) + "</svg>")
+    flags = _validation_flags(vd)
+    wins = [n for n, d in rows
+            if d["best_discovered_q15_error"] < d["best_classical_q15_error"]]
+    losses = [n for n, _d in rows if n not in wins]
+    tail = (f"; on {', '.join(losses)} the classical method keeps the win"
+            if losses else "")
+    # Both dots are maxima, so the tally under them means nothing without the size of the
+    # set each one was taken over. Finding 6 leads with the fixed champion instead.
+    n_disc = sum(1 for m in vd.get("methods") or [] if m.get("kind") == "discovered")
+    n_cls = sum(1 for m in vd.get("methods") or [] if m.get("kind") == "classical")
+    caption = (f"Final-state Q15 error per practical problem at the {budget:,}-cycle budget, "
+               "log scale, left is better. Orange is the best classical method (named), blue "
+               f"the best of the discovered ones, which is ahead on {len(wins)} of "
+               f"{len(rows)}{tail}. Each dot is a maximum: best of {n_disc} discovered "
+               f"against best of {n_cls} classical.")
+    legend = sg._legend([("var(--s1)", "best discovered"),
+                         ("var(--s2)", "best classical method")])
+    table = _chart_table(
+        "validation-table", "The same problems as a table",
+        ["problem", "best classical", "its Q15 error", "best discovered",
+         "its Q15 error", "ratio, discovered over classical"],
+        [[name + (_FLAG_MARK if name in flags else ""), d.get("best_classical"),
+          _short(d["best_classical_q15_error"]),
+          str(d.get("best_discovered", ""))[:12], _short(d["best_discovered_q15_error"]),
+          f'{d["ratio_discovered_over_classical"]:.3f}'
+          if isinstance(d.get("ratio_discovered_over_classical"), (int, float)) else _NA]
+         for name, d in rows], num=frozenset({2, 4, 5}))
+    shown = [name for name, _d in rows if name in flags]
+    note = (f'<p class="note">{_join(shown)}{_FLAG_MARK}: the degeneracy detector flags '
+            f"{'it' if len(shown) == 1 else 'them'} over the finishers among every method "
+            "the validation suite ran on "
+            f"{'it' if len(shown) == 1 else 'each'}, and finding 6 leaves "
+            f"{'it' if len(shown) == 1 else 'them'} out of both tallies.</p>" if shown else "")
+    return _fig(svg, caption, legend,
+                "data: rk-work/validation/results.json, verdicts.per_problem",
+                stamp=STAMP_VD) + table + note
+
+
+def _validation_flags(vd: dict) -> dict:
+    """{problem: reason} for every validation problem the degeneracy detector flags.
+
+    The field is every result row the validation document holds for that problem, which is
+    the field the findings validation page computes the same verdict over."""
+    rows_by: dict = {}
+    for r in vd.get("results") or []:
+        rows_by.setdefault(str(r.get("problem")), []).append(r)
+    flags = {}
+    for p in vd.get("problems") or []:
+        if not isinstance(p, dict):
+            continue
+        bad, why, _rule = _deg(p, rows_by.get(str(p.get("name")), []))
+        if bad:
+            flags[str(p.get("name"))] = why
+    return flags
+
+
+def speedup_chart(bench: dict, deg: dict | None = None) -> str:
+    """Predicted vs measured per-step speedup of the champion over rk4, per problem."""
+    sp = bench.get("speedup") or {}
+    rows = [r for r in (sp.get("rows") or []) if r.get("status") == "ok"]
+    if not rows:
+        print("WARN: speedup rows missing; speedup chart skipped")
+        return ""
+    tp = bench.get("timing_protocol") or {}
+    w, ml, mr = 780, 130, 96
+    top, row_h, bot = 40, 40, 46
+    H = top + row_h * len(rows) + bot
+    xlo, xhi = 0.95, 1.78
+    fx = lambda v: ml + (v - xlo) / (xhi - xlo) * (w - ml - mr)
+    p = []
+    for tv in (1.0, 1.2, 1.4, 1.6):
+        p.append(f'<line class="gridline" x1="{sg._fmt(fx(tv))}" y1="{top - 6}" '
+                 f'x2="{sg._fmt(fx(tv))}" y2="{H - bot + 6}"/>')
+        p.append(f'<text x="{sg._fmt(fx(tv))}" y="{H - bot + 22}" text-anchor="middle">{tv:g}&times;</text>')
+    p.append(f'<line x1="{sg._fmt(fx(1.0))}" y1="{top - 6}" x2="{sg._fmt(fx(1.0))}" y2="{H - bot + 6}" '
+             'stroke="var(--text-3)" stroke-dasharray="4 3"/>')
+    p.append(f'<text class="alab" x="{sg._fmt(fx(1.0))}" y="{top - 12}" text-anchor="middle">parity</text>')
+    for i, r in enumerate(rows):
+        cy = top + row_h * i + row_h / 2
+        meas = r["measured_ratio_rk4_over_champion"]
+        pred = r["predicted_ratio_rk4_over_champion"]
+        xm, xp = fx(meas), fx(pred)
+        p.append(f'<text x="{ml - 10}" y="{sg._fmt(cy + 4)}" text-anchor="end">{sg._esc(r["problem"])}</text>')
+        p.append(f'<line x1="{sg._fmt(min(xm, xp))}" y1="{sg._fmt(cy)}" x2="{sg._fmt(max(xm, xp))}" '
+                 f'y2="{sg._fmt(cy)}" stroke="var(--line)" stroke-width="2"/>')
+        title = (f"{r['problem']}: measured {meas:.3f}x ({r['champion_us_per_step']:.1f} vs "
+                 f"{r['rk4_us_per_step']:.1f} {_US_UNIT}/step over {r['champion_n_steps']:,} vs "
+                 f"{r['rk4_n_steps']:,} steps); cycle model predicts {pred:.2f}x "
+                 f"({r['champion_cycles_per_step']} vs {r['rk4_cycles_per_step']} cycles); "
+                 f"error ratio champion/rk4 {r['error_ratio_champion_over_rk4']:.3f}")
+        p.append(f'<circle cx="{sg._fmt(xp)}" cy="{sg._fmt(cy)}" r="5" fill="var(--surface-1)" '
+                 f'stroke="var(--s2)" stroke-width="2.5"><title>{sg._esc(title)}</title></circle>')
+        p.append(f'<circle cx="{sg._fmt(xm)}" cy="{sg._fmt(cy)}" r="5.5" fill="var(--s1)" '
+                 f'class="cellstroke"><title>{sg._esc(title)}</title></circle>')
+        p.append(f'<text class="dlab" x="{sg._fmt(max(xm, xp) + 12)}" y="{sg._fmt(cy + 4)}">'
+                 f'{meas:.2f}&times;</text>')
+        if i == 0:
+            # Name the two markers once, on the header line with "parity", clear of every
+            # row. The left marker's name ends at it and the right one's starts at it, so
+            # the names cannot overlap whichever way round the markers fall.
+            (xa, la), (xb, lb) = sorted(((xm, "measured"), (xp, "cycle model")))
+            p.append(f'<text class="alab" x="{sg._fmt(xa + 4)}" y="{top - 12}" '
+                     f'text-anchor="end">{la}</text>')
+            p.append(f'<text class="alab" x="{sg._fmt(xb - 4)}" y="{top - 12}">{lb}</text>')
+    p.append(f'<text x="{sg._fmt((ml + w - mr) / 2)}" y="{H - 8}" text-anchor="middle">'
+             'per-step speedup, rk4 time over champion time (above 1 means the champion is faster)</text>')
+    svg = (f'<svg viewBox="0 0 {w} {H}" width="{w}" height="{H}" role="img" '
+           + _describedby("speedup-table")
+           + 'aria-label="Measured and cycle-model-predicted per-step speedup of the champion '
+           f'over rk4 on each of the {len(rows)} scored problems">'
+           + "".join(p) + "</svg>")
+    gm = sp.get("geomean_measured_speedup_rk4_over_champion")
+    gp = sp.get("geomean_predicted_speedup_rk4_over_champion")
+    caption = ("Per-step speedup of the champion over rk4 on each scored problem. Blue is "
+               f"measured wall clock (median of {tp.get('n_repeats')} repeats after "
+               f"{tp.get('warmup')} warmups), open orange the cycle model's prediction of "
+               f"{gp:.2f}&times;; the measured geometric mean is {gm:.2f}&times;.")
+    deg = deg or {}
+    flagged = [r["problem"] for r in rows if (deg.get(r["problem"]) or {}).get("nine", (False,))[0]]
+    table = _chart_table(
+        "speedup-table", "The same problems as a table",
+        ["problem", "measured ratio", "cycle model ratio", f"champion {_US_UNIT}/step",
+         f"rk4 {_US_UNIT}/step", "error ratio, champion over rk4"],
+        [[r["problem"] + (_FLAG_MARK if r["problem"] in flagged else ""),
+          f'{r["measured_ratio_rk4_over_champion"]:.3f}',
+          f'{r["predicted_ratio_rk4_over_champion"]:.2f}',
+          f'{r["champion_us_per_step"]:.2f}', f'{r["rk4_us_per_step"]:.2f}',
+          f'{r["error_ratio_champion_over_rk4"]:.3f}'] for r in rows],
+        num=frozenset({1, 2, 3, 4, 5}))
+    note = (f'<p class="note">{_FLAG_MARK.strip()} marks a problem the degeneracy detector '
+            f"flags over the {deg[flagged[0]]['n_nine']} methods finding 1's counterfactual "
+            "scores on the analytic basis, a field that holds both methods in this table "
+            '(<a href="#floor-flip">finding 2</a> gives every verdict and its reason).</p>'
+            if flagged else "")
+    return _fig(svg, caption, "", "data: rk-work/benchmark/results.json, speedup.rows",
+                stamp=STAMP_BENCH) + table + note
+
+
+def _reachable_cells() -> int:
+    """The searchable lattice size, which is not orders x stages x buckets.
+
+    An order can only use stage counts that can reach it, so the size is summed per order
+    from encourager.stage_domain, the same source the findings site's stat cards use. One
+    helper, so the chip, the caption and the chart cannot drift apart."""
+    return sum(len(sg.encourager.stage_domain(o)) * 8 for o in (1, 2, 3, 4))
+
+
+def grid_coverage_chart(records, orders) -> str:
+    """The MAP-Elites lattice: which of the searchable cells hold an elite.
+
+    The lattice is not orders x stages x buckets: an order can only use stage counts that
+    can reach it, so the size is summed per order from encourager.stage_domain, the same
+    source the findings site uses.
+    """
+    grids = archive._grids_from(records, orders)
+    classical_hashes = {tableau_mod.content_hash(t): n
+                        for n, t in tableau_mod.classical().items()}
+    cell, pitch = 18, 20
+    x0, top = 16, 40
+    rowlab_w, group_gap = 30, 34
+    p = []
+    x = x0
+    n_occ = n_disc = n_clas = n_out = 0
+    occ_rows: list[tuple] = []     # the same cells the table publishes, filled as they draw
+    n_cells = _reachable_cells()
+    max_rows = 0
+    for order in (1, 2, 3, 4):
+        grid = grids.get(order, {})
+        domain = set(sg.encourager.stage_domain(order))
+        stage_rows = sorted(set(range(2, 7)) | {s for (s, _b) in grid})
+        max_rows = max(max_rows, len(stage_rows))
+        gx = x + rowlab_w
+        p.append(f'<text class="dlab" x="{gx}" y="{top - 14}">order {order}</text>')
+        for i, s in enumerate(stage_rows):
+            cy = top + pitch * i
+            p.append(f'<text x="{gx - 6}" y="{sg._fmt(cy + cell / 2 + 3.5)}" text-anchor="end" '
+                     f'style="font-size:11px">s{s}</text>')
+            for b in range(8):
+                cx = gx + pitch * b
+                rec = grid.get((s, b))
+                if rec is None:
+                    # An empty cell carries nothing a reader needs announced, and there are
+                    # more of them than of everything else on the chart put together.
+                    p.append(f'<rect x="{cx}" y="{cy}" width="{cell}" height="{cell}" rx="3" '
+                             f'fill="var(--surface-1)" stroke="var(--grid)" aria-hidden="true">'
+                             f'<title>order {order}, {_stages(s)}, bucket {b}: empty</title></rect>')
+                    continue
+                if s not in domain:
+                    # Occupied but outside what the search can reach: a seeded baseline.
+                    # Counted beside the fraction, never into it.
+                    n_out += 1
+                    p.append(f'<rect x="{cx}" y="{cy}" width="{cell}" height="{cell}" rx="3" '
+                             f'fill="var(--s2)" class="cellstroke"><title>order {order}, {_stages(s)}, '
+                             f'bucket {b}: seeded baseline, outside the searched stage range</title></rect>')
+                    occ_rows.append((order, s, b,
+                                     "seeded "
+                                     + (classical_hashes.get(rec.tableau_hash)
+                                        or rec.tableau_hash[:12]),
+                                     rec.score.heldout_error,
+                                     "outside the searched stage range"))
+                    continue
+                n_occ += 1
+                cname = classical_hashes.get(rec.tableau_hash)
+                if cname:
+                    n_clas += 1
+                    fill, who = "var(--s2)", f"classical baseline {cname}"
+                else:
+                    n_disc += 1
+                    fill, who = "var(--s1)", f"discovered {rec.tableau_hash[:12]}"
+                p.append(f'<rect x="{cx}" y="{cy}" width="{cell}" height="{cell}" rx="3" '
+                         f'fill="{fill}" class="cellstroke"><title>order {order}, {_stages(s)}, '
+                         f'bucket {b}: {who}, held-out error '
+                         f'{_short(rec.score.heldout_error)}</title></rect>')
+                occ_rows.append((order, s, b, who, rec.score.heldout_error,
+                                 "counted in the fraction"))
+        p.append(f'<text x="{gx}" y="{top + pitch * len(stage_rows) + 14}" '
+                 f'style="font-size:11px">b0</text>')
+        p.append(f'<text x="{gx + pitch * 7 + cell}" y="{top + pitch * len(stage_rows) + 14}" '
+                 f'text-anchor="end" style="font-size:11px">b7</text>')
+        x = gx + pitch * 7 + cell + group_gap
+    W = x - group_gap + 16
+    H = top + pitch * max_rows + 44
+    p.append(f'<text x="{x0 + rowlab_w}" y="{H - 8}">columns are cycle-cost buckets '
+             'b0..b7 (log2 bands of cycles/step, m0plus_fast); rows are stage counts</text>')
+    svg = (f'<svg viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" '
+           'aria-describedby="coverage-table" '
+           f'aria-label="Archive grid coverage by order, stage count and cycle bucket: '
+           f'{n_occ} of {n_cells} searchable cells occupied, plus {n_out} outside the '
+           'searched stage range">' + "".join(p) + "</svg>")
+    outside = ""
+    if n_out:
+        outside = (f" {n_out} more {'cell' if n_out == 1 else 'cells'} (euler, at one "
+                   f"stage) {'sits' if n_out == 1 else 'sit'} outside the searched range.")
+    seeded = "a seeded classical method" if n_clas == 1 else "seeded classical methods"
+    caption = (f"Which of the {n_cells} searchable MAP-Elites cells hold an elite: "
+               f"{n_occ} are occupied, {n_disc} by discovered methods and {n_clas} by "
+               f"{seeded}.{outside} The upper cost buckets are empty by "
+               "construction, since no step at 2 to 6 stages costs that much under the fast "
+               "multiplier.")
+    legend = sg._legend([("var(--s1)", "held by a discovered method"),
+                         ("var(--s2)", "held by a classical method")])
+    table = ('<details class="fold" id="coverage-table"><summary>The occupied cells as a '
+             f'table ({len(occ_rows)} rows)</summary><div><div class="scroll"><table>'
+             '<thead><tr><th class="num">order</th><th class="num">stages</th>'
+             '<th class="num">cycle bucket</th><th>held by</th>'
+             '<th class="num">held-out error</th><th>counted</th></tr></thead><tbody>'
+             + "".join(f'<tr><td class="num">{o}</td><td class="num">{s}</td>'
+                       f'<td class="num">b{b}</td><td>{sg._esc(who)}</td>'
+                       f'<td class="num">{_short(err)}</td><td>{sg._esc(note)}</td></tr>'
+                       for o, s, b, who, err, note in sorted(occ_rows))
+             + "</tbody></table></div></div></details>")
+    return _fig(svg, caption, legend,
+                "data: rk-work archive, MAP-Elites cells at generation time",
+                stamp=STAMP_ARCHIVE) + table
+
+
+# ----------------------------------------------------------------------------- method matrix
+
+_DISC_LABEL = {"11e898cb": ("champion", "discovered champion"),
+               "42863b93": ("elite3", "best order-3 elite"),
+               "196b1d17": ("elite4", "best order-4 elite")}
+_CLASSICAL_ROW_ORDER = ("euler", "midpoint", "heun2", "rk4", "rk38")
+_LIB_ROW_ORDER = ("RK45", "Radau", "BDF", "LSODA")
+_NA = "n/a"
+
+
+def _json_file(path: Path, label: str) -> dict:
+    if not path.exists():
+        print(f"WARN: {label} missing; section skipped")
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        print(f"WARN: {label} unparsable; section skipped")
+        return {}
+
+
+def _bench_load() -> dict:
+    return _json_file(WS / "rk-work" / "benchmark" / "results.json",
+                      "benchmark results.json")
+
+
+def _tab_from_json(t: dict):
+    A = [[Fraction(x) for x in row] for row in t["A"]]
+    b = [Fraction(x) for x in t["b"]]
+    c = [Fraction(x) for x in t["c"]]
+    return tableau_mod.make_tableau(A, b, c)
+
+
+def method_matrix(vd: dict, bench: dict, kf: dict, foot: str) -> str:
+    methods = vd.get("methods") or []
+    per = (vd.get("verdicts") or {}).get("per_problem") or {}
+    results = vd.get("results") or []
+    stiff_probs = {p["name"] for p in vd.get("problems", []) if p.get("stiff")}
+    if not methods or not stiff_probs:
+        print("WARN: validation methods/stiff subset missing; method matrix skipped")
+        return ""
+    # held-out error at budget, from the key-findings frontier (hash-matched)
+    kf_rows = (kf.get("efficiency", {}).get("series", {})
+               .get("frontier_cycles_vs_heldout") or [])
+    heldout_by_name = {r.get("name"): r.get("heldout_error")
+                       for r in kf_rows if r.get("kind") == "classical"}
+    heldout_by_hash = {r.get("tableau_hash"): r.get("heldout_error")
+                       for r in kf_rows if r.get("kind") == "discovered"}
+    # outright validation wins per method, split practical / stiff
+    wins: dict[str, list[int]] = {}
+    for _prob, v in per.items():
+        wins.setdefault(str(v.get("winner")), [0, 0])[1 if v.get("stiff") else 0] += 1
+    # measured Q15 seconds/step from the benchmark fixed-step table
+    t_fixed: dict[str, list[float]] = {}
+    for r in bench.get("fixed_step_results") or []:
+        q = r.get("q15") or {}
+        if q.get("status") == "ok" and isinstance(q.get("per_step_median_s"), (int, float)):
+            t_fixed.setdefault(str(r.get("method")), []).append(q["per_step_median_s"])
+    t_lib: dict[str, list[float]] = {}
+    for r in bench.get("adaptive_results") or []:
+        if r.get("status") == "ok" and isinstance(r.get("per_step_median_s"), (int, float)):
+            t_lib.setdefault(str(r.get("integrator")), []).append(r["per_step_median_s"])
+
+    def stiff_text(name: str) -> str:
+        rows = [r for r in results if r.get("method") == name
+                and str(r.get("problem")) in stiff_probs]
+        fin = [str(r["problem"]) for r in rows
+               if isinstance(r.get("q15_error"), (int, float))]
+        over = [str(r["problem"]) for r in rows if r.get("note")]
+        if not rows:
+            return _NA + "<sup>e</sup>"
+        if not over:
+            return f"finishes all {len(fin)}"
+        if not fin:
+            return f"overflows on all {len(over)}"
+        return f"finishes {len(fin)} of {len(rows)}; overflows on {', '.join(over)}"
+
+    def us(vals: list[float] | None) -> str:
+        if not vals:
+            return _NA + "<sup>d</sup>"
+        return f"{statistics.median(vals) * 1e6:,.0f}"
+
+    header = ('<tr><th>method</th><th>kind</th><th class="num">order</th>'
+              '<th class="num">stages</th>'
+              '<th class="num">held-out error at budget<sup>a</sup></th>'
+              '<th class="num">validation wins (practical / stiff)<sup>b</sup></th>'
+              '<th class="num">cycles/step fast<sup>c</sup></th>'
+              '<th class="num">cycles/step slow<sup>c</sup></th>'
+              '<th class="num">CSD weight<sup>c</sup></th>'
+              '<th class="num">measured &micro;s/step<sup>d</sup></th>'
+              '<th>stiff validation subset<sup>e</sup></th>'
+              "<th>notes</th></tr>")
+    by_name = {str(m.get("name_or_hash")): m for m in methods}
+    row_order: list[tuple[str, str, str, str]] = []   # (name_or_hash, label, kind, notes_key)
+    for n in _CLASSICAL_ROW_ORDER:
+        if n in by_name:
+            row_order.append((n, n, "classical", n))
+    for m in methods:
+        n = str(m.get("name_or_hash"))
+        if m.get("kind") == "discovered":
+            key, desc = _DISC_LABEL.get(n[:8], (n[:8], "discovered"))
+            row_order.append((n, f"{n[:8]} ({desc})", "discovered", key))
+    rows_html = [header]
+    for name, label, kind, notes_key in row_order:
+        m = by_name[name]
+        tb = _tab_from_json(m["tableau"])
+        fast = costmodel.cycle_count(tb, costmodel.M0PLUS_FAST, 1)
+        slow = costmodel.cycle_count(tb, costmodel.M0PLUS_SLOW, 1)
+        csd = coeffrep.tableau_csd_total(tb)
+        heldout = heldout_by_name.get(name) if kind == "classical" else heldout_by_hash.get(name)
+        w = wins.get(name, [0, 0])
+        cell = label if kind == "classical" else f'<span class="hash">{label}</span>'
+        rows_html.append(
+            "<tr>"
+            f"<td>{cell}</td><td>{kind}</td>"
+            f'<td class="num">{m.get("order")}</td><td class="num">{m.get("stages")}</td>'
+            f'<td class="num">{_short(heldout) if isinstance(heldout, (int, float)) else _NA + "<sup>a</sup>"}</td>'
+            f'<td class="num">{w[0]} / {w[1]}</td>'
+            f'<td class="num">{fast}</td><td class="num">{slow}</td>'
+            f'<td class="num">{csd}</td>'
+            f'<td class="num">{us(t_fixed.get(name))}</td>'
+            f"<td>{stiff_text(name)}</td>"
+            f"<td>{T.MATRIX_NOTES.get(notes_key, '')}</td>"
+            "</tr>")
+    for lib in _LIB_ROW_ORDER:
+        if lib not in t_lib:
+            continue
+        rows_html.append(
+            "<tr>"
+            f"<td>{lib}</td><td>library (SciPy, float64, adaptive)</td>"
+            f'<td class="num">{_NA}</td><td class="num">{_NA}</td>'
+            f'<td class="num">{_NA}<sup>a</sup></td>'
+            f'<td class="num">{_NA}<sup>b</sup></td>'
+            f'<td class="num">{_NA}<sup>c</sup></td><td class="num">{_NA}<sup>c</sup></td>'
+            f'<td class="num">{_NA}<sup>c</sup></td>'
+            f'<td class="num">{us(t_lib.get(lib))}</td>'
+            f"<td>{_NA}<sup>e</sup></td>"
+            f"<td>{T.MATRIX_NOTES.get(lib, '')}</td>"
+            "</tr>")
+    return ('<div class="scroll"><table>' + "".join(rows_html) + "</table></div>" + foot)
+
+
+def heldout_chart(kf: dict, vd: dict) -> str:
+    """The matrix's held-out-error column drawn as a dot chart, one row per method."""
+    eff = kf.get("efficiency", {})
+    budget = (eff.get("numbers") or {}).get("budget_cycles")
+    anchors = (eff.get("numbers") or {}).get("classical_anchors") or []
+    kf_rows = (eff.get("series") or {}).get("frontier_cycles_vs_heldout") or []
+    heldout_by_hash = {r.get("tableau_hash"): r.get("heldout_error")
+                       for r in kf_rows if r.get("kind") == "discovered"}
+    entries = [(a["name"], float(a["heldout_error"]), "classical") for a in anchors
+               if isinstance(a.get("heldout_error"), (int, float))]
+    for m in vd.get("methods") or []:
+        if m.get("kind") != "discovered":
+            continue
+        hsh = str(m.get("name_or_hash"))
+        he = heldout_by_hash.get(hsh)
+        if isinstance(he, (int, float)):
+            _key, desc = _DISC_LABEL.get(hsh[:8], (hsh[:8], "discovered"))
+            entries.append((f"{hsh[:8]} ({desc})", float(he), "discovered"))
+    if len(entries) < 4:
+        print("WARN: too few methods with held-out error; held-out chart skipped")
+        return ""
+    entries.sort(key=lambda e: e[1])
+    w, ml, mr = 780, 224, 88
+    row_h, top, bot = 27, 14, 46
+    H = top + row_h * len(entries) + bot
+    xlo = 10 ** math.floor(math.log10(min(e[1] for e in entries)))
+    xhi = 10 ** math.ceil(math.log10(max(e[1] for e in entries)))
+    fx = lambda v: _logpos(v, xlo, xhi, ml, w - mr)
+    p = []
+    tv = xlo
+    while tv <= xhi * 1.0001:
+        p.append(f'<line class="gridline" x1="{sg._fmt(fx(tv))}" y1="{top - 4}" '
+                 f'x2="{sg._fmt(fx(tv))}" y2="{H - bot + 4}"/>')
+        p.append(f'<text x="{sg._fmt(fx(tv))}" y="{H - bot + 20}" text-anchor="middle">{sg._pow_label(tv)}</text>')
+        tv *= 10
+    for i, (name, err, kind) in enumerate(entries):
+        cy = top + row_h * i + row_h / 2
+        c = "var(--s1)" if kind == "discovered" else "var(--s2)"
+        p.append(f'<text x="{ml - 10}" y="{sg._fmt(cy + 4)}" text-anchor="end">{sg._esc(name)}</text>')
+        p.append(f'<line x1="{ml}" y1="{sg._fmt(cy)}" x2="{sg._fmt(fx(err))}" y2="{sg._fmt(cy)}" '
+                 'stroke="var(--grid)" stroke-width="1.5"/>')
+        p.append(f'<circle cx="{sg._fmt(fx(err))}" cy="{sg._fmt(cy)}" r="5.5" fill="{c}" '
+                 f'class="cellstroke"><title>{sg._esc(name)}: held-out error {_short(err)} '
+                 f'at the {budget:,}-cycle budget</title></circle>')
+        p.append(f'<text class="dlab" x="{sg._fmt(fx(err) + 10)}" y="{sg._fmt(cy + 4)}">{_short(err)}</text>')
+    p.append(f'<text x="{sg._fmt((ml + w - mr) / 2)}" y="{H - 8}" text-anchor="middle">'
+             f'held-out RMS error at the {budget:,}-cycle budget (log; left is better)</text>')
+    svg = (f'<svg viewBox="0 0 {w} {H}" width="{w}" height="{H}" role="img" '
+           + _describedby("heldout-table")
+           + f'aria-label="Held-out error at the shared budget for {len(entries)} scored '
+           'methods, discovered and classical, log scale">' + "".join(p) + "</svg>")
+    caption = (f"Held-out RMS error at the {budget:,}-cycle budget for every scored method, "
+               "best at the top, log scale. The libraries never ran this protocol, so they "
+               "have no dot.")
+    legend = sg._legend([("var(--s1)", "discovered"), ("var(--s2)", "classical")])
+    table = _chart_table(
+        "heldout-table", "The same methods as a table, best first",
+        ["method", "kind", "held-out RMS error"],
+        [[name, kind, _short(err)] for name, err, kind in entries], num=frozenset({2}))
+    return _fig(svg, caption, legend,
+                "data: tools/key_findings.json, frontier series and classical anchors",
+                stamp=STAMP_KF) + table
+
+
+_COST_ROLES = {"m0plus_fast": "M0+ with a single-cycle multiplier; primary",
+               "m0plus_slow": "M0+ with an iterative multiplier; primary",
+               "avr_approx": "8-bit AVR approximation; advisory only"}
+
+
+def _cost_table() -> str:
+    """The three cost models, read from the pinned costmodel module."""
+    ops = ("mul", "add", "shift", "load", "store")
+    head = "".join(f'<th class="num">{o}</th>' for o in ops)
+    rows = "".join(
+        f"<tr><td>{sg._esc(name)}</td>"
+        + "".join(f'<td class="num">{m.cycles[o]}</td>' for o in ops)
+        + f"<td>{sg._esc(_COST_ROLES.get(name, ''))}</td></tr>"
+        for name, m in costmodel.COST_MODELS.items())
+    return (f'<div class="scroll"><table><thead><tr><th>model</th>{head}<th>role</th></tr>'
+            f"</thead><tbody>{rows}</tbody></table></div>")
+
+
+def _anchor_costs() -> dict:
+    """rk4 and rk38 cycles per step, one state, under the two M0+ models."""
+    cl = tableau_mod.classical()
+    out = {}
+    for name in ("rk4", "rk38"):
+        out[f"{name}_fast"] = costmodel.cycle_count(cl[name], costmodel.M0PLUS_FAST, 1)
+        out[f"{name}_slow"] = costmodel.cycle_count(cl[name], costmodel.M0PLUS_SLOW, 1)
+    _claim(out["rk4_fast"] < out["rk38_fast"] and out["rk38_slow"] < out["rk4_slow"],
+           "the anchor result says rk4 is cheaper fast and rk38 cheaper slow")
+    return out
+
+
+# ----------------------------------------------------------------------------- page data
+
+def _check_scripts() -> None:
+    """Run the headless checks over the two pages that ship JavaScript.
+
+    Both load the published page, drive every control, and compare what the page computes
+    against data derived independently: demo.html against the pinned Python evaluator,
+    index.html against the ranking its own data implies. Skipped with a warning when node
+    is missing."""
+    node = shutil.which("node")
+    if node is None:
+        print("WARN: node not found; skipped the demo and landing-widget checks "
+              "(run `node tools/check_demo.js` and `node tools/check_hero.js`)")
+        return
+    for script, page in (("check_demo.js", "demo.html"), ("check_hero.js", "index.html")):
+        proc = subprocess.run([node, str(HERE / script), str(DOCS / page)],
+                              capture_output=True, text=True,
+                              encoding="utf-8", errors="replace")
+        for line in (proc.stdout + proc.stderr).splitlines():
+            if line.strip():
+                print(line)
+        if proc.returncode != 0:
+            raise SystemExit(f"{page} failed its self-check")
+
+
+def _hero_data(demo: dict) -> dict:
+    """The landing widget's data: one error per (problem, mode, method).
+
+    Reduced from demo_data.json so the index ships about 3 KB instead of the demo page's
+    120 KB, and so both pages rank the same numbers."""
+    methods = [{"key": m["key"], "label": m["label"], "origin": m["origin"]}
+               for m in demo["methods"]]
+    order = {m["key"]: i for i, m in enumerate(methods)}
+    err: dict[str, dict[str, list]] = {}
+    for row in demo["expected"]:
+        slot = err.setdefault(row["p"], {})
+        vals = slot.setdefault(row["mode"], [None] * len(methods))
+        if row.get("status") == "ok":
+            vals[order[row["m"]]] = row.get("error")
+    return {"methods": methods,
+            "problems": [p["name"] for p in demo["problems"]],
+            "default_problem": "damped_osc",
+            "err": err}
+
+
+def _demo_load() -> dict:
+    """tools/demo_data.json, written by tools/demo_data.py. Inlined into demo.html."""
+    path = HERE / "demo_data.json"
+    if not path.exists():
+        raise SystemExit("tools/demo_data.json is missing; run tools/demo_data.py first")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _join(items: list[str]) -> str:
+    items = list(items)
+    if len(items) <= 1:
+        return "".join(items)
+    return ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def _loo_table(kf: dict) -> str:
+    """Finding 1's leave-one-out table, rendered straight from key_findings.json.
+
+    One row per held-out problem dropped, plus the full set. The anchor column carries the
+    method name because the best classical method is not the same one on every reduced
+    set."""
+    rows = kf["efficiency"]["numbers"].get("leave_one_out") or []
+    if not rows:
+        return ""
+    body = "".join(
+        f'<tr><td>{sg._esc(r["dropped"] or "none, all four kept")}</td>'
+        f'<td class="num">{_short(r["champion_error"])}</td>'
+        f'<td>{sg._esc(r["best_anchor_name"])} {_short(r["best_anchor_error"])}</td>'
+        f'<td class="num">{_cf_ratio(r["ratio"])}&times;</td></tr>' for r in rows)
+    return ('<div class="scroll"><table><thead><tr><th>held-out problem dropped</th>'
+            '<th class="num">champion</th><th>best classical method</th>'
+            '<th class="num">ratio</th></tr></thead><tbody>' + body + "</tbody></table></div>"
+            '<p class="note">Held-out error is an RMS, so each row is recomputed over the '
+            "three problems it keeps, under magnitude weighting on the analytic basis, from "
+            "<code>tools/key_findings.json</code>, "
+            "<code>efficiency.numbers.leave_one_out</code>.</p>")
+
+
+def _p0_stab_table(st: dict) -> str:
+    """Finding 5's rank-stability table: one column per leave-one-out variant.
+
+    Rows are every phase-0 member, ordered by the full-set ranking, so a member that only
+    looks good because of one held-out problem shows up as a row that moves."""
+    rows = st.get("rows") or []
+    if not rows:
+        return ""
+    variants = st["variants"]
+    head = "".join(
+        f'<th class="num">{sg._esc("all four kept" if v == "none" else "drop " + v)}</th>'
+        for v in variants)
+    body = "".join(
+        f'<tr><td>{_fr(r["a21"])}'
+        + (f' ({sg._esc(r["name"])})' if r.get("name") else "")
+        + "</td>"
+        + "".join(f'<td class="num">{r["ranks"][v]}</td>' for v in variants)
+        + "</tr>" for r in rows)
+    return ('<div class="scroll"><table><thead><tr><th>a21</th>' + head
+            + "</tr></thead><tbody>" + body + "</tbody></table></div>"
+            '<p class="note">Rank by held-out RMS over the problems each column keeps, from '
+            "<code>tools/key_findings.json</code>, "
+            "<code>phase0_exhaustive.numbers.rank_stability</code>. The first column is the "
+            "published ranking, recomputed here from the per-problem errors.</p>")
+
+
+# ------------------------------------------------------- the counterfactual grid (D43)
+
+# The three weightings and the two cost bases, in the order every table prints them, each
+# with the label it carries wherever it appears. The published cell is first in both
+# lists. The labels are the point: a ratio with no weighting and no basis beside it is six
+# different numbers wearing one name, which is what DECISIONS.md D43 means by "six cells
+# of a grid are only readable if each one says which cell it is".
+# The reference-norm scale is never labelled equal (DECISIONS.md D44, D-e): it concentrates
+# weight on rc_thermal rather than spreading it, so "equal" there would name the opposite of
+# what it does. The document keeps its key, equal_reference_norm; only the label changes.
+_CF_WEIGHTINGS = (("magnitude", "magnitude (published)"),
+                  ("equal_median_anchor", "equal, median anchor"),
+                  ("equal_reference_norm", "reference norm"))
+# The same three in running prose, each with its own name, and the two bases with the scope
+# each one prices, so a sentence that carries a counterfactual number can carry its
+# weighting, basis and scope in the same sentence without restating them by hand.
+_CF_WPROSE = {"magnitude": "magnitude weighting",
+              "equal_median_anchor": "median-anchor equal weighting",
+              "equal_reference_norm": "the reference-norm scale"}
+_CF_BPROSE = {"analytic": "the analytic basis (the stage and b combinations only)",
+              "traced_whole_step": ("the traced whole-step basis (the whole rk_step, "
+                                    "derivative body excluded)")}
+_CF_BSHORT = {"analytic": "the analytic basis", "traced_whole_step": "the traced whole-step basis"}
+_CF_BASES = (("analytic", "analytic (published)"),
+             ("traced_whole_step", "traced whole step"))
+_CF_TWO_STATE = "damped_osc"
+_CF_WLABEL = dict(_CF_WEIGHTINGS)
+_CF_BLABEL = dict(_CF_BASES)
+
+
+_NUMBER_WORDS = ("zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+                 "nine", "ten", "eleven", "twelve")
+
+
+def _spell(n: int) -> str:
+    """A small count as a word, so a generated sentence need not open with a numeral."""
+    return _NUMBER_WORDS[n] if 0 <= n < len(_NUMBER_WORDS) else f"{n:,}"
+
+
+def _cf_pct(x: float) -> str:
+    """A share as a percentage, keeping the very small ones visible.
+
+    midpoint's pendulum share really is 0.00002 percent of its held-out sum of squares, and
+    rounding that to 0 hides the thing the column exists to show."""
+    if x <= 0:
+        return "0%"
+    return f"{100 * x:.2g}%" if 100 * x < 0.1 else f"{100 * x:.2f}%"
+
+
+def _cf_ratio(r: float) -> str:
+    """A held-out ratio, at four decimals everywhere it is printed.
+
+    One precision for every ratio on the page, chosen for the numbers and not for the
+    forbidden-ratio gate's token list. Two decimals turned the median-anchor traced cell
+    into "0.05x", and it also printed the reference-norm ratio as 3.36 and a leave-one-out
+    ratio as 2.96, both of which spell a whole-step over analytic quotient that the gate
+    exists to keep off the page. At four decimals the published ratios and the forbidden
+    quotients are different strings, and the comparison the grid invites (1.9236 against
+    1.9200, say) turns on the third and fourth digits anyway."""
+    return f"{r:.4f}"
+
+
+def _cf_load(kf: dict) -> dict:
+    """The counterfactual finding, or the build stops.
+
+    key_findings._check_counterfactual recomputes this document's invariants where the
+    document is written. What is checked here is that the renderer is looking at the shape
+    it renders: both bases, all three weightings, and a shares set that sums to one. A
+    missing cell would otherwise print an empty table cell beside a published ratio."""
+    cf = kf.get("counterfactual") or {}
+    n = cf.get("numbers") or {}
+    _claim(bool(n.get("heldout") and n.get("search_set") and cf.get("series")),
+           "findings 1 and 2 publish the counterfactual grid, so key_findings.json must "
+           "carry the counterfactual finding (rerun tools/key_findings.py)")
+    for w, _wl in _CF_WEIGHTINGS:
+        for b, _bl in _CF_BASES:
+            cell = (n["heldout"].get(w) or {}).get(b)
+            _claim(isinstance(cell, dict) and isinstance(cell.get("ratio"), (int, float)),
+                   f"the counterfactual grid publishes all six cells, and {w} on {b} is "
+                   "missing or carries no ratio")
+            _claim(abs(cell["best_anchor_error"] / cell["champion_error"]
+                       - cell["ratio"]) < 1e-9,
+                   f"every published ratio is the best anchor over the champion, and {w} "
+                   f"on {b} does not reproduce")
+            _claim(isinstance((n["search_set"].get(w) or {}).get(b), dict),
+                   f"the search-set counterfactual publishes all six cells, and {w} on "
+                   f"{b} is missing")
+    sets: dict = {}
+    for r in cf["series"]["per_method"]:
+        sets.setdefault((r["method"], r["set"], r["basis"]), []).append(r)
+    for key, rows in sorted(sets.items()):
+        for field in ("share_magnitude", "share_equal_median_anchor",
+                      "share_equal_reference_norm"):
+            _claim(abs(sum(r[field] for r in rows) - 1.0) < 1e-9,
+                   f"every published share set sums to one, and {field} for {key} does not")
+    return cf
+
+
+def _cf_shares(cf: dict, method: str, dset: str) -> dict:
+    """One method's per-problem rows for a set, on the published cost basis."""
+    return {r["problem"]: r for r in cf["series"]["per_method"]
+            if r["method"] == method and r["set"] == dset and r["basis"] == "analytic"}
+
+
+def _cf_champion(cf: dict, tableau_hash: str) -> str:
+    """The counterfactual's name for finding 1's champion, joined by tableau hash.
+
+    Joining by hash rather than by the string "11e898cb" is what makes the grid and the
+    ratio above it the same tableau. A champion that moved and a counterfactual that did
+    not would otherwise publish two methods under one name."""
+    got = [m for m in cf["numbers"]["methods"] if m["tableau_hash"] == tableau_hash]
+    _claim(len(got) == 1,
+           "the counterfactual grid scores finding 1's own champion, matched by tableau "
+           "hash, and the document carries no row for it (rerun tools/key_findings.py)")
+    return str(got[0]["name"])
+
+
+def _cf_share_sentence(cf: dict, champ: str, anchor: str) -> str:
+    """Finding 1's weighting sentence, written from the published shares.
+
+    The sentence this replaces said held-out error is an RMS over four problems "so each of
+    them carries a quarter of the ratio above". An RMS sums squares, so a problem's
+    influence goes as the square of its error and the four shares are nowhere near equal.
+    The shares are named per method and never for the metric, because euler is a
+    counterexample to any blanket claim about which problem the held-out score measures."""
+    def ends(m: str):
+        rows = _cf_shares(cf, m, "heldout")
+        return (max(rows.values(), key=lambda r: r["share_magnitude"]),
+                min(rows.values(), key=lambda r: r["share_magnitude"]))
+    c_hi, c_lo = ends(champ)
+    a_hi, _a_lo = ends(anchor)
+    e_hi, _e_lo = ends("euler")
+    _claim(c_hi["problem"] != e_hi["problem"],
+           "finding 1 names the dominant held-out problem per method rather than for the "
+           "metric, which only says something while the methods disagree about which "
+           "problem it is")
+    return ("Held-out error is the root mean square of the four per-problem errors, so a "
+            "problem's influence grows with the square of its error and the four do not "
+            f"carry a quarter each. For the champion, {c_hi['problem']} carries "
+            f"{_pct(c_hi['share_magnitude'], 1)}% of the held-out sum of squares and "
+            f"{c_lo['problem']} {_pct(c_lo['share_magnitude'], 2)}%; for {anchor} it is "
+            f"{a_hi['problem']} at {_pct(a_hi['share_magnitude'], 1)}%. Which problem "
+            "dominates is a property of the method rather than of the metric: euler's "
+            f"largest share is {e_hi['problem']} at {_pct(e_hi['share_magnitude'], 1)}%.")
+
+
+def _cf_grid_table(cf: dict) -> str:
+    """The six cells, one row each, every row naming its weighting and its basis."""
+    n = cf["numbers"]
+    body = []
+    for w, wl in _CF_WEIGHTINGS:
+        for b, bl in _CF_BASES:
+            c = n["heldout"][w][b]
+            lead = ("champion" if c["ratio"] > 1.0 else "anchor")
+            body.append(
+                f"<tr><td>{sg._esc(wl)}</td><td>{sg._esc(bl)}</td>"
+                f'<td class="num">{_short(c["champion_error"])}</td>'
+                f'<td>{sg._esc(c["best_anchor_name"])} {_short(c["best_anchor_error"])}</td>'
+                f'<td class="num">{_cf_ratio(c["ratio"])}x</td>'
+                f'<td class="num">{_cf_ratio(c["lowest_leave_one_out_ratio"])}x '
+                f'(drop {sg._esc(c["lowest_leave_one_out_dropped"])})</td>'
+                f'<td class="num">{c["reduced_sets_where_an_anchor_leads"]} of 4</td>'
+                f"<td>{lead}</td></tr>")
+    return ('<div class="scroll"><table><thead><tr><th>weighting</th><th>cost basis</th>'
+            '<th class="num">champion</th><th>best classical anchor</th>'
+            '<th class="num">ratio, anchor over champion</th>'
+            '<th class="num">lowest leave-one-out ratio</th>'
+            '<th class="num">reduced sets where an anchor leads</th>'
+            "<th>ahead on the full set</th></tr></thead><tbody>"
+            + "".join(body) + "</tbody></table></div>"
+            '<p class="note">Each row is one cell of the grid, and a ratio above 1.0 means '
+            "the champion has the lower error. The analytic basis prices the stage and b "
+            "combinations only; the traced whole-step basis buys steps at the count for the "
+            "whole rk_step with the derivative body excluded. Read from "
+            "<code>tools/key_findings.json</code>, "
+            "<code>counterfactual.numbers.heldout</code>.</p>")
+
+
+def _cf_loo_table(cf: dict) -> str:
+    """All thirty leave-one-out rows, labelled with the cell each belongs to.
+
+    These never go through _loo_table. That renderer feeds the four _claim gates in
+    _eff_ctx, one of which asserts every ratio is above 1.0, and three of the six cells
+    here have ratios below it. Publishing them through their own renderer is what keeps the
+    published gates meaningful instead of loosened."""
+    rows = cf["series"]["leave_one_out"]
+    order = {(w, b): i for i, (w, b) in enumerate(
+        (w, b) for w, _wl in _CF_WEIGHTINGS for b, _bl in _CF_BASES)}
+    rows = sorted(rows, key=lambda r: (order[(r["weighting"], r["basis"])],
+                                       r["dropped"] or ""))
+    return _chart_table(
+        "cf-loo-table", "Every leave-one-out row in the grid, as a table",
+        ["weighting", "cost basis", "dropped", "champion", "best classical anchor",
+         "its error", "ratio", "runner-up anchor"],
+        [[_CF_WLABEL[r["weighting"]], _CF_BLABEL[r["basis"]],
+          r["dropped"] or "none, all four kept", _short(r["champion_error"]),
+          r["best_anchor_name"], _short(r["best_anchor_error"]),
+          _cf_ratio(r["ratio"]) + "x", r["runner_up_anchor_name"]]
+         for r in rows], num=frozenset({3, 5, 6}))
+
+
+def _cf_permethod_fold(cf: dict, deg: dict) -> str:
+    """The per-problem rows behind every aggregate in the grid, with their three shares.
+
+    This is where the cost basis becomes legible: the same method, the same problem and the
+    same arithmetic, at two step counts. The two cycle columns are the denominators of
+    those step counts and are never divided by one another, which is the line D43 draws.
+    A problem the detector flags over the nine methods on a row's own basis is marked on
+    that row, and the note names both fields."""
+    order = {b: i for i, (b, _bl) in enumerate(_CF_BASES)}
+    field = {"analytic": "nine", "traced_whole_step": "nine_traced"}
+    rows = sorted(cf["series"]["per_method"],
+                  key=lambda r: (order[r["basis"]], r["set"], r["method"], r["problem"]))
+    table = _chart_table(
+        "cf-per-method-table",
+        "Every per-problem error behind the grid, with its step count and its shares",
+        ["cost basis", "set", "method", "problem", "states", "cycles/step", "steps",
+         "error", "share, magnitude", "share, median anchor", "share, reference norm"],
+        [[_CF_BLABEL[r["basis"]], r["set"], r["method"],
+          r["problem"] + (_FLAG_MARK if deg[r["problem"]][field[r["basis"]]][0] else ""),
+          r["n_states"], r["cycles_per_step"], f'{r["steps"]:,}', _short(r["error"]),
+          _cf_pct(r["share_magnitude"]), _cf_pct(r["share_equal_median_anchor"]),
+          _cf_pct(r["share_equal_reference_norm"])]
+         for r in rows], num=frozenset({4, 5, 6, 7, 8, 9, 10}))
+    by_basis = {b: [p for p in _PROBLEM_ORDER if p in deg and deg[p][field[b]][0]]
+                for b, _bl in _CF_BASES}
+    n9 = max(d["n_nine"] for d in deg.values())
+    parts = [f"on {_CF_BSHORT[b]} it flags {_join(by_basis[b]) if by_basis[b] else 'none'}"
+             for b, _bl in _CF_BASES]
+    return table + (f'<p class="note">{_FLAG_MARK.strip()} marks a problem the degeneracy '
+                    f"detector flags over the {n9} methods in this table on that row's own "
+                    f"cost basis: {'; '.join(parts)} "
+                    '(<a href="#floor-flip">finding 2</a> gives every verdict and its '
+                    "reason).</p>")
+
+
+def _cf_heldout_table(cf: dict) -> str:
+    """Every scored method's held-out RMS on both cost bases, under the published weighting.
+
+    The grid prints only the champion and the best anchor per cell, so the traced aggregate
+    for every other anchor was nowhere on the page (DECISIONS.md D44, D-i). Each value is the
+    RMS of that method's four held-out rows in per_method, and the champion and best anchor
+    are checked against the grid's own cells. The two columns are errors at two step counts
+    and are never divided by each other, which is the use D43 forbids."""
+    pm = cf["series"]["per_method"]
+    agg: dict = {}
+    for b, _bl in _CF_BASES:
+        vals: dict = {}
+        for r in pm:
+            if r["set"] == "heldout" and r["basis"] == b:
+                vals.setdefault(r["method"], []).append(r["error"])
+        for m, v in vals.items():
+            _claim(len(v) == 4 and all(isinstance(x, (int, float)) for x in v),
+                   f"{m} on {b} has four finite held-out errors")
+            agg[(m, b)] = math.sqrt(sum(x * x for x in v) / len(v))
+    kinds = {r["method"]: r["kind"] for r in pm}
+    for b, _bl in _CF_BASES:
+        c = cf["numbers"]["heldout"]["magnitude"][b]
+        _claim(abs(agg[(c["champion_name"], b)] - c["champion_error"]) <= 1e-12
+               and abs(agg[(c["best_anchor_name"], b)] - c["best_anchor_error"]) <= 1e-12,
+               f"the held-out aggregates table reproduces the grid's magnitude cell on {b}")
+    methods = sorted(kinds, key=lambda m: (agg[(m, "analytic")], m))
+    table = _chart_table(
+        "cf-heldout-table", "Every scored method's held-out error on both cost bases",
+        ["method", "kind", "weighting", "held-out RMS, analytic (published)",
+         "held-out RMS, traced whole step"],
+        [[m, kinds[m], _CF_WLABEL["magnitude"], _short(agg[(m, "analytic")]),
+          _short(agg[(m, "traced_whole_step")])] for m in methods],
+        num=frozenset({3, 4}))
+    return table + (
+        '<p class="note">Each value is the root mean square of one method\'s four held-out '
+        "errors under magnitude weighting. The analytic column prices the stage and b "
+        "combinations only. The traced column buys steps at the count for the whole rk_step "
+        "with the derivative body excluded, a budget denominator taken from an emulator that "
+        "is instruction accurate and not cycle accurate. The two columns are errors at two "
+        "step counts and are never divided by each other. Read from "
+        "<code>counterfactual.series.per_method</code>.</p>")
+
+
+def _cf_search_table(cf: dict) -> str:
+    """Search-set RMS and rank for every method in every cell."""
+    ss = cf["numbers"]["search_set"]
+    body = []
+    for w, wl in _CF_WEIGHTINGS:
+        for b, bl in _CF_BASES:
+            cell = ss[w][b]
+            for m in sorted(cell["error"], key=lambda k: cell["rank"][k]):
+                body.append([wl, bl, m, _short(cell["error"][m]),
+                             f'{cell["rank"][m]} of {len(cell["error"])}',
+                             (f'{cell["rank_within_published_four"][m]} of 4'
+                              if m in cell["rank_within_published_four"] else _NA)])
+    return _chart_table(
+        "cf-search-table", "Search-set error and rank in every cell of the grid",
+        ["weighting", "cost basis", "method", "search-set RMS", "rank of the nine scored",
+         "rank of the four in this finding"], body, num=frozenset({3}))
+
+
+def _cf_rerank_table(cf: dict, top_tiers: dict | None = None) -> str:
+    """The archive re-ranked under each weighting, plus the ten best rows under each.
+
+    The tier column reads the live archive when the caller passes it (_archive_top_tiers),
+    so it follows the stored words through the tier backfill."""
+    top_tiers = top_tiers or {}
+    rr = cf["numbers"]["archive_reranking"]
+    total = rr["unique_tableaus_ranked"]
+    body = []
+    for w, wl in _CF_WEIGHTINGS:
+        d = rr["by_weighting"][w]
+        body.append(
+            f"<tr><td>{sg._esc(wl)}</td>"
+            f'<td><span class="hash">{sg._esc(d["winner_tableau_hash"])}</span>'
+            f'{" (the published champion)" if d["winner_is_the_published_champion"] else ""}</td>'
+            f'<td class="num">{d["winner_cycles"]}</td>'
+            f'<td class="num">{_short(d["winner_error"])}</td>'
+            f'<td class="num">{d["published_champion_rank"]:,} of {total:,}</td>'
+            f'<td class="num">{d["classical_anchors_ahead_of_the_champion"]}</td></tr>')
+    top = _chart_table(
+        "cf-rerank-table", "The ten best tableaus under each weighting",
+        ["weighting", "rank", "tableau", "stages", "cycles/step", "tier", "measured order",
+         "held-out error", "the published champion"],
+        [[_CF_WLABEL[r["weighting"]], r["rank"], r["tableau_hash"], r["stages"],
+          r["cycles"], top_tiers.get((r["weighting"], r["rank"]), r["tier"]),
+          f'{r["measured_order"]:.3f}', _short(r["error"]),
+          "yes" if r["is_the_published_champion"] else ""]
+         for r in cf["series"]["archive_top"]], num=frozenset({1, 3, 4, 6, 7}))
+    return ('<div class="scroll"><table><thead><tr><th>weighting</th>'
+            "<th>tableau that would have won</th>"
+            '<th class="num">its cycles/step</th><th class="num">its error</th>'
+            '<th class="num">the published champion\'s rank</th>'
+            '<th class="num">classical anchors ahead of it</th></tr></thead><tbody>'
+            + "".join(body) + "</tbody></table></div>"
+            '<p class="note">Every archived record re-aggregated under each weighting and '
+            "reduced to one row per unique tableau, on the analytic cost basis, from "
+            "<code>tools/key_findings.json</code>, "
+            "<code>counterfactual.numbers.archive_reranking</code>.</p>" + top)
+
+
+def _cf_excluded_table(cf: dict) -> str:
+    return _chart_table(
+        "cf-excluded-table",
+        "The discovered cell elites with no trace row, named rather than priced",
+        ["tableau", "analytic cycles/step", "held-out error"],
+        [[r["tableau_hash"], r["cycles"], _short(r["heldout_error"])]
+         for r in cf["numbers"]["excluded"]["methods_without_a_trace_row"]],
+        num=frozenset({1, 2}))
+
+
+def _deg(prob: dict, rows: list) -> tuple:
+    """sitegen.degeneracy as (flagged, reason, rule id or None).
+
+    The detector returns (flagged, reason). If a later sitegen adds a rule identity, as a
+    third element or in a mapping, it is passed through. Nothing here reads a rule out of
+    the reason text: two reasons for the same rule differ whenever the finisher counts
+    differ, which is how this page once said a verdict had moved to a different rule when
+    it had not."""
+    got = sg.degeneracy(prob, rows)
+    if isinstance(got, dict):
+        return (bool(got.get("flagged")), str(got.get("reason") or ""),
+                got.get("rule_id", got.get("rule")))
+    # sitegen.Degeneracy is a two-element tuple carrying the rule id on .rule.
+    rule = getattr(got, "rule", None)
+    pair = tuple(got)
+    return (bool(pair[0]), str(pair[1]) if len(pair) > 1 else "",
+            rule if rule is not None else (pair[2] if len(pair) > 2 else None))
+
+
+def _field_stats(prob: dict, rows: list) -> dict:
+    """The numbers a degeneracy verdict turns on, for one field of finishers.
+
+    Used only to write a reason where the detector returns none, and checked against the
+    detector's own verdict first, so a written reason cannot describe a field the detector
+    judged the other way."""
+    errs = sorted(float(r["q15_error"]) for r in rows
+                  if isinstance(r.get("q15_error"), (int, float))
+                  and math.isfinite(r["q15_error"]) and r["q15_error"] > 0)
+    norm = prob.get("reference_norm_over_peak")
+    norm = float(norm) if isinstance(norm, (int, float)) and norm > 0 else None
+    spread = (errs[-1] - errs[0]) / errs[0] if errs else None
+    near = sorted(e for e in errs if norm and abs(e - norm) / norm <= sg._DEGENERATE_NORM)
+    pair = any(lo > 0 and (hi - lo) / lo < sg._DEGENERATE_SPREAD
+               for lo, hi in zip(near, near[1:]))
+    expect = bool((len(errs) >= sg._DEGENERATE_MIN_FINISHERS and spread is not None
+                   and spread < sg._DEGENERATE_SPREAD)
+                  or (errs and norm and len(near) == len(errs)) or pair)
+    return {"n": len(errs), "spread": spread, "near": len(near), "norm": norm,
+            "expect": expect}
+
+
+def _verdict_with_reason(prob: dict, rows: list) -> tuple:
+    """(flagged, reason, rule id or None), with a reason for every verdict.
+
+    A flagged verdict keeps the detector's own reason word for word. For a problem the
+    detector does not flag it returns no reason, and one is written here from the field's
+    numbers and the detector's published thresholds."""
+    flagged, reason, rule = _deg(prob, rows)
+    if reason:
+        return flagged, reason, rule
+    _claim(not flagged, f"the detector flagged {prob.get('name')} without giving a reason")
+    st = _field_stats(prob, rows)
+    _claim(st["expect"] == flagged,
+           f"the reason written for {prob.get('name')} describes a field the detector would "
+           "flag, while the detector does not: the thresholds or the rules have moved")
+    pct_s = f"{sg._DEGENERATE_SPREAD * 100:.0f}"
+    pct_n = f"{sg._DEGENERATE_NORM * 100:.0f}"
+    if st["n"] < sg._DEGENERATE_MIN_FINISHERS:
+        lead = (f"only {st['n']} {'method finishes' if st['n'] == 1 else 'methods finish'} "
+                f"it, fewer than the {sg._DEGENERATE_MIN_FINISHERS} the spread rule needs")
+    else:
+        lead = (f"its {st['n']} finishers span {st['spread'] * 100:.2f} percent from best to "
+                f"worst, not under the {pct_s} percent threshold")
+    if st["norm"] is None:
+        return flagged, lead + ", and the document carries no reference norm for it", rule
+    k = st["near"]
+    near = (f"{'none' if k == 0 else k} of them {'sits' if k <= 1 else 'sit'} within {pct_n} "
+            f"percent of the reference solution's norm of {sg._num(st['norm'])}")
+    tail = f", and no two of those agree to within {pct_s} percent" if k >= 2 else ""
+    return flagged, f"{lead}, and {near}{tail}", rule
+
+
+def _cf_degeneracy(cf: dict, kf: dict) -> dict:
+    """Each archive problem's degeneracy verdict and reason, over three named fields.
+
+    The detector is sitegen's own function, imported rather than reimplemented, so this page
+    and the findings validation page cannot reach different verdicts from one rule. It needs
+    a per-problem reference norm, and for the seven archive problems that is the
+    counterfactual's reference_norm scale: error_metric(name, zeros), the error a method
+    would report if it returned the zero state, which is how
+    validation.reference_norm_over_peak is defined for the validation suite.
+
+    "four" is the four classical methods finding 2 publishes, from floor_round.json. "nine"
+    is the nine methods the counterfactual scores on the analytic basis, eight classical and
+    one discovered, and "nine_traced" is the same nine on the traced whole-step basis. The
+    verdict depends on the field: rc_thermal is flagged on the first two and not on the
+    third. A verdict published without its field is not a verdict."""
+    _claim(hasattr(sg, "degeneracy"),
+           "the per-problem verdict is sitegen's own detector, so rk_harness.sitegen must "
+           "still export degeneracy()")
+    norms = cf["numbers"]["scales"]["reference_norm"]
+    flip = kf["floor_bias_flip"]["series"]["per_problem_floor_vs_round"]
+    pm = cf["series"]["per_method"]
+    out = {}
+    for p in sorted(norms):
+        prob = {"name": p, "reference_norm_over_peak": norms[p]}
+        four = [{"q15_error": r["floor_error"], "method": r["method"]}
+                for r in flip if r["problem"] == p]
+        nine = {b: [{"q15_error": r["error"], "method": r["method"], "kind": r["kind"]}
+                    for r in pm if r["problem"] == p and r["basis"] == b]
+                for b, _bl in _CF_BASES}
+        out[p] = {"four": _verdict_with_reason(prob, four),
+                  "nine": _verdict_with_reason(prob, nine["analytic"]),
+                  "nine_traced": _verdict_with_reason(prob, nine["traced_whole_step"]),
+                  "n_four": len(four), "n_nine": len(nine["analytic"]),
+                  "rows_nine": nine["analytic"], "norm": norms[p]}
+    for p, d in sorted(out.items()):
+        for field in ("four", "nine", "nine_traced"):
+            _claim(bool(d[field][1]),
+                   f"every archive problem publishes a verdict with a reason on every field, "
+                   f"and {p} over {field} has none")
+    flagged4 = sorted(p for p, d in out.items() if d["four"][0])
+    # floor_round.json is a fixed file, so this set does not move as the archive grows. The
+    # index panel and finding 2 name dahlquist and finding 4 names rc_thermal as flagged on
+    # this field, so a detector or data change that moves the set must stop the build.
+    _claim(flagged4 == ["dahlquist", "rc_thermal"],
+           "the index panel and finding 2 name dahlquist, and finding 4 names rc_thermal, as "
+           "the problems flagged over finding 2's four methods, and the detector now flags "
+           f"{flagged4}")
+    return out
+
+
+def _cf_dq_panel(cf: dict, deg: dict) -> str:
+    """The index panel's inline verdict on dahlquist, read from the analysis document.
+
+    The panel advertises dahlquist without naming it, and the mechanism it advertises is a
+    sub-LSB collapse that every method in the field shares, so it says so in the same
+    paragraph. How far from zero each method ends is counterfactual.series.
+    dahlquist_final_state, which key_findings.py writes and checks against the
+    counterfactual's own analytic solve; it is not recomputed here. The panel names both
+    fields it quotes: the scored nine the final states cover, and finding 2's four, which
+    is the field its link lands on."""
+    rows = cf["series"].get("dahlquist_final_state") or []
+    _claim(bool(rows),
+           "the index panel says how far from zero every method ends on dahlquist, so "
+           "key_findings.json must carry counterfactual.series.dahlquist_final_state (rerun "
+           "tools/key_findings.py)")
+    per = {r["method"]: r for r in cf["series"]["per_method"]
+           if r["problem"] == "dahlquist" and r["basis"] == "analytic"}
+    _claim(sorted(r["method"] for r in rows) == sorted(per)
+           and all(r["steps"] == per[r["method"]]["steps"]
+                   and r["error"] == per[r["method"]]["error"] for r in rows),
+           "the dahlquist final states are the counterfactual's own analytic runs, method for "
+           "method, at the same step count and error")
+    disc = [r for r in rows if r["kind"] == "discovered"]
+    worst = max(per.values(), key=lambda r: r["error"])
+    _claim(len(disc) == 1 and worst["method"] == disc[0]["method"],
+           "the index panel says the one discovered method in the scored field, the "
+           "champion, is the least accurate method on dahlquist")
+    d = deg["dahlquist"]
+    _claim(d["four"][0] and d["nine"][0],
+           "the index panel says finding 2 flags dahlquist over its four methods and the "
+           "same detector flags it over the scored nine")
+    n = max(r["final_state_lsbs_from_origin"] for r in rows)
+    n_cls = len(rows) - len(disc)
+    return (f"The same problem is where the format reports rather than the method: each of "
+            f"the {len(rows)} methods scored on it for finding 1, {n_cls} classical and the "
+            f"discovered champion, ends within {n} Q15 {'step' if n == 1 else 'steps'} of "
+            "zero there, and the champion is the least accurate of them. "
+            f"<a href=\"results.html#floor-flip\">Finding 2</a> flags dahlquist as degenerate "
+            f"over the {d['n_four']} classical methods it publishes, and the same detector "
+            f"flags it over those {len(rows)} as well.")
+
+
+def _cf_ctx(cf: dict, kf: dict, champ: str, anchor: str,
+            top_tiers: dict | None = None) -> dict:
+    """Every generated sentence and table the counterfactual grid publishes.
+
+    A sentence that carries a counterfactual number names its weighting, its cost basis and
+    the scope that basis prices in the same sentence (CLAUDE.md, D43). Every verdict word is
+    chosen by the numbers it describes rather than typed, so it stays true in every cell it
+    names: an earlier version said neither published figure survived the grid while the
+    reference-norm analytic cell widened the lead to 3.3646 and kept the champion ahead on
+    every reduced set."""
+    n = cf["numbers"]
+    cells = {(c["weighting"], c["basis"]): c for c in n["headline_checks"]["cells"]}
+    pub = cells[("magnitude", "analytic")]
+    hl = n["heldout"]
+    _claim(abs(pub["ratio"] - n["headline_checks"]["published_ratio"]) < 1e-12,
+           "the counterfactual's published cell reproduces finding 1's own ratio, so the "
+           "grid and the table above it are the same measurement")
+    _claim(pub["ratio"] > 1.0 and pub["reduced_sets_where_an_anchor_leads"] == 0,
+           "finding 1's headline says the champion leads on the full held-out set and on "
+           "every reduced set under magnitude weighting on the analytic basis")
+    others = [(w, b) for w, _wl in _CF_WEIGHTINGS for b, _bl in _CF_BASES
+              if (w, b) != ("magnitude", "analytic")]
+
+    def keeps_both(c: dict) -> bool:
+        return c["ratio"] > 1.0 and c["reduced_sets_where_an_anchor_leads"] == 0
+
+    def cell_short(w: str, b: str) -> str:
+        return f"{_CF_WPROSE[w]} on {_CF_BSHORT[b]}"
+
+    # ---- the two weighting scales, and the two normalizations they must not be confused with
+    champ_rc = _cf_shares(cf, champ, "heldout")["rc_thermal"]
+    anc_rc = _cf_shares(cf, anchor, "heldout")["rc_thermal"]
+    norms = n["scales"]["reference_norm"]
+    held = sorted({r["problem"] for r in cf["series"]["per_method"] if r["set"] == "heldout"})
+    _claim(min(held, key=lambda p: (norms[p], p)) == "rc_thermal",
+           "finding 1 says rc_thermal's reference norm is the smallest of the four held-out "
+           "problems'")
+    weighting = (
+        "Every archived per-problem error is already normalized before any weighting: the "
+        "distance problems divide by their own peak amplitude, and pendulum and quaternion "
+        "measure a relative drift. The median-anchor scale then divides each error by the "
+        "median error of the eight classical anchors on that problem, and it is the "
+        "equal-weighting answer, named that way wherever it appears. The reference-norm scale "
+        "divides instead by the error a method would report if its state collapsed to zero, "
+        "which is the size of the reference solution on that same normalized scale. It is "
+        "published beside the median-anchor scale and never alone, because it does not "
+        "equalize the weights: rc_thermal's reference norm is the smallest of the four "
+        "held-out problems', so that scale lifts rc_thermal's share of the champion's sum of "
+        f"squares from {_pct(champ_rc['share_magnitude'], 1)}% to "
+        f"{_pct(champ_rc['share_equal_reference_norm'], 1)}% and {anchor}'s from "
+        f"{_pct(anc_rc['share_magnitude'], 1)}% to "
+        f"{_pct(anc_rc['share_equal_reference_norm'], 1)}%. The two scales disagree about "
+        "the headline, which is why neither is printed without the other.")
+
+    # ---- the second cost basis
+    pm = cf["series"]["per_method"]
+    by = {(r["method"], r["problem"], r["basis"]): r for r in pm}
+
+    def steps_at(method: str, basis: str) -> int:
+        return by[(method, _CF_TWO_STATE, basis)]["steps"]
+    e_a, e_t = steps_at("euler", "analytic"), steps_at("euler", "traced_whole_step")
+    c_a, c_t = steps_at(champ, "analytic"), steps_at(champ, "traced_whole_step")
+    every_loses = all(by[(m, p, "traced_whole_step")]["steps"] < r["steps"]
+                      for (m, p, b), r in by.items() if b == "analytic")
+    names9 = sorted({r["method"] for r in pm})
+    lost = {m: 1 - steps_at(m, "traced_whole_step") / steps_at(m, "analytic") for m in names9}
+    _claim(every_loses and len({round(v, 12) for v in lost.values()}) == len(lost),
+           "the cost-basis sentence says every method loses steps on every problem at the "
+           f"compiled price and no two lose the same fraction on {_CF_TWO_STATE}")
+    basis = ("The second basis prices a step at what the compiled code executes, read from "
+             "the traced document rather than from the model, and it changes the step count "
+             f"rather than the arithmetic. On {_CF_TWO_STATE}, a two-state problem, euler "
+             f"takes {e_t:,} steps inside the budget where the model gave it {e_a:,}, and the "
+             f"champion {c_t:,} where the model gave it {c_a:,}. Every method loses steps on "
+             f"every problem, and no two of the {len(names9)} lose the same fraction on "
+             f"{_CF_TWO_STATE}, so the field is reshuffled rather than shifted.")
+
+    # ---- the survival statement, one cell at a time
+    pub_x = _cf_ratio(pub["ratio"])
+    pub_f = _cf_ratio(pub["lowest_leave_one_out_ratio"])
+    keep = [(w, b) for w, b in others if keeps_both(cells[(w, b)])]
+    items = []
+    for w, b in others:
+        c, h = cells[(w, b)], hl[w][b]
+        k = c["reduced_sets_where_an_anchor_leads"]
+        x, f = _cf_ratio(c["ratio"]), _cf_ratio(c["lowest_leave_one_out_ratio"])
+        dropped = c["lowest_leave_one_out_dropped"]
+        head = f"Under {_CF_WPROSE[w]} on {_CF_BPROSE[b]}, "
+        if c["ratio"] > pub["ratio"]:
+            move = f"the lead widens to {x}x over {h['best_anchor_name']}"
+        elif c["ratio"] > 1.0:
+            move = f"the lead narrows to {x}x over {h['best_anchor_name']}"
+        else:
+            move = f"{h['best_anchor_name']} is ahead on the full set, at {x}x"
+        if k == 0:
+            tail = (f", the champion is ahead on all 4 reduced sets and the floor is {f}x with "
+                    f"{dropped} dropped, against the published {pub_f}x, so both published "
+                    "claims hold in this cell")
+        elif c["ratio"] > 1.0:
+            tail = (f", a classical anchor is ahead on {k} of the 4 reduced sets and the floor "
+                    f"is {f}x with {dropped} dropped, so the claim that the lead does not rest "
+                    "on one problem fails in this cell")
+        else:
+            tail = (f", a classical anchor is also ahead on {k} of the 4 reduced sets and the "
+                    f"floor is {f}x with {dropped} dropped, so neither published claim holds "
+                    "in this cell")
+        items.append(f"<li>{head}{move}{tail}.</li>")
+    if len(keep) == len(others):
+        count = f"all {_spell(len(others))} other cells keep both"
+    elif not keep:
+        count = f"none of the {_spell(len(others))} other cells keeps both"
+    else:
+        count = (f"{_spell(len(keep))} of the {_spell(len(others))} other cells "
+                 f"{'keeps' if len(keep) == 1 else 'keep'} both and "
+                 f"{_spell(len(others) - len(keep))} "
+                 f"{'does' if len(others) - len(keep) == 1 else 'do'} not")
+    survival = (
+        "<p>Both published figures are measured under magnitude weighting on "
+        f"{_CF_BPROSE['analytic']}: the {pub_x}x lead, and the {pub_f}x floor with "
+        f"{pub['lowest_leave_one_out_dropped']} dropped, which is the claim that the champion "
+        "stays ahead on every reduced set. Taken one at a time, "
+        f"{count}:</p><ul>" + "".join(items) + "</ul>")
+
+    # ---- the headline's survival clause, which names cells and carries no number
+    behind = [(w, b) for w, b in others if cells[(w, b)]["ratio"] <= 1.0]
+    rest = len(others) - len(keep)
+    if len(keep) == 1:
+        kept = f"only {cell_short(*keep[0])} keeps both claims"
+    elif keep:
+        kept = _join([cell_short(*c) for c in keep]) + " keep both claims"
+    else:
+        kept = "none keeps both claims"
+    headline = (f"Of the {_spell(len(others))} other cells in "
+                "<a href=\"#weighting-cost\">the grid in finding 1</a>, " + kept)
+    if rest:
+        headline += (f"; in the other {_spell(rest)} a classical anchor leads on at least "
+                     "one reduced held-out set")
+        if behind:
+            headline += (", and under " + _join([cell_short(*c) for c in behind])
+                         + " it leads on the full set too")
+    headline += "."
+
+    # ---- the two cells that change both switches
+    mat = cells[("equal_median_anchor", "traced_whole_step")]
+    rnt = cells[("equal_reference_norm", "traced_whole_step")]
+    _claim(mat["ratio"] < 1.0,
+           "the median-anchor traced paragraph explains why that ratio falls below one")
+    median_traced = (
+        "Two cells change the weighting and the cost basis together, moving to "
+        f"{_CF_BPROSE['traced_whole_step']}. Under median-anchor equal weighting there the "
+        f"ratio reads {_cf_ratio(mat['ratio'])}x. "
+        + n["scope"]["weighting_under_a_changed_cost_basis"]
+        + f" Under the reference-norm scale on the same traced whole-step basis it reads "
+        f"{_cf_ratio(rnt['ratio'])}x, a classical anchor leads on "
+        f"{rnt['reduced_sets_where_an_anchor_leads']} of the 4 reduced sets, and the floor is "
+        f"{_cf_ratio(rnt['lowest_leave_one_out_ratio'])}x once "
+        f"{rnt['lowest_leave_one_out_dropped']} is dropped.")
+
+    # ---- the archive re-ranking
+    rr = n["archive_reranking"]
+    total = rr["unique_tableaus_ranked"]
+    tops = {r["weighting"]: r for r in cf["series"]["archive_top"] if r["rank"] == 1}
+    parts = []
+    for w, _wl in _CF_WEIGHTINGS:
+        d = rr["by_weighting"][w]
+        top = tops.get(w) or {}
+        _claim(top.get("tableau_hash") == d["winner_tableau_hash"],
+               f"the re-ranking's winner under {w} is the rank 1 row of its own top-ten "
+               "series, and the two no longer name the same tableau")
+        scale = {"magnitude": "magnitude weighting",
+                 "equal_median_anchor": "the median-anchor scale",
+                 "equal_reference_norm": "the reference-norm scale"}[w]
+        if d["winner_is_the_published_champion"]:
+            parts.append(f"under {scale} the champion is rank "
+                         f"{d['published_champion_rank']:,} of {total:,}")
+        else:
+            parts.append(
+                f"under {scale} it is rank {d['published_champion_rank']:,}, and the tableau "
+                f"that would have won has {top['stages']} stages and costs "
+                f"{d['winner_cycles']} cycles per step")
+    _claim(all(rr["by_weighting"][w]["classical_anchors_ahead_of_the_champion"] == 0
+               for w, _wl in _CF_WEIGHTINGS),
+           "the re-ranking says no classical anchor is ahead of the champion under any of "
+           "the three weightings")
+    moved_winner = [w for w, _wl in _CF_WEIGHTINGS if w != "magnitude"
+                    and not rr["by_weighting"][w]["winner_is_the_published_champion"]]
+    _claim(all(rr["by_weighting"][w]["winner_kind"] == "discovered" for w in moved_winner)
+           and len(moved_winner) == 2,
+           "the re-ranking says both other scales change which discovered tableau would have "
+           "won and neither hands the win to a classical method")
+    rerank = (
+        parts[0][0].upper() + parts[0][1:] + "; " + "; ".join(parts[1:]) + ". No classical "
+        "anchor is ahead of the champion under any of the three, so neither the median-anchor "
+        "scale nor the reference-norm scale changes whether a discovered tableau would have "
+        "won, only which one. This is an analytic-basis result by construction: re-pricing "
+        f"steps for {rr['records_scanned']:,} records would mean replaying the archive rather "
+        "than re-aggregating it, so it does not say what the search would have found on a "
+        "part.")
+
+    ex = n["excluded"]
+    n_ex = len(ex["methods_without_a_trace_row"])
+    _claim(not ex["state_counts_without_a_traced_price"],
+           "the counterfactual says every state count the problem set uses is priced, and "
+           "the document now names one that is not")
+    excluded = (
+        f"The grid leaves out {n_ex} discovered cell elites that hold a MAP-Elites cell but "
+        "were never compiled and traced, so they are named as excluded rather than priced "
+        "by a fit. Every method in the grid has a trace row and every state count the "
+        "problem set uses is priced, so nothing in the grid is extrapolated. The excluded "
+        "elites are still counted in the re-ranking above, which changes the aggregate and "
+        "re-prices nothing.")
+
+    scope = (n["scope"]["basis_scope"][0].upper() + n["scope"]["basis_scope"][1:]
+             + ". The traced count is used only as a budget denominator, because a real "
+             "part pays those cycles out of the same "
+             f"{n['budget_cycles']:,}: quoting it against the analytic count as a ratio "
+             "would report a scope difference as a model error, which DECISIONS.md D42 and "
+             "D43 forbid. The prices come from an emulator that is instruction accurate and "
+             "not cycle accurate, under TRACE_HASH "
+             f"{n['provenance']['trace_hash'][:8]} and VERIFIER_HASH "
+             f"{n['provenance']['verifier_hash'][:8]}, from "
+             f"<code>{n['provenance']['trace_document']}</code>; the aggregates are from "
+             "<code>tools/key_findings.json</code>, key <code>counterfactual</code>.")
+
+    # ---- euler's rank 1, cell by cell
+    ss = n["search_set"]
+
+    def rank4(w: str, b: str) -> int:
+        return ss[w][b]["rank_within_published_four"]["euler"]
+
+    def lead4(w: str, b: str) -> str:
+        return ss[w][b]["leader_within_published_four"]
+
+    def placed(w: str, b: str) -> str:
+        r = rank4(w, b)
+        return "rank 1 of 4" if r == 1 else f"rank {r} of 4 behind {lead4(w, b)}"
+    _claim(rank4("magnitude", "analytic") == 1,
+           "finding 2 says floor puts euler at rank 1 of the four on the published basis, "
+           "which the counterfactual's own search-set cell no longer agrees with")
+    euler_keeps = [(w, b) for w, b in others if rank4(w, b) == 1]
+    first = ("euler holds rank 1 of these four methods in "
+             + ("exactly one cell of the six: magnitude weighting on the analytic basis, "
+                "which is the cell the paragraph above is written from."
+                if not euler_keeps else
+                f"{_spell(len(euler_keeps) + 1)} cells of the six: magnitude weighting on the "
+                "analytic basis and " + _join([cell_short(*c) for c in euler_keeps]) + "."))
+    mt = ("magnitude", "traced_whole_step")
+    traced = (" At the traced whole-step price (the whole rk_step, derivative body excluded) "
+              f"under magnitude weighting it is {placed(*mt)}, so its rank 1 "
+              + ("survives" if rank4(*mt) == 1 else "does not survive")
+              + " the compiled cost basis.")
+    scales = []
+    for b, _bl in _CF_BASES:
+        med, ref = ("equal_median_anchor", b), ("equal_reference_norm", b)
+        if (rank4(*med), lead4(*med)) == (rank4(*ref), lead4(*ref)):
+            scales.append(f" On {_CF_BPROSE[b]} it is {placed(*med)} under both the "
+                          "median-anchor scale and the reference-norm scale.")
+        else:
+            scales.append(f" On {_CF_BPROSE[b]} it is {placed(*med)} under median-anchor "
+                          f"equal weighting and {placed(*ref)} under the reference-norm scale.")
+    closing = (" So euler's rank 1 survives in "
+               + ("none" if not euler_keeps else _spell(len(euler_keeps)))
+               + f" of the {_spell(len(others))} other cells.")
+    euler = first + traced + "".join(scales) + closing
+    search_scope = (
+        "Search-set RMS over the three search problems, one row per method in every cell. "
+        "The analytic basis prices the stage and b combinations only; the traced whole-step "
+        "basis buys steps at the count for the whole rk_step with the derivative body "
+        "excluded, from an emulator that is instruction accurate and not cycle accurate, and "
+        "it is used only as a budget denominator.")
+
+    # ---- degeneracy: every problem, every field, with the field named
+    deg = _cf_degeneracy(cf, kf)
+    order = [p for p in _PROBLEM_ORDER if p in deg] + sorted(p for p in deg
+                                                             if p not in _PROBLEM_ORDER)
+    flagged4 = [p for p in order if deg[p]["four"][0]]
+    flagged9 = [p for p in order if deg[p]["nine"][0]]
+    flagged9t = [p for p in order if deg[p]["nine_traced"][0]]
+    n4 = max(d["n_four"] for d in deg.values())
+    n9 = max(d["n_nine"] for d in deg.values())
+    n_disc9 = sum(1 for r in deg[order[0]]["rows_nine"] if r["kind"] == "discovered")
+    pct_n = f"{sg._DEGENERATE_NORM * 100:.0f}"
+    facts = []
+    for p in flagged9:
+        d = deg[p]
+        off = [r for r in d["rows_nine"]
+               if abs(r["q15_error"] - d["norm"]) / d["norm"] > sg._DEGENERATE_NORM]
+        if len(off) == 1 and off[0]["kind"] == "discovered" and n_disc9 == 1:
+            rest_e = sorted(r["q15_error"] for r in d["rows_nine"] if r is not off[0])
+            spread = (rest_e[-1] - rest_e[0]) / rest_e[0]
+            facts.append(
+                f" On {p}, {off[0]['method']}, the one discovered method in that field, is "
+                f"the only finisher more than {pct_n} percent from the reference norm, and "
+                f"the other {len(rest_e)} span {spread * 100:.2f} percent"
+                + (f", under the {sg._DEGENERATE_SPREAD * 100:.0f} percent spread threshold."
+                   if spread < sg._DEGENERATE_SPREAD else "."))
+    both = [p for p in order if deg[p]["four"][0] and deg[p]["nine"][0]]
+    rules = [deg[p][f][2] for p in both for f in ("four", "nine")]
+    rule_sentence = ""
+    if both and all(r is not None for r in rules):
+        # Rule identity is compared, never reason text (sitegen.DEGENERACY_RULES).
+        moved = [p for p in both if deg[p]["four"][2] != deg[p]["nine"][2]]
+        same = [p for p in both if p not in moved]
+        bits = []
+        if moved:
+            bits.append("the rule that fires differs between the two for " + _join(
+                [f"{p}, the {deg[p]['four'][2]} rule over the {n4} and the "
+                 f"{deg[p]['nine'][2]} rule over the {n9}" for p in moved]))
+        if same:
+            bits.append("the same rule fires on both for " + _join(
+                [f"{p}, the {deg[p]['four'][2]} rule" for p in same]))
+        rule_sentence = (f" Of the problems flagged over both the {n4}-method and the "
+                         f"{n9}-method analytic fields, " + "; ".join(bits) + ".")
+    elif both:
+        print("NOTE: sitegen.degeneracy returns no rule id, so finding 2 states no rule "
+              "change between fields")
+    dq_verdict = (
+        f"{_spell(len(flagged4)).capitalize()} of the {_spell(len(deg))} problems are flagged "
+        "degenerate by the same detector the findings validation page uses, computed over the "
+        f"{_spell(n4)} methods in the table above: {_join(flagged4)}. Over the {n9} methods "
+        f"finding 1's counterfactual scores on the analytic basis, {n9 - n_disc9} classical "
+        f"and {_spell(n_disc9)} discovered, it flags {_join(flagged9) or 'none'}, and over "
+        f"the same {n9} on the traced whole-step basis it flags {_join(flagged9t) or 'none'}."
+        + "".join(facts) + rule_sentence
+        + " The table below gives every problem's verdict and its reason on all three fields.")
+
+    def verdict_cell(v: tuple) -> str:
+        return ("flagged: " if v[0] else "not flagged: ") + v[1]
+    dq_table = _chart_table(
+        "degeneracy-table", "Every problem's degeneracy verdict and reason on the three fields",
+        ["problem", f"over the {n4} methods in this finding",
+         f"over the {n9} methods, analytic basis",
+         f"over the {n9} methods, traced whole-step basis"],
+        [[p, verdict_cell(deg[p]["four"]), verdict_cell(deg[p]["nine"]),
+          verdict_cell(deg[p]["nine_traced"])] for p in order])
+
+    ctx = {
+        "cf_weighting_sentence": weighting, "cf_basis_sentence": basis,
+        "cf_grid_table": _cf_grid_table(cf), "cf_survival_sentence": survival,
+        "cf_median_traced_sentence": median_traced, "cf_loo_table": _cf_loo_table(cf),
+        "cf_heldout_table": _cf_heldout_table(cf),
+        "cf_permethod_fold": _cf_permethod_fold(cf, deg), "cf_rerank_sentence": rerank,
+        "cf_rerank_table": _cf_rerank_table(cf, top_tiers),
+        "cf_excluded_sentence": excluded, "cf_excluded_table": _cf_excluded_table(cf),
+        "cf_scope_note": scope, "cf_euler_sentence": euler,
+        "cf_search_table": _cf_search_table(cf), "cf_search_scope": search_scope,
+        "dq_verdict_para": dq_verdict, "dq_table": dq_table,
+        "dq_panel_sentence": _cf_dq_panel(cf, deg),
+        "headline_survival": headline,
+        "share_sentence": _cf_share_sentence(cf, champ, anchor),
+        "cf_degeneracy": deg,
+    }
+    ctx["counterfactual_block"] = T.F_COUNTERFACTUAL.format(**ctx)
+    return ctx
+
+
+def _eff_ctx(kf: dict, records, orders) -> dict:
+    """Counts that appear in prose on more than one page.
+
+    They used to be typed into pages_text.py by hand and drifted a cycle behind
+    key_findings.json, so the index said 14 of 15 cells while the results page said 13 of
+    14. Every one of them is now derived here and formatted into the text."""
+    n = kf["efficiency"]["numbers"]
+    grids = archive._grids_from(records, orders)
+    seeded = {tableau_mod.content_hash(t): name for name, t in tableau_mod.classical().items()}
+    cells = sorted(((order, s, b), rec) for order, g in grids.items()
+                   for (s, b), rec in g.items())
+    hv = sum(1 for _k, rec in cells
+             if rec.tier == "heldout_verified" and rec.tableau_hash not in seeded)
+    class_cells = [seeded[rec.tableau_hash] for _k, rec in cells if rec.tableau_hash in seeded]
+    won, disc = (n["cells_where_discovered_beats_all_cheaper_or_equal_anchors"],
+                 n["cells_held_by_discovered"])
+
+    # The chip's numerator and its denominator have to be the same domain. A cell the
+    # search can never reach is not an empty cell, and a seeded elite sitting outside the
+    # searched stage range is not coverage the search earned, so it is named beside the
+    # fraction instead of being counted into it.
+    domains = {o: sg.encourager.stage_domain(o) for o in sorted(grids)}
+    reachable = _reachable_cells()
+    in_domain = sum(1 for (o, s, _b), _rec in cells if s in domains.get(o, ()))
+    outside = [((o, s, b), rec) for (o, s, b), rec in cells if s not in domains.get(o, ())]
+    _claim(all(rec.tableau_hash in seeded for _k, rec in outside),
+           "the index calls every occupied cell outside the searched stage range a seeded "
+           "classical one")
+    _claim(in_domain + len(outside) == n["grid_cells_total"],
+           "the index chip splits the occupied cells into the searchable ones and the "
+           "seeded cells outside the searched stage range")
+    named = _join([f"{seeded[rec.tableau_hash]} at "
+                   + ("one stage" if s == 1 else f"{s} stages")
+                   for (_o, s, _b), rec in outside])
+    n_out = len(outside)
+    outside_sentence = ""
+    if n_out:
+        outside_sentence = (
+            f"{'One' if n_out == 1 else n_out} more "
+            f"{'cell holds' if n_out == 1 else 'cells hold'} a seeded classical method "
+            f"({named}) outside that range, so the archive holds "
+            f"{n['grid_cells_total']} elites in all.")
+
+    # Finding 1's robustness claim: the lead with one held-out problem dropped.
+    loo_rows = [r for r in n.get("leave_one_out") or [] if r.get("ratio") is not None]
+    _claim(bool(loo_rows),
+           "finding 1 states a leave-one-out range, so key_findings.json must carry the "
+           "rows (rerun tools/key_findings.py)")
+    ratios = [r["ratio"] for r in loo_rows]
+    _claim(min(ratios) > 1.0,
+           "finding 1 says the lead survives dropping any one held-out problem")
+    worst = min(loo_rows, key=lambda r: r["ratio"])
+    _claim(worst["dropped"] == "rc_thermal",
+           "finding 1 names rc_thermal as the drop that leaves the smallest lead")
+    full_row = next((r for r in loo_rows if r["dropped"] is None), None)
+    quat_row = next((r for r in loo_rows if r["dropped"] == "quaternion"), None)
+    _claim(bool(full_row and quat_row)
+           and full_row["best_anchor_name"] != quat_row["best_anchor_name"],
+           "finding 1 says the best classical method changes identity when quaternion is "
+           "dropped")
+
+    # How the headline metric has moved, and what the saturation verdict actually tracks.
+    pr = kf.get("search_progress", {}).get("numbers", {})
+    _claim(pr.get("cycles_since_last_improvement") is not None
+           and pr.get("saturation", {}).get("last_verdict"),
+           "the index states how long the best held-out error has stood and what the "
+           "saturation check reads (rerun tools/key_findings.py)")
+
+    ctx = {
+        "cells_total": n["grid_cells_total"],
+        "cells_reachable": reachable,
+        "cells_in_domain": in_domain,
+        "cells_occupied": f"{in_domain} of {reachable}",
+        "cells_outside": n_out,
+        "outside_cell_sentence": outside_sentence,
+        "loo_min": _cf_ratio(min(ratios)),
+        "loo_max": _cf_ratio(max(ratios)),
+        "loo_max_dropped": max(loo_rows, key=lambda r: r["ratio"])["dropped"],
+        "loo_quat_anchor": quat_row["best_anchor_name"],
+        "imp_total": pr["improvements"],
+        "imp_search": pr["improvements_by_search"],
+        "imp_last_cycle": f"{pr['last_improvement_cycle_id']:,}",
+        "imp_since": f"{pr['cycles_since_last_improvement']:,}",
+        "sat_verdict": pr["saturation"]["last_verdict"],
+        "cells_disc": disc,
+        "cells_class": n["cells_held_by_classical"],
+        "class_cells": _join(class_cells),
+        "cells_won": won,
+        "cells_hv": hv,
+        "median_ratio": f"{n['median_error_ratio_discovered_over_anchor']:.2f}",
+        "best_ratio": f"{n['best_error_ratio']:.2f}",
+        "best_x": _cf_ratio(1 / n["best_error_ratio"]),
+        "archive_n": f"{n['archive_records']:,}",
+        "cycles_n": f"{n['last_cycle_id'] + 1:,}",
+        "budget": f"{n['budget_cycles']:,}",
+    }
+    ctx["tier_of"] = _live_tier_lookup(records, grids)
+    ctx.update(_tier_ctx(records))
+    ctx["won_sentence"] = (T.F_EFFICIENCY_WON_ALL if won == disc
+                           else T.F_EFFICIENCY_WON_SOME).format(**ctx)
+    ctx["eff_title"] = (T.F_EFFICIENCY_TITLE_ALL if won == disc
+                        else T.F_EFFICIENCY_TITLE_SOME).format(**ctx)
+    return ctx
+
+
+def _mat(rows) -> str:
+    return "[" + ", ".join("[" + ", ".join(_fr(x) for x in r) + "]" for r in rows) + "]"
+
+
+def _vec(v) -> str:
+    return "(" + ", ".join(_fr(x) for x in v) + ")"
+
+
+# The findings site's tie band, read from it rather than restated, so the two sites cannot
+# round a win and a tie differently.
+_TIE_PCT = f"{getattr(sg, '_TIE_BAND', 0.02) * 100:.0f}"
+# The audit's tolerance on the analytic model against the compiled trace, and the multiplier
+# variant the budget is set under.
+_TRACE_BAND = 0.25
+_TRACE_MODEL = "m0plus_fast"
+
+
+def _trace_load() -> dict:
+    return _json_file(TRACE_RESULTS, "trace results.json")
+
+
+def _trace_ordering(ms: list[dict], inversions: list[dict], model: str) -> str:
+    """The ranking clause, written from the document's own inversion list.
+
+    The document decides which pairs the trace reorders by comparing the analytic count
+    with the whole compiled step, which carries the derivative call, the loop and the
+    stack frame that cycle_count never prices. D42 forbids publishing that comparison, so
+    every pair named here is read back at the matched scope and the numbers printed are
+    the matched ones. A pair that swaps at whole step and not at the scope the model
+    prices would leave this sentence describing one comparison with another's numbers, so
+    the claim below stops the build rather than letting it through."""
+    if not inversions:
+        return (" Under the slow multiplier, where the model already expects a shift-add "
+                "chain, the two orderings agree.")
+    by_name = {str(m.get("name")): m for m in ms}
+    parts = []
+    for pair in inversions:
+        lo, hi = str(pair.get("cheaper_analytic")), str(pair.get("cheaper_traced"))
+        a, b = by_name.get(lo), by_name.get(hi)
+        _claim(a is not None and b is not None,
+               f"the cost-model section names {lo} and {hi} as a pair the trace reorders "
+               "and both carry a row in the trace document")
+        an_lo, an_hi = int(a["cycles_analytic"][model]), int(b["cycles_analytic"][model])
+        tr_lo = int(a["cycles_traced_model_scope"][model])
+        tr_hi = int(b["cycles_traced_model_scope"][model])
+        _claim(an_lo < an_hi and tr_hi < tr_lo,
+               f"the pair {lo} and {hi} changes places at the scope the model prices, and "
+               "not only over the whole compiled step, which is the only comparison this "
+               "page may publish")
+        parts.append(f"the model puts {lo} under {hi} at {an_lo} cycles against {an_hi}, "
+                     f"and the trace has them at {tr_lo} and {tr_hi}")
+    n = len(inversions)
+    # Each pair reads "the model puts X under Y at A against B, and the trace has them at
+    # C and D", so the pairs are separated with a semicolon. _join would add a third "and"
+    # to the two every phrase already carries.
+    return (" The ordering moves with it. Under the slow multiplier, where the model "
+            f"already expects a shift-add chain, {n} pair{'' if n == 1 else 's'} "
+            f"{'changes' if n == 1 else 'change'} places at this scope: "
+            + "; ".join(parts) + ".")
+
+
+def _trace_ctx(tr: dict) -> dict:
+    """The compiled and emulated check on the cost model, quoted at matched scope only.
+
+    rk-work/trace/results.json publishes two scopes. `ratio` is the whole compiled step,
+    which carries the derivative call, the h times k product, loop control and the stack
+    frame, none of which cycle_count prices, so quoting it against the analytic number
+    would report a scope difference as a model error. Only ratio_model_scope is quoted
+    here, and the sentence says which scope that is. The document is on the traceability
+    list by DECISIONS.md D42, which is also why the emulator's instruction accuracy travels
+    with every number taken from it.
+
+    Every count in the paragraph is read from the document, the method count included. The
+    tracer covers four state counts and nine methods, and it grew to that from two and six
+    without the prose moving, which is what typing either number into pages_text costs."""
+    ms = [m for m in (tr.get("methods") or []) if isinstance(m, dict)]
+    if not ms:
+        print("WARN: rk-work/trace/results.json is missing or empty; the cost-model "
+              "section states no trace numbers")
+        return {"trace_para": ""}
+    ratios = [float(m["ratio_model_scope"][_TRACE_MODEL]) for m in ms]
+    gaps = [(float(m["relative_gap_model_scope"][_TRACE_MODEL]), str(m.get("name")))
+            for m in ms]
+    over = [g for g in gaps if g[0] > _TRACE_BAND]
+    worst_gap, worst_name = max(gaps)
+    _claim(all(int(m.get("muls_in_model_scope", -1)) == 0 for m in ms),
+           "the cost-model section blames the gap on coefficients the compiler turns into "
+           "shifts and adds in these nine traces, so no traced method may apply a tableau "
+           "coefficient with a multiply in these nine traces")
+    band = f"{_TRACE_BAND * 100:.0f}"
+    return {"trace_para": (
+        " At the scope the model prices, the stage and b combinations and nothing else, the "
+        f"traced count runs {min(ratios):.2f} to {max(ratios):.2f} times the analytic one "
+        f"across {len(ms)} methods, and {len(over)} of them sit more than {band}% away, the "
+        f"widest being {worst_name} at {_pct(worst_gap, 0)}%. The gap is in the model rather "
+        "than in the measurement: in these nine traces the compiler turns every "
+        "applied coefficient, dyadic or not, into shifts and adds, so "
+        "<code>coeff_cost</code> prices a multiply it never emits in these nine traces."
+        + _trace_ordering(ms, (tr.get("correlation") or {}).get("inversions_slow") or [],
+                          "m0plus_slow"))}
+
+
+def _champion_tally(vd: dict, prac: list[str], stiff: list[str]) -> dict:
+    """Finding 6 counted against the comparator the findings validation page uses.
+
+    This page used to lead with the best of the discovered methods against the best of the
+    classical anchors. Both sides are maxima there, and the discovered side is a maximum
+    over a set already selected on error, so the win rate it reports climbs with the number
+    of discovered methods run. The fixed comparator is the archive champion, chosen before
+    this suite ran. The tie band and the degeneracy filter are sitegen's own functions,
+    imported rather than reimplemented, so the two sites cannot state different tallies for
+    the same comparison."""
+    _claim(hasattr(sg, "degeneracy") and hasattr(sg, "_is_tie"),
+           "finding 6 shares the findings site's degeneracy filter and tie band, so "
+           "rk_harness.sitegen must still export degeneracy() and _is_tie()")
+    gen = vd.get("generated_from") or {}
+    champ = str(gen.get("champion_hash") or "")
+    methods = [m for m in vd.get("methods") or [] if isinstance(m, dict)]
+    anchors = [str(m.get("name_or_hash")) for m in methods
+               if str(m.get("kind")) == "classical"]
+    per = (vd.get("verdicts") or {}).get("per_problem") or {}
+    probs = [p for p in vd.get("problems") or [] if isinstance(p, dict)]
+    _claim(bool(champ and anchors and probs),
+           "finding 6 needs the champion hash, the classical anchors and the problems from "
+           "rk-work/validation/results.json")
+    rows_by: dict = {}
+    err: dict = {}
+    for r in vd.get("results") or []:
+        rows_by.setdefault(str(r.get("problem")), []).append(r)
+        err[(str(r.get("problem")), str(r.get("method")))] = r.get("q15_error")
+
+    def fin(v) -> bool:
+        return isinstance(v, (int, float)) and v > 0 and math.isfinite(v)
+
+    def best_anchor(name):
+        got = [(float(err[(name, a)]), a) for a in anchors if fin(err.get((name, a)))]
+        return min(got) if got else None
+
+    flags = _validation_flags(vd)
+
+    def vs_best(names):
+        won = cmp_ = tie = 0
+        for nm in names:
+            if nm in flags:
+                continue
+            ce, ba = err.get((nm, champ)), best_anchor(nm)
+            if not (fin(ce) and ba):
+                continue
+            cmp_ += 1
+            ratio = float(ce) / ba[0]
+            if sg._is_tie(ratio):
+                tie += 1
+            elif ratio < 1.0:
+                won += 1
+        return won, cmp_, tie
+
+    def max_both(names):
+        won = cmp_ = 0
+        for nm in names:
+            if nm in flags:
+                continue
+            ratio = (per.get(nm) or {}).get("ratio_discovered_over_classical")
+            if not fin(ratio):
+                continue
+            cmp_ += 1
+            if float(ratio) < 1.0 and not sg._is_tie(ratio):
+                won += 1
+        return won, cmp_
+
+    def ties_clause(n: int) -> str:
+        if not n:
+            return ""
+        return (f", with {n} " + ("tie" if n == 1 else "ties")
+                + f" inside the {_TIE_PCT} percent band")
+
+    p_won, p_cmp, p_tie = vs_best(prac)
+    s_won, s_cmp, s_tie = vs_best(stiff)
+    m_won, m_cmp = max_both(prac)
+    _claim(m_won >= p_won,
+           "finding 6 calls the best-of-N count the flattering one, so it cannot fall below "
+           "the fixed champion's count on the same problems")
+
+    # The table is every problem, and the cell counts are the champion against each anchor
+    # separately, which is the comparison with no maximum anywhere in it.
+    lower = higher = tied = 0
+    body = []
+    for p in probs:
+        nm = str(p.get("name"))
+        ce, ba = err.get((nm, champ)), best_anchor(nm)
+        if nm in flags:
+            word = "left out, degenerate"
+        elif not fin(ce):
+            word = "no finish"
+        elif not ba:
+            word = _NA
+        else:
+            ratio = float(ce) / ba[0]
+            word = "tie" if sg._is_tie(ratio) else ("lower" if ratio < 1.0 else "higher")
+        for a in anchors:
+            ae = err.get((nm, a))
+            if nm in flags or not (fin(ce) and fin(ae)):
+                continue
+            r2 = float(ce) / float(ae)
+            if sg._is_tie(r2):
+                tied += 1
+            elif r2 < 1.0:
+                lower += 1
+            else:
+                higher += 1
+        body.append(f'<tr><td>{sg._esc(nm)}{" (stiff)" if p.get("stiff") else ""}'
+                    f'{_FLAG_MARK if nm in flags else ""}</td>'
+                    f'<td class="num">{_short(float(ce)) if fin(ce) else _NA}</td>'
+                    f'<td>{sg._esc(ba[1]) if ba else _NA}</td>'
+                    f'<td class="num">{_short(ba[0]) if ba else _NA}</td>'
+                    f"<td>{word}</td></tr>")
+    table = ('<div class="scroll"><table><thead><tr><th>problem</th>'
+             '<th class="num">champion Q15 error</th><th>best classical anchor</th>'
+             '<th class="num">its Q15 error</th><th>champion against it</th>'
+             "</tr></thead><tbody>" + "".join(body) + "</tbody></table></div>"
+             '<p class="note">Every problem in the suite, with the champion against the '
+             "best of the anchors that finished it. Read from "
+             "<code>rk-work/validation/results.json</code>."
+             + (f" {_FLAG_MARK.strip()} marks a problem the degeneracy detector flags over the "
+                f"finishers among all {len(methods)} methods the suite ran on it, and a "
+                "flagged problem is left out of both tallies." if flags else "")
+             + "</p>")
+
+    # The caveat fires whenever the champion is not the winner, which includes the row a
+    # different discovered method takes. Keying it on a classical winner hid that row.
+    loss = []
+    for nm in prac:
+        if nm in flags:
+            continue
+        ce, ba = err.get((nm, champ)), best_anchor(nm)
+        if not (fin(ce) and ba):
+            continue
+        ratio = float(ce) / ba[0]
+        if sg._is_tie(ratio) or ratio < 1.0:
+            continue
+        loss.append(T.F_VALIDATION_LOSS.format(
+            p=nm, c_name=ba[1], c_err=_short(ba[0]), d_err=_short(float(ce)),
+            ratio=f"{ratio:.2f}"))
+    loss_sentence = (" The champion is not ahead everywhere: " + _join(loss) + "."
+                     if loss else "")
+    for nm in prac:
+        if nm in flags:
+            continue
+        d = per.get(nm) or {}
+        w = str(d.get("winner") or "")
+        we, ce = d.get("winner_q15_error"), err.get((nm, champ))
+        if (str(d.get("winner_kind")) == "discovered" and w and w != champ
+                and fin(we) and fin(ce)):
+            loss_sentence += (
+                f" On {nm} it is also not the discovered method with the lowest error: "
+                f"{w[:12]} reaches {_short(float(we))} against {_short(float(ce))}, so that "
+                "row counts for the discovered side in the best-of-N view and against the "
+                "champion here.")
+            break
+
+    flag_sentence = ""
+    if flags:
+        bits = [f"{nm} because {why}" for nm, why in sorted(flags.items())]
+        flag_sentence = (("One problem is" if len(flags) == 1
+                          else f"{len(flags)} problems are")
+                         + " left out of both tallies: " + _join(bits) + ".")
+
+    entry = next((m for m in methods if str(m.get("name_or_hash")) == champ), None)
+    cycle = ((entry or {}).get("archive") or {}).get("cycle_id")
+    _claim(isinstance(cycle, int),
+           "finding 6 says when the champion was picked, so validation/results.json must "
+           "carry its archive cycle_id")
+    return {
+        "ch_cycle": f"{cycle:,}", "ch_won": p_won, "ch_cmp": p_cmp,
+        "ch_tie_clause": ties_clause(p_tie),
+        "ch_stiff_won": s_won, "ch_stiff_cmp": s_cmp,
+        "ch_stiff_clause": ties_clause(s_tie),
+        "ch_lower": lower, "ch_higher": higher, "ch_tied": tied,
+        "ch_cells": lower + higher + tied, "ch_table": table,
+        "ch_loss_sentence": loss_sentence, "ch_flag_sentence": flag_sentence,
+        "mm_won": m_won, "mm_cmp": m_cmp, "tie_pct": _TIE_PCT,
+        "n_cls": len(anchors),
+        "n_disc": sum(1 for m in methods if str(m.get("kind")) == "discovered"),
+    }
+
+
+# What each stored tier means, in the words the findings methodology page and this page's
+# protocol section use. The prose reads its clause from here rather than defining a tier a
+# second time: the page carried two definitions of the merged word for a while, and the
+# one in finding 1 said it meant the candidate cleared neither tier above, which is only
+# half of what the word was used for. unreplicated is still a legal stored tier, so its
+# entry is a definition in the past tense and says nothing about how many records carry
+# it; the count comes from the archive at build time (_tier_counts).
+_TIER_ORDER = ("heldout_verified", "search_only", "no_incumbent", "no_improvement",
+               "unreplicated")
+_TIER_RULE = {
+    "heldout_verified": ("it improved on its cell's incumbent in both search-set and "
+                         "held-out error, across at least two problem families"),
+    "search_only": "its search error improved on the incumbent's and its held-out error did not",
+    "no_incumbent": "its cell was empty when the record was written",
+    "no_improvement": ("its cell had an incumbent and neither the heldout_verified nor the "
+                       "search_only rule applied"),
+    "unreplicated": ("the one word the run stored for both no_incumbent and no_improvement "
+                     "before the two were split"),
+}
+
+
+def _tier_ctx(records) -> dict:
+    """The tier counts and the two sentences about the merged word, from the live archive.
+
+    scripts/backfill_tiers.py rewrites unreplicated in place, so how many records carry it
+    is a fact about the archive on the day of the build. Nothing here is typed: the counts
+    are read from the records, and each sentence is chosen by the count, so the same code
+    is true with 82,199 records on the merged word and with none."""
+    counts = {t: 0 for t in _TIER_ORDER}
+    for r in records:
+        counts[r.tier] = counts.get(r.tier, 0) + 1
+    _claim(set(counts) <= set(_TIER_ORDER),
+           "the protocol section defines every tier the archive stores, and the archive now "
+           f"holds {sorted(set(counts) - set(_TIER_ORDER))}")
+    total = sum(counts.values())
+    parts = [f"{counts[t]:,} {t}" for t in _TIER_ORDER]
+    parts[0] = parts[0].replace(" ", " are ", 1)
+    merged = counts["unreplicated"]
+    where = "the archive this page was built from"
+    if merged == 0:
+        arch = f", and no record in {where} carries it"
+    elif merged == 1:
+        arch = f", and one record in {where} carries it"
+    else:
+        arch = f", and {merged:,} records in {where} carry it"
+    return {
+        "tier_counts": counts,
+        "tier_counts_sentence": (f"Of the {total:,} archive records this page was built from, "
+                                 + _join(parts) + "."),
+        "tier_legacy_sentence": ("Before the split, no_incumbent and no_improvement were stored "
+                                 "as one word, unreplicated, which is still a legal stored "
+                                 "tier."),
+        "tier_arch_clause": arch,
+    }
+
+
+def _live_tier_lookup(records, grids) -> dict:
+    """tableau hash -> the tier a table beside it should print, read from the archive.
+
+    A cell holder prints the stored tier of the record that is its cell's elite. A method
+    that holds no cell but has exactly one archive record (a classical seed that was later
+    displaced) prints that record's stored tier. Anything else has no tier to print, and
+    the caller writes n/a. Reading the archive here rather than the analysis document keeps
+    the tier column true after the backfill rewrites the stored words, whether or not
+    key_findings.py has been rerun since."""
+    out = {rec.tableau_hash: rec.tier for g in grids.values() for rec in g.values()}
+    seen: dict[str, list[str]] = {}
+    for r in records:
+        seen.setdefault(r.tableau_hash, []).append(r.tier)
+    for h, tiers in seen.items():
+        if h not in out and len(tiers) == 1:
+            out[h] = tiers[0]
+    return out
+
+
+def _archive_top_tiers(records, rows: list[dict]) -> dict:
+    """(weighting, rank) -> the live stored tier of each re-ranking row's record.
+
+    The re-ranking keeps, per tableau, the first record with the lowest held-out RMS, and
+    prints that record's tier. The same selection is repeated over the live archive so the
+    tier column follows the stored words, and the error it reproduces is checked against
+    the document so the two cannot be describing different records."""
+    prefixes = {r["tableau_hash"] for r in rows}
+    best: dict[str, tuple[float, str]] = {}
+    for r in records:
+        pre = r.tableau_hash[:12]
+        if pre not in prefixes:
+            continue
+        vals = [r.score.per_problem.get(p) for p in ("pendulum", "dc_motor", "rc_thermal",
+                                                    "quaternion")]
+        if any(v is None or not math.isfinite(v) for v in vals):
+            continue
+        mag = math.sqrt(sum(v * v for v in vals) / len(vals))
+        if pre not in best or mag < best[pre][0]:
+            best[pre] = (mag, r.tier)
+    out = {}
+    for row in rows:
+        got = best.get(row["tableau_hash"])
+        _claim(got is not None,
+               f"the re-ranking row {row['tableau_hash']} has a record in the live archive")
+        if row["weighting"] == "magnitude":
+            _claim(abs(got[0] - row["error"]) <= 1e-12,
+                   f"the live archive reproduces the re-ranking error of "
+                   f"{row['tableau_hash']}, so its tier is read from the same record")
+        out[(row["weighting"], row["rank"])] = got[1]
+    return out
+
+
+def _results_ctx(kf: dict, vd: dict, bench: dict, eff: dict, trace: dict | None = None,
+                 records=None) -> dict:
+    """Every number the key-findings, architecture and decisions prose needs.
+
+    Each value is read from key_findings.json, validation/results.json or
+    benchmark/results.json; each pattern the prose states in words is checked here
+    (_claim), so a refreshed analysis that breaks a sentence fails the build."""
+    ctx = dict(eff)
+    ctx.update(_anchor_costs())
+
+    # finding 1: the best discovered method against the best classical one
+    n = kf["efficiency"]["numbers"]
+    bd = n["best_discovered"]
+    anchor = min(n["classical_anchors"], key=lambda a: a["heldout_error"])
+    cf = _cf_load(kf)
+    champ = _cf_champion(cf, bd["tableau_hash"])
+    cf_share = _cf_shares(cf, champ, "heldout")
+    tab = bd["tableau"]
+    coeffs = [Fraction(x) for row in tab["A"] for x in row] + [
+        Fraction(x) for x in tab["b"] + tab["c"]]
+    _claim(all(f.denominator & (f.denominator - 1) == 0 for f in coeffs),
+           "finding 1 says every coefficient of the best discovered method is dyadic")
+    ctx.update(
+        bd_stages=bd["stages"], bd_order=bd["order"], bd_cycles=bd["cycles"],
+        bd_err=_short(bd["heldout_error"]), anchor_err=_short(anchor["heldout_error"]),
+        anchor_name=anchor["name"], bd_A=_mat(tab["A"]), bd_b=_vec(tab["b"]),
+        bd_c=_vec(tab["c"]), bd_measured=f"{bd['measured_order']:.2f}")
+    ctx.update(_cf_ctx(cf, kf, champ, anchor["name"],
+                       _archive_top_tiers(records, cf["series"]["archive_top"])
+                       if records is not None else None))
+    deg = ctx["cf_degeneracy"]
+    held_flag = [k for k in bd["per_problem_heldout"] if deg[k]["nine"][0]]
+    ctx["bd_per_problem"] = ", ".join(
+        f"{k}{_FLAG_MARK if k in held_flag else ''} {_short(v)} "
+        f"({_cf_pct(cf_share[k]['share_magnitude'])})"
+        for k, v in bd["per_problem_heldout"].items())
+    ctx["bd_flag_note"] = (
+        f"{_join(held_flag)} {'is' if len(held_flag) == 1 else 'are'} marked flagged because "
+        "the degeneracy detector flags " + ("it" if len(held_flag) == 1 else "them")
+        + f" over the {deg[held_flag[0]]['n_nine']} methods finding 1's counterfactual scores "
+        "on the analytic basis (<a href=\"#floor-flip\">finding 2</a> gives every verdict and "
+        "its reason)." if held_flag else "")
+    # The stored tier is read from the live archive, so the sentence follows the tier
+    # backfill with no code change and whether or not key_findings.py has been rerun.
+    live_tier = (eff.get("tier_of") or {}).get(bd["tableau_hash"])
+    _claim(live_tier in _TIER_RULE,
+           f"finding 1 can say what the champion's stored tier {live_tier!r} means, which "
+           "needs the champion to hold a cell in the live archive and an entry in _TIER_RULE "
+           "written to match the protocol section")
+    ctx["bd_tier_sentence"] = (f"The best cell's elite is stored as {live_tier}, "
+                               f"{_TIER_RULE[live_tier]}.")
+
+    # The same tableau is 22 cycles per step here and 44 on the findings validation page,
+    # because the cost model multiplies by the problem's state count. Both figures are
+    # real; the basis is what was missing. The two-state figure is read from the validation
+    # document rather than doubled in prose.
+    n_states = {p["name"]: p["n_states"] for p in vd["problems"]}
+    champ_two_state = sorted({r["cycles_per_step"] for r in vd["results"]
+                              if r.get("method") == bd["tableau_hash"]
+                              and n_states.get(r["problem"]) == 2
+                              and isinstance(r.get("cycles_per_step"), int)})
+    _claim(len(champ_two_state) == 1 and champ_two_state[0] == 2 * bd["cycles"],
+           "finding 1 says per-step cost scales with the state dimension, so a two-state "
+           "problem costs twice the one-state figure")
+    ctx.update(
+        bd_cycles_2state=champ_two_state[0],
+        cycles_basis=("Cycle counts are for one state (m0plus_fast, n_states=1); cost "
+                      "scales with the problem's state dimension, so the same tableau "
+                      f"costs {champ_two_state[0]} cycles per step on a two-state "
+                      "problem."),
+        loo_table=_loo_table(kf))
+    ctx["loo_sentence"] = (
+        f"Under magnitude weighting on {_CF_BPROSE['analytic']}, dropping rc_thermal leaves "
+        f"{ctx['loo_min']}&times;, the lowest ratio in the table below; the highest is "
+        f"{ctx['loo_max']}&times;, with {ctx['loo_max_dropped']} dropped, and the best "
+        f"classical method changes from {anchor['name']} to {ctx['loo_quat_anchor']} when "
+        "quaternion goes.")
+
+    # finding 2: floor against round-to-nearest
+    agg = kf["floor_bias_flip"]["numbers"]["aggregate"]
+    fl, rd = agg["floor"]["search_rms"], agg["round_to_nearest"]["search_rms"]
+    n_flip = len(fl["rank"])
+    _claim(fl["rank"]["euler"] == 1 and fl["rank"]["rk4"] == n_flip,
+           "finding 2 says floor puts euler first and rk4 last on the search set")
+    _claim(rd["rank"]["rk4"] < rd["rank"]["euler"],
+           "finding 2 says round-to-nearest puts rk4 ahead of euler")
+    series = kf["floor_bias_flip"]["series"]["per_problem_floor_vs_round"]
+    problems = sorted({r["problem"] for r in series})
+    changed = 0
+    changed_set = set()
+    for pr in problems:
+        rows = [r for r in series if r["problem"] == pr]
+        fmin = min(r["floor_error"] for r in rows)
+        rmin = min(r["round_error"] for r in rows)
+        if not ({r["method"] for r in rows if r["floor_error"] == fmin}
+                & {r["method"] for r in rows if r["round_error"] == rmin}):
+            changed += 1
+            changed_set.add(pr)
+    dq = [r for r in series if r["problem"] == "dahlquist"]
+    dmin = min(r["floor_error"] for r in dq)
+    tie = [r for r in dq if r["floor_error"] == dmin]
+    _claim(len(tie) >= 2, "finding 2 says several methods tie exactly on dahlquist")
+    _claim(abs(dmin - math.exp(-10)) < 1e-3 * math.exp(-10),
+           "finding 2 says the dahlquist floor error is the whole reference value")
+    ctx.update(
+        n_methods=n_flip, fl_euler=_short(fl["error"]["euler"]),
+        fl_rk4=_short(fl["error"]["rk4"]),
+        fl_ratio=f"{fl['error']['rk4'] / fl['error']['euler']:.1f}",
+        rd_rk4=_short(rd["error"]["rk4"]), rd_euler=_short(rd["error"]["euler"]),
+        n_changed=changed, n_problems=len(problems),
+        dq_tie=_join(sorted(r["method"] for r in tie)), dq_err=f"{dmin:.3g}",
+        dq_worst=f"{max(r['round_error'] / r['floor_error'] for r in tie):,.0f}")
+    # Finding 2's lead carries its weighting, its basis and whether its rank survives the
+    # grid in the same sentence (DECISIONS.md D44, D-h), rather than in a later heading.
+    ss = cf["numbers"]["search_set"]
+    _claim(abs(ss["magnitude"]["analytic"]["error"]["euler"] - fl["error"]["euler"])
+           <= 1e-9 * fl["error"]["euler"],
+           "finding 2's floor RMS and the counterfactual's magnitude analytic search cell are "
+           "the same measurement")
+    cf_others = [(w, b) for w, _wl in _CF_WEIGHTINGS for b, _bl in _CF_BASES
+                 if (w, b) != ("magnitude", "analytic")]
+    euler_cells = [c for c in cf_others
+                   if ss[c[0]][c[1]]["rank_within_published_four"]["euler"] == 1]
+    ctx["flip_lead"] = (
+        f"On the three search problems, under magnitude weighting on {_CF_BPROSE['analytic']}, "
+        f"floor puts euler at rank 1 of these {n_flip} methods (RMS {ctx['fl_euler']}) and "
+        f"rk4 at rank {n_flip} ({ctx['fl_rk4']}, {ctx['fl_ratio']}&times; worse), a rank 1 "
+        "that survives " + ("none" if not euler_cells else _spell(len(euler_cells)))
+        + f" of the {_spell(len(cf_others))} other cells of the grid "
+        "(<a href=\"#flip-counterfactual\">below</a>).")
+    f4 = [p for p in _PROBLEM_ORDER if p in deg and deg[p]["four"][0]]
+    in_ch = [p for p in f4 if p in changed_set]
+    out_ch = [p for p in f4 if p not in changed_set]
+    flip_changed = (f"Per problem, the best method changes on {changed} of the "
+                    f"{len(problems)} problems")
+    if in_ch:
+        flip_changed += (f", and {_spell(len(in_ch))} of those {changed}, {_join(in_ch)}, "
+                         f"{'is' if len(in_ch) == 1 else 'are'} flagged degenerate over these "
+                         "four methods")
+    if out_ch:
+        flip_changed += (f"; {_join(out_ch)}, also flagged over these four methods, "
+                         f"{'is' if len(out_ch) == 1 else 'are'} among the problems where it "
+                         "does not change")
+    ctx["flip_changed_sentence"] = flip_changed + "."
+
+    # finding 3: the falsification sweep
+    co = kf["crossover"]["numbers"]
+    r4, h2 = co["methods"]["rk4"], co["methods"]["heun2"]
+    th = co["thresholds"]
+    _claim(r4["crossover_practical"] and h2["crossover_practical"]
+           and h2["crossover_h"] < r4["crossover_h"],
+           "finding 3 says both crossovers are practical and heun2's is at the smaller h")
+    _claim(r4["q15_error_at_smallest_h"] > r4["min_q15_error"],
+           "finding 3 says rk4's Q15 error climbs back as h shrinks")
+    fast = [m["coefficient_fraction"]["m0plus_fast"] for m in co["methods"].values()]
+    heun2_slow = h2["coefficient_fraction"]["m0plus_slow"]
+    _claim(min(fast) >= th["proceed_fraction"] and heun2_slow < th["kill_fraction"],
+           "finding 3 says fast fractions pass the proceed line and heun2 slow is under "
+           "the kill line")
+    sw = [r for r in kf["crossover"]["series"]["sweeps"]["rk4"]
+          if isinstance(r.get("q15_error"), (int, float))]
+    won4, of4 = co["rk4_wins_at_budget"]["floor"]["fraction"].split("/")
+    _claim(int(of4) == len(problems), "finding 3 counts the same problems as finding 2")
+    ctx.update(
+        problem=co["problem"], rk4_min=_short(r4["min_q15_error"]),
+        rk4_cross=_short(r4["crossover_h"]), h_small=_short(min(r["h"] for r in sw)),
+        rk4_small=_short(r4["q15_error_at_smallest_h"]),
+        heun2_cross=_short(h2["crossover_h"]), verdict=co["stored_verdict"],
+        fals_verdict=co["stored_verdict"], fast_lo=_pct(min(fast), 0),
+        fast_hi=_pct(max(fast), 0), proceed=_pct(th["proceed_fraction"], 0),
+        heun2_slow=_pct(heun2_slow, 1), kill=_pct(th["kill_fraction"], 0),
+        n_flip=n_flip, rk4_wins="none" if won4 == "0" else won4)
+    wins4 = co["rk4_wins_at_budget"]["floor"]["problems"]
+    cross = ""
+    if f4:
+        cross = (f", and {_join(f4)}, {_spell(len(f4))} of those {len(problems)}, "
+                 f"{'is' if len(f4) == 1 else 'are'} flagged degenerate over the same {n_flip} "
+                 "methods (<a href=\"#floor-flip\">finding 2</a>)")
+        won_flag = [p for p in f4 if p in wins4]
+        if won_flag:
+            cross += f", {_join(won_flag)} among the problems rk4 is best on"
+    ctx["cross_flag_clause"] = cross
+
+    # finding 4: the rc_thermal collapse
+    rc = kf["rc_thermal_collapse"]["numbers"]
+    pm = kf["rc_thermal_collapse"]["series"]["per_method"]
+    by = {r["method"]: r for r in pm}
+    lsbs = [r["final_state_lsbs_from_origin"] for r in pm]
+    bdrc = rc["best_discovered_rc_thermal"]
+    bd_rc = bdrc["error"]
+    _claim((bdrc["stages"], bdrc["cycles"]) != (bd["stages"], bd["cycles"]),
+           "finding 4 says the best discovered method on rc_thermal is not the finding 1 "
+           "champion")
+    _claim(by["rk38"]["round_error"] < rc["floor_error_min"] and bd_rc < rc["floor_error_min"],
+           "finding 4 says rk38 under round-to-nearest and the best discovered method "
+           "under floor both get under the floor")
+    ctx.update(
+        deriv_scale=_fr(rc["deriv_scale"]), lsb=f"{rc['lsb_physical']:.3g}",
+        n_classical=len(pm), fe_min=f"{rc['floor_error_min']:.4f}",
+        fe_max=f"{rc['floor_error_max']:.4f}",
+        spread=_pct(rc["floor_error_spread_relative"], 1),
+        lsb_lo=min(lsbs), lsb_hi=max(lsbs),
+        euler_state=str(tuple(by["euler"]["final_state_q15"])),
+        rk4_state=str(tuple(by["rk4"]["final_state_q15"])),
+        ref_norm=f"{rc['reference_norm']:.4f}", t_end=f"{rc['t_end']:g}",
+        rk38_rd=_short(by["rk38"]["round_error"]), bd_rc=_short(bd_rc),
+        bdrc_stages=bdrc["stages"], bdrc_order=bdrc["order"], bdrc_cycles=bdrc["cycles"])
+    d = deg["rc_thermal"]
+    _claim(d["four"][0],
+           "finding 4 says rc_thermal is flagged degenerate over finding 2's four methods")
+    on = [f"the {d['n_four']} methods <a href=\"#floor-flip\">finding 2</a> publishes"]
+    off = []
+    nine_words = f"the {d['n_nine']} methods finding 1's counterfactual scores on the analytic basis"
+    (on if d["nine"][0] else off).append(nine_words)
+    if not d["nine_traced"][0]:
+        off.append(f"{'those' if d['nine'][0] else 'the'} {d['n_nine']} on the traced "
+                   "whole-step basis")
+    ctx["rc_verdict_sentence"] = (
+        "The degeneracy detector flags rc_thermal over " + _join(on)
+        + (", and not over " + _join(off) if off else "") + ". The share column in the table "
+        "above is rc_thermal's part of each method's held-out sum of squares under magnitude "
+        "weighting on the analytic basis.")
+
+    # finding 5: phase 0
+    p0 = kf["phase0_exhaustive"]["numbers"]
+    opt, ru = p0["optimum"], p0["runner_up"]
+    gap = abs(ru["heldout_error"] - opt["heldout_error"]) / opt["heldout_error"] * 100
+    _claim(opt["name"] is None and ru["name"] is None,
+           "finding 5 says neither phase-0 optimum is a textbook method")
+    _claim(ru["heldout_error"] < anchor["heldout_error"],
+           "finding 5 says both phase-0 optima beat every classical method")
+    _claim(gap < 1, "finding 5 calls the two phase-0 optima a tie")
+    ctx.update(
+        lattice=p0["lattice_candidates"], valid=p0["valid_tableaus"],
+        opt_a21=_fr(opt["a21"]), opt_b=_vec(opt["b"]), opt_err=_short(opt["heldout_error"]),
+        opt_cyc=opt["cycles"], ru_a21=_fr(ru["a21"]), ru_err=_short(ru["heldout_error"]),
+        gap=f"{gap:.2f}", n_anchors=len(n["classical_anchors"]),
+        mid_rank=p0["midpoint_rank"], heun_rank=p0["heun2_rank"])
+
+    # finding 5, second half: a ranking whose top two are a fraction of a percent apart is
+    # worth testing against the problem set that produced it, so every member is re-ranked
+    # with each held-out problem dropped. The sentence is composed from the result rather
+    # than written, because which way it comes out is the whole point of running it.
+    st = p0.get("rank_stability") or {}
+    _claim(bool(st.get("rows")) and st.get("full_set_matches_published_rank"),
+           "finding 5 publishes a rank-stability table, so key_findings.json must carry "
+           "phase0_exhaustive.numbers.rank_stability and its full-set column must "
+           "reproduce the published ranking (rerun tools/key_findings.py)")
+    won = st["distinct_winners"]
+    if len(won) == 1:
+        lead = (f"The same member, a21 = {_fr(won[0])}, ranks first in all "
+                f"{len(st['variants'])} orderings")
+    else:
+        lead = ("The member ranked first changes across them ("
+                + _join([_fr(w) for w in won]) + ")")
+    stab = lead + ", and " + ("the same two members hold the top two places every time"
+                              if st["top2_identical_in_every_variant"]
+                              else "the top two places are not the same pair every time") + "."
+    if st.get("winner_a21_negative_in_every_variant"):
+        stab += (" Every winning a21 is negative, so what survives the re-ranking is that "
+                 "region of the lattice rather than one point in it.")
+    variants = st["variants"]
+    by_a21 = {r["a21"]: r for r in st["rows"]}
+    leaders = [r for r in st["rows"] if r["ranks"]["none"] <= 2]
+    worst_leader = max(r["ranks"][v] for r in leaders for v in variants)
+    stab += (f" The two that lead the full set never fall below rank {worst_leader} in any "
+             f"of the {len(variants)} orderings.")
+    # A member that takes first place on a reduced set from well down the full-set ranking
+    # is the sharpest form of the instability, so name it instead of leaving it in the table
+    # for a reader to find.
+    climbers = sorted(((by_a21[w]["ranks"]["none"], v, w)
+                       for v, w in st["winner_by_variant"].items()
+                       if v != "none" and by_a21[w]["ranks"]["none"] > 2), reverse=True)
+    if climbers:
+        rank, variant, a21 = climbers[0]
+        stab += (f" The sharpest move is a21 = {_fr(a21)}, which ranks {rank} on the full "
+                 f"set and first once {variant} is dropped.")
+    ctx.update(p0_stab_sentence=stab, p0_stab_table=_p0_stab_table(st))
+
+    # finding 6 and the matrix: the practical validation suite
+    vv = vd["verdicts"]
+    per = vv["per_problem"]
+    prac = [p for p in vd["problems"] if not p.get("stiff")]
+    stiff = [p for p in vd["problems"] if p.get("stiff")]
+    names = {p["name"] for p in prac}
+    rows = [(p["name"], per[p["name"]]) for p in prac if p["name"] in per]
+    _claim(vv["practical_problems_compared"] == len(rows) == len(prac),
+           "finding 6 compares every practical problem")
+    _claim(vd.get("budget_cycles") == n["budget_cycles"],
+           "finding 6 runs at the same budget as the archive")
+    _claim(bd["stages"] == 3, "finding 6 calls the champion the three-stage method")
+    wide_name, wide = min(rows, key=lambda nd: nd[1]["ratio_discovered_over_classical"])
+    ctx.update(_champion_tally(vd, [p["name"] for p in prac], [p["name"] for p in stiff]))
+    res = [r for r in vd["results"] if r["problem"] in names
+           and isinstance(r.get("q15_error"), (int, float))
+           and isinstance(r.get("float_error"), (int, float)) and r["float_error"] > 0]
+    sr = [p["stiffness_ratio"] for p in stiff]
+    tp = bench["timing_protocol"]
+    ctx.update(
+        n_prac=len(prac), n_stiff=len(stiff),
+        n_val_methods=len(vd["methods"]), domains=_join([p["domain"] for p in prac]),
+        won=vv["practical_problems_won_by_discovered"],
+        median=f"{vv['practical_median_ratio_discovered_over_classical']:.3f}",
+        wide=wide_name, wide_d=_short(wide["best_discovered_q15_error"]),
+        wide_c=_short(wide["best_classical_q15_error"]), wide_cname=wide["best_classical"],
+        wide_x=f"{1 / wide['ratio_discovered_over_classical']:.1f}",
+        champ_wins=sum(1 for _n, d in rows if d.get("winner") == bd["tableau_hash"]),
+        float_x=f"{min(r['q15_error'] / r['float_error'] for r in res):,.0f}",
+        max_q=max(r["max_abs_q"] for r in vd["results"]
+                  if r["problem"] in names and isinstance(r.get("max_abs_q"), int)),
+        repeats=tp["n_repeats"], warmup=tp["warmup"],
+        sr_lo=f"{min(sr):,.0f}", sr_hi=f"{max(sr):,.0f}")
+
+    # The boundary block on the index: the regime these coefficients are wrong for. Both
+    # halves are read from the validation document rather than asserted, and the claims mean
+    # a refreshed run that flips either one stops the build instead of publishing it.
+    champ_f64, rk4_f64 = {}, {}
+    for r in vd["results"]:
+        if isinstance(r.get("float_error"), (int, float)) and r["float_error"] > 0:
+            if r.get("method") == bd["tableau_hash"]:
+                champ_f64[str(r["problem"])] = r["float_error"]
+            elif r.get("method") == "rk4":
+                rk4_f64[str(r["problem"])] = r["float_error"]
+    both = sorted(set(champ_f64) & set(rk4_f64))
+    f64_ratios = {p: champ_f64[p] / rk4_f64[p] for p in both}
+    _claim(len(both) >= 2 and all(v > 1 for v in f64_ratios.values()),
+           "the index says the discovered coefficients are less accurate than rk4 in "
+           "float64 on every validation problem where both finish")
+    f64_prob = "buck_converter" if "buck_converter" in f64_ratios else both[0]
+    stiff_none = vv["stiff_problems_with_no_discovered_finisher"]
+    _claim(stiff_none >= 1,
+           "the index says every discovered tableau overflows Q15 on at least one stiff "
+           "validation problem")
+    vd_n = (vd.get("generated_from") or {}).get("archive_records")
+    ctx.update(
+        f64_prob=f64_prob, f64_champ=_short(champ_f64[f64_prob]),
+        f64_rk4=_short(rk4_f64[f64_prob]), f64_n=len(both),
+        f64_lo=f"{min(f64_ratios.values()):,.0f}",
+        f64_hi=f"{max(f64_ratios.values()):,.0f}",
+        stiff_none=stiff_none,
+        kf_records=f"{n['archive_records']:,}",
+        vd_records=(f"{vd_n:,}" if isinstance(vd_n, int) else "an unstated number of"))
+
+    # the matrix verdict and measured speed: the benchmark
+    bv = bench["verdicts"]
+    comp, low = bv["fixed_step_cells_compared"], bv["fixed_step_cells_where_q15_error_lower"]
+    sp = bench["speedup"]
+    srows = [r for r in sp["rows"] if r.get("status") == "ok"]
+    keeps = [r["problem"] for r in srows if not r["champion_error_lower"]]
+    _claim(sp["champion_error_lower_count"] == len(srows) - len(keeps),
+           "the speed section counts the champion's error wins from the same rows")
+    dev = max(abs(r["measured_ratio_rk4_over_champion"] / r["predicted_ratio_rk4_over_champion"]
+                  - 1) for r in srows)
+    ctx.update(
+        lib_ratio=f"{bv['median_ratio_q15_over_library_at_matched_tolerance']:,.0f}",
+        rk4_cells=f"all {comp}" if low == 0 else f"{comp - low} of {comp}",
+        sp_n=len(srows), sp_won=sp["champion_error_lower_count"],
+        maxdev=math.ceil(100 * dev), rk4_keeps=_join(keeps) or "none",
+        sp_med=f"{sp['median_error_ratio_champion_over_rk4']:.2f}")
+    sp_probs = [r["problem"] for r in srows]
+    fl9 = [p for p in sp_probs if p in deg and deg[p]["nine"][0]]
+    in_nine = {r["method"] for r in cf["series"]["per_method"]}
+    _claim("rk4" in in_nine and champ in in_nine,
+           "the speed section names a flag field that holds both rk4 and the champion")
+    speed = ""
+    if fl9:
+        kept_f = [p for p in fl9 if p in keeps]
+        won_f = [p for p in fl9 if p not in keeps]
+        sides = []
+        if kept_f:
+            sides.append(f"{_join(kept_f)} {'is' if len(kept_f) == 1 else 'are'} among the "
+                         "problems rk4 keeps")
+        if won_f:
+            sides.append(f"{_join(won_f)} among the champion's")
+        speed = (f"{_spell(len(fl9)).capitalize()} of those {len(srows)}, {_join(fl9)}, "
+                 f"{'is' if len(fl9) == 1 else 'are'} flagged degenerate over the "
+                 f"{deg[fl9[0]]['n_nine']} methods finding 1's counterfactual scores on the "
+                 "analytic basis, a field that holds both rk4 and the champion: "
+                 + " and ".join(sides) + ".")
+    ctx["speed_flag_sentence"] = speed
+
+    # The anchor result is a statement about the analytic model, and the compiled trace does
+    # not agree with all of it. The traced counts are quoted at the scope the model prices,
+    # the only scope D42 lets a traced count stand beside an analytic one.
+    tr_rows = {str(m.get("name")): m for m in ((trace or {}).get("methods") or [])
+               if isinstance(m, dict)}
+    a4, a38 = tr_rows.get("rk4"), tr_rows.get("rk38")
+    _claim(a4 is not None and a38 is not None,
+           "the anchor result quotes the compiled trace for rk4 and rk38, so "
+           "rk-work/trace/results.json must carry both")
+
+    def ms(m: dict, model: str) -> int:
+        return int(m["cycles_traced_model_scope"][model])
+    f4c, f38c = ms(a4, "m0plus_fast"), ms(a38, "m0plus_fast")
+    s4c, s38c = ms(a4, "m0plus_slow"), ms(a38, "m0plus_slow")
+    counts = (f"At the scope the model prices, the stage and b combinations and nothing "
+              f"else, the trace has rk38 at {f38c} cycles and rk4 at {f4c} under m0plus_fast, "
+              f"and {s38c} and {s4c} under m0plus_slow")
+    if f38c < f4c and s38c < s4c:
+        verdict = (f"{counts}, so there rk38 is the cheaper of the two under both multiplier "
+                   "models and the fast half of the swap does not reproduce.")
+    elif f4c < f38c and s38c < s4c:
+        verdict = f"{counts}, so the trace reproduces the swap."
+    else:
+        verdict = f"{counts}, so the trace does not reproduce the swap."
+    ctx["anchor_trace_sentence"] = (
+        verdict + " Those counts come "
+        "from an emulator that is instruction accurate rather than cycle accurate, and the "
+        f"<a href=\"{LIVE_URL}validation.html#trace\">findings validation page</a> has every "
+        "traced row.")
+    # design decisions: the encourager calendar
+    ctx.update(package_date=sg.encourager.PACKAGE_DATE.isoformat(),
+               freeze_date=sg.encourager.FREEZE_DATE.isoformat())
+    return ctx
+
+
+# ----------------------------------------------------------------------------- page checks
+
+# Estimated advance width per character, px, by svg text class; the default matches the
+# rule of ~7 px/char at the 13px base size. Deliberately conservative.
+_CHAR_PX = {"bt": 8.6, "bs": 7.35, "alab": 6.9, "dlab": 7.3, "lbl": 7.3, "mono": 7.9}
+_SVG_RE = re.compile(r'<svg [^>]*viewBox="0 0 ([0-9.]+) ([0-9.]+)"[^>]*>(.*?)</svg>', re.S)
+_TEXT_RE = re.compile(r"<text([^>]*)>(.*?)</text>", re.S)
+_ATTR_RE = re.compile(r'([a-zA-Z-]+)="([^"]*)"')
+
+
+def _audit_svg_text(name: str, html_text: str) -> list[str]:
+    """Walk every SVG text node and flag any whose estimated extent leaves the viewBox."""
+    import html as html_mod
+    issues = []
+    for sm in _SVG_RE.finditer(html_text):
+        W, H = float(sm.group(1)), float(sm.group(2))
+        for tm in _TEXT_RE.finditer(sm.group(3)):
+            attrs = dict(_ATTR_RE.findall(tm.group(1)))
+            content = html_mod.unescape(re.sub(r"<[^>]+>", "", tm.group(2)))
+            if not content.strip():
+                continue
+            classes = (attrs.get("class") or "").split()
+            px = max([_CHAR_PX.get(c, 0.0) for c in classes] + [0.0]) or 7.0
+            m_sz = re.search(r"font-size:\s*([0-9.]+)px", attrs.get("style", ""))
+            if m_sz:
+                px = 0.54 * float(m_sz.group(1))
+            width = len(content) * px
+            try:
+                x = float(attrs.get("x", "0"))
+                y = float(attrs.get("y", "0"))
+            except ValueError:
+                continue
+            anchor = attrs.get("text-anchor", "start")
+            if "rotate(-90" in attrs.get("transform", ""):
+                lo, hi, bound, axis = y - width / 2, y + width / 2, H, "y"
+            else:
+                if anchor == "middle":
+                    lo, hi = x - width / 2, x + width / 2
+                elif anchor == "end":
+                    lo, hi = x - width, x
+                else:
+                    lo, hi = x, x + width
+                bound, axis = W, "x"
+                if y < -2 or y > H + 2:
+                    issues.append(f"{name}: text {content[:44]!r} y={y:.0f} outside 0..{H:.0f}")
+            if lo < -2 or hi > bound + 2:
+                issues.append(f"{name}: text {content[:44]!r} {axis}-extent "
+                              f"[{lo:.0f}, {hi:.0f}] outside 0..{bound:.0f}")
+    return issues
+
+
+_BALANCED_TAGS = ("div", "section", "figure", "svg", "details", "table", "ul", "ol", "dl")
+
+
+def _check_balance(name: str, html_text: str) -> bool:
+    # Script bodies hold markup as string fragments; counting those as page tags would
+    # make the demo's chart builders look unbalanced. check_demo.js covers what they emit.
+    markup = re.sub(r"<script>.*?</script>", "", html_text, flags=re.S)
+    ok = True
+    for tag in _BALANCED_TAGS:
+        opens = len(re.findall(f"<{tag}[ >]", markup))
+        closes = markup.count(f"</{tag}>")
+        if opens != closes:
+            print(f"WARN: {name}: <{tag}> open/close mismatch ({opens} vs {closes})")
+            ok = False
+    return ok
+
+
+_HREF_RE = re.compile(r'href="([^"]*)"')
+_ID_RE = re.compile(r'\bid="([^"]+)"')
+
+
+def _check_links(pages: dict[str, str]) -> list[str]:
+    """Every internal href names a page being written and an id on it. Every link into
+    rk-findings names one of its current pages, and any fragment is an id that page is
+    known to carry (_FINDINGS_FRAGMENTS). A retired name fails the build."""
+    ids = {name: set(_ID_RE.findall(text)) for name, text in pages.items()}
+    issues = []
+    for name, text in pages.items():
+        markup = re.sub(r"<script>.*?</script>", "", text, flags=re.S)
+        for href in _HREF_RE.findall(markup):
+            if href.startswith(LIVE_URL):
+                page, _, frag = href[len(LIVE_URL):].partition("#")
+                if page not in _FINDINGS_PAGES:
+                    issues.append(f"{name}: {href} is not a current findings page")
+                elif frag and frag not in _FINDINGS_FRAGMENTS.get(page, ()):
+                    issues.append(f"{name}: {href} names an id that "
+                                  f"{page or 'index.html'} is not known to carry "
+                                  "(see _FINDINGS_FRAGMENTS)")
+            elif re.match(r"[a-z]+:", href):
+                continue
+            else:
+                page, _, frag = href.partition("#")
+                target = page or name
+                if target not in pages:
+                    issues.append(f"{name}: {href} names no page on this site")
+                elif frag and frag not in ids[target]:
+                    issues.append(f"{name}: {href} names no id on {target}")
+    return issues
+
+
+_CUT_BY_RE = re.compile(r"cut(?:s|ting)?\s+(?:[\w-]+\s+){0,5}?by\s+(?:up\s+to\s+)?[\d.,]+"
+                        r"\s*(?:&times;|&#215;|\xd7|x\b)", re.I)
+
+
+def _check_phrasing(pages: dict[str, str]) -> list[str]:
+    """No page may state a ratio as "cut X by N times".
+
+    Read literally that says N times the value was subtracted, not that the value was
+    divided by N. The published form is "N times lower", and this stops a later edit from
+    reintroducing the ambiguous one."""
+    issues = []
+    for name, text in sorted(pages.items()):
+        m = _CUT_BY_RE.search(re.sub(r"<script>.*?</script>", "", text, flags=re.S))
+        if m:
+            issues.append(f"PHRASING: {name} says {m.group(0)!r}; write the ratio as "
+                          '"N times lower" or "to X percent of" instead')
+    return issues
+
+
+# An equal-weight claim, the sentence finding 1 used to carry ("each of them carries a
+# quarter of the ratio above"). A hit is let through when its sentence negates it before the
+# match or names the median-anchor scale, the one weighting that is the equal-weighting
+# answer and is labelled that way wherever it appears (DECISIONS.md D44, D-c).
+_EQUAL_CLAIM_RE = re.compile(
+    r"\b(?:a|one)\s+quarter\b|\bweighted\s+equally\b|\bequal(?:ly)?[\s-]+weight(?:s|ed|ing)?\b"
+    r"|\bcarr(?:y|ies)\s+(?:the\s+)?same\s+weight\b|\bsame\s+weight\s+each\b", re.I)
+_NEGATION_RE = re.compile(r"\b(?:not|never|no|nor|neither|nowhere|without)\b|n't\b"
+                          r"|\brather than\b|\binstead of\b", re.I)
+_MEDIAN_LABEL_RE = re.compile(r"\bmedian[- ]anchor\b", re.I)
+# The reference-norm scale labelled equal, within two words either way (D44, D-e).
+_REFNORM_EQUAL_RE = re.compile(
+    r"\bequal\b[,\s]+(?:[\w-]+[,\s]+){0,2}?reference[- ]norm"
+    r"|reference[- ]norm[,\s]+(?:[\w-]+[,\s]+){0,2}?\bequal\b", re.I)
+_BLOCK_TAG_RE = re.compile(r"</?(?:p|li|tr|h[1-6]|figcaption|summary|div|table|details|ul|ol"
+                           r"|svg|title)\b[^>]*>", re.I)
+
+
+def _sentences(html_text: str):
+    """Visible sentences, with cell and block boundaries kept as breaks."""
+    import html as html_mod
+    text = re.sub(r"<script>.*?</script>|<style>.*?</style>", " ", html_text, flags=re.S)
+    text = re.sub(r"</t[dh]>", " | ", text)
+    text = _BLOCK_TAG_RE.sub("\n", text)
+    text = html_mod.unescape(_TAG_RE.sub(" ", text))
+    for block in text.split("\n"):
+        for s in re.split(r"(?<=[.;:!?])\s+", " ".join(block.split())):
+            if s:
+                yield s
+
+
+def _check_weighting_phrases(pages: dict[str, str]) -> list[str]:
+    """No page says the held-out problems carry equal weight, or calls the reference-norm
+    scale equal. A backstop on phrasing, not a proof: it reads sentences, and a claim
+    written without these words passes it."""
+    issues = []
+    for name, text in sorted(pages.items()):
+        for s in _sentences(text):
+            for rx, what in ((_EQUAL_CLAIM_RE, "an equal-weight claim"),
+                             (_REFNORM_EQUAL_RE, "the reference-norm scale labelled equal")):
+                for m in rx.finditer(s):
+                    if _NEGATION_RE.search(s[:m.start()]):
+                        continue
+                    if rx is _EQUAL_CLAIM_RE and _MEDIAN_LABEL_RE.search(s):
+                        continue
+                    issues.append(f"PHRASING: {name} makes {what}: {s[:160]!r}")
+    return issues
+
+
+# Terms whose first use on a page links to their definition, and the pages held to it. The
+# demo page's own first use is owned by the demo lane and checked there.
+_FIRST_USE = (("held-out", "methodology.html#held-out-set"),)
+_FIRST_USE_PAGES = ("index.html", "architecture.html", "design-decisions.html", "results.html")
+
+
+def _check_first_use(pages: dict[str, str]) -> list[str]:
+    """The first visible use of each term sits inside a link to its definition."""
+    issues = []
+    for name in _FIRST_USE_PAGES:
+        body = re.sub(r"<script>.*?</script>|<style>.*?</style>", " ",
+                      pages.get(name, ""), flags=re.S)
+        body = body[body.find("<body"):]
+        for term, target in _FIRST_USE:
+            at = -1
+            for m in re.finditer(r">([^<]*)", body):
+                i = m.group(1).lower().find(term)
+                if i >= 0:
+                    at = m.start(1) + i
+                    break
+            if at < 0:
+                issues.append(f"TERM: {name} never uses {term!r}, so its first-use check "
+                              "guards nothing")
+                continue
+            opened = body.rfind("<a ", 0, at)
+            closed = body.rfind("</a>", 0, at)
+            href = re.match(r'<a [^>]*href="([^"]*)"', body[opened:]) if opened > closed else None
+            if not (href and href.group(1).endswith(target)):
+                issues.append(f"TERM: the first {term!r} on {name} is not a link to {target}: "
+                              f"{_TAG_RE.sub('', body[max(0, at - 80):at + 30])!r}")
+    return issues
+
+
+def _check_titles(pages: dict[str, str]) -> list[str]:
+    """Every page but the landing page is titled '<page> | rk-harness overview', and its
+    og:title says the same (DECISIONS.md D44, D-m)."""
+    import html as html_mod
+    issues = []
+    for name, text in sorted(pages.items()):
+        m = re.search(r"<title>(.*?)</title>", text, re.S)
+        og = re.search(r'<meta property="og:title" content="([^"]*)"', text)
+        title = html_mod.unescape(m.group(1)) if m else ""
+        if not title:
+            issues.append(f"TITLE: {name} has no title")
+            continue
+        if name != "index.html" and not (title.endswith(_TITLE_SUFFIX)
+                                         and len(title) > len(_TITLE_SUFFIX)):
+            issues.append(f"TITLE: {name} is titled {title!r}, not '<page>{_TITLE_SUFFIX}'")
+        if not og or html_mod.unescape(og.group(1)) != title:
+            issues.append(f"TITLE: {name}'s og:title does not match its title")
+    return issues
+
+
+# The trace document the forbidden-ratio gate reads. Loaded explicitly rather than through
+# RK_WORK_DIR, because sitegen's gate returns without checking anything when it has no
+# document, and a gate that fails open is not a gate.
+TRACE_RESULTS = WS / "rk-work" / "trace" / "results.json"
+
+
+def _ratio_gate_doc() -> tuple[dict, int]:
+    """The document sitegen.check_ratio_claim needs, or the build stops."""
+    if not TRACE_RESULTS.is_file():
+        raise SystemExit(f"the forbidden-ratio gate needs {TRACE_RESULTS}, which is missing; "
+                         "refusing to build pages the gate cannot check")
+    try:
+        doc = json.loads(TRACE_RESULTS.read_text(encoding="utf-8"))
+    except ValueError:
+        raise SystemExit(f"{TRACE_RESULTS} is unparsable; the forbidden-ratio gate cannot run")
+    n = len(sg._forbidden_ratios(doc))
+    if not n:
+        raise SystemExit(f"{TRACE_RESULTS} yields no forbidden ratio tokens, so the gate "
+                         "would pass every page without checking one; refusing to build")
+    return doc, n
+
+
+def _check_ratio_claims(pages: dict[str, str], doc: dict) -> list[str]:
+    """sitegen.check_ratio_claim over every page, with the trace document passed in.
+
+    It is a cue-based backstop rather than a proof: a number counts as a printed ratio when
+    its block says ratio or the number carries a trailing x. It is the findings site's own
+    gate, called as that site calls it."""
+    issues = []
+    for name, text in pages.items():
+        try:
+            sg.check_ratio_claim(name, text, doc)
+        except sg.ClaimError as exc:
+            issues.append(f"RATIO: {exc}")
+    return issues
+
+
+def _check_stamps(pages: dict[str, str]) -> list[str]:
+    """Every figure states the state of the run it was computed at.
+
+    This page mixes panels built from documents at different archive states, and one date
+    in the footer hides that rather than showing it. A figure that slips through without a
+    stamp is how the two would drift back into looking like one snapshot."""
+    issues = []
+    for name, text in sorted(pages.items()):
+        if name == "demo.html":      # its figures are drawn in the browser at view time
+            continue
+        figs = len(re.findall(r"<figure[ >]", text))
+        stamps = text.count('class="src stamp"')
+        if figs != stamps:
+            issues.append(f"STAMP: {name} has {figs} figures and {stamps} as-of stamps; "
+                          "every figure carries one (see _fig)")
+    return issues
+
+
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _body_text(html_text: str) -> str:
+    """Visible text, with script and style bodies removed and tags turned into spaces."""
+    body = re.sub(r"<script>.*?</script>|<style>.*?</style>", " ", html_text, flags=re.S)
+    return _TAG_RE.sub(" ", body)
+
+
+def _check_modeled(pages: dict[str, str]) -> list[str]:
+    """The first mention of the chip on the index says the cycle counts are modeled.
+
+    Nothing here has been measured on a Cortex-M0+: the cost model is analytic from the
+    tableau. A homepage that introduces the chip without saying so lets a reader take the
+    budget for a measurement, which is the one misreading this site cannot afford."""
+    words = _body_text(pages.get("index.html", "")).split()
+    for i, w in enumerate(words):
+        if "cortex-m0+" in w.lower():
+            near = " ".join(words[max(0, i - 10):i + 11]).lower()
+            if "modeled" in near or "simulated" in near:
+                return []
+            return ['CLAIM: the first "Cortex-M0+" on index.html has neither "modeled" nor '
+                    '"simulated" within ten words of it']
+    return ["CLAIM: index.html never names Cortex-M0+, so the qualifier check is guarding "
+            "nothing; drop it or restore the mention"]
+
+
+# Terms the index uses that a reader may not have, checked against the definition each one
+# should carry on its first use. Explicit rather than scraped from the prose, so the check
+# does not fight the writing every time a sentence moves.
+_TERMS_ON_INDEX = ("Q15", "cycle budget", "Cortex-M0+", "tableau", "LSB", "MAP-Elites",
+                   "CMA-ES", "SDIRK", "embedded pair")
+
+
+def _first_use_is_linked(html_text: str, term: str) -> bool:
+    """True when the page's first use of term sits inside an <a> element."""
+    body = re.sub(r"<script>.*?</script>|<style>.*?</style>", " ", html_text, flags=re.S)
+    start = body.find(">", body.find("<body"))
+    at = body.lower().find(term.lower(), start)
+    if at < 0:
+        return False
+    return body.rfind("<a ", start, at) > body.rfind("</a>", start, at)
+
+
+def _check_terms(pages: dict[str, str]) -> list[str]:
+    """The index links its vocabulary where it first uses it.
+
+    The definitions already exist in the findings glossary, and a reader who does not know
+    what Q15 or a tableau is should not have to go looking for them."""
+    text = pages.get("index.html", "")
+    return [f"TERM: index.html uses {t!r} before linking it to a definition"
+            for t in _TERMS_ON_INDEX if not _first_use_is_linked(text, t)]
+
+
+def _check_incoming(pages: dict[str, str]) -> list[str]:
+    """The mirror of _check_links, for the other direction. The findings methodology page
+    deep-links section ids on architecture.html; those links are read from the rendered
+    article rather than from its source, because methodology.py builds them inside
+    f-strings. Renaming a section here then fails this build instead of leaving a dead
+    link on the other site."""
+    wanted = set(re.findall(re.escape(meth._ARCH) + r"#([\w-]+)", meth._body()))
+    if not wanted:
+        return ["rk_harness.methodology renders no link into the architecture page: the "
+                "parse broke, so this check is protecting nothing"]
+    have = set(_ID_RE.findall(pages["architecture.html"]))
+    return [f'architecture.html has no id "{i}", which the findings methodology page links'
+            for i in sorted(wanted - have)]
+
+
+# ----------------------------------------------------------------------------- pages
+
+def _chips(items, stamp: str = "") -> str:
+    """The index's counter row: (value, label) pairs, then the row's own as-of line.
+
+    A label is trusted HTML so a term can carry its definition link where the page first
+    uses it; anything drawn from data is escaped by the caller. The stamp exists because
+    these four numbers come from two documents built at two different states of the run,
+    and this was the one block on the page that did not say when it was counted."""
+    row = '<div class="chips">' + "".join(
+        f'<div class="chip"><div class="v">{sg._esc(v)}</div><div class="k">{k}</div></div>'
+        for v, k in items) + "</div>"
+    return row + (f'<p class="note">{stamp}</p>' if stamp else "")
+
+
+def _finding(slug, num, title, intro, figures, interp) -> str:
+    figs = "".join(f for f in figures if f)
+    return (f'<section class="finding" id="{slug}">'
+            f'<h2><span class="findnum">{num}</span>{sg._esc(title)}</h2>'
+            f"{intro}{figs}{interp}</section>")
+
+
+def _anchor_bars_live() -> str:
+    """sitegen's anchor chart, with every relative link pointed at the live findings site
+    (its glossary links are relative to rk-findings, not to this site).
+
+    The figure comes from the other site's generator, so its as-of stamp is spliced into
+    the caption here instead of being passed in. _check_stamps holds it to the same rule
+    as every figure this file draws."""
+    fig = re.sub(r'href="(?![a-z]+:|#)([^"]*)"',
+                 lambda m: f'href="{LIVE_URL}{m.group(1)}"', sg._anchor_bars())
+    return fig.replace(
+        "</figcaption>",
+        f'<span class="src stamp">{sg._esc(STAMP_BUILD)}</span></figcaption>', 1)
+
+
+def _index_page(ctx: dict, demo: dict) -> str:
+    spine = '<div class="spine">' + "".join(
+        f'<section><span class="k">{sg._esc(k)}</span><h2>{sg._esc(h)}</h2>{_t(t, **ctx)}'
+        f'<a class="more" href="{href}">{sg._esc(link)} &rarr;</a></section>'
+        for k, h, t, href, link in T.SPINE) + "</div>"
+    # The card paragraphs are trusted HTML from pages_text, not escaped, so a term can link
+    # to its definition where the page first uses it.
+    classes = '<div class="cards">' + "".join(
+        f'<div class="card klass k-{cls}"><div class="k">{sg._esc(status)}</div>'
+        f'<div class="v">{cls}</div><p class="n">{_t(text)}</p>'
+        f'<p class="go"><a href="{LIVE_URL}{cls}.html">{cls} methods on rk-findings '
+        "&#8599;</a></p></div>" for cls, status, text in T.CLASSES) + "</div>"
+    # Three counters that can only rise, and one figure that can plateau. The cells chip
+    # states its denominator, and both numbers come from _eff_ctx so this page and the
+    # findings site cannot drift apart. The row carries its own as-of line because its four
+    # numbers come from two documents built at two states of the run, and the fourth label
+    # carries the glossary link: this is where the page first uses the term.
+    chips = _chips(
+        [(ctx["archive_n"], sg._esc("verified tableaus archived")),
+         (ctx["cycles_n"], sg._esc("search cycles")),
+         (ctx["cells_occupied"], sg._esc("searchable grid cells occupied")),
+         (ctx["imp_since"], "cycles since the best "
+          f'<a href="{LIVE_URL}methodology.html#held-out-set">held-out</a> error improved')],
+        stamp=sg._esc(
+            f"The first three are counted from the run archive as of {SNAPSHOT_DATE} (US "
+            f"Central), at {ctx['archive_n']} records. The fourth is from "
+            f"tools/key_findings.json, computed at {ctx['kf_records']} records."))
+    # The reader's clock, which is the only clock that can say how old a stored date has
+    # become. The date is written into the page and the browser subtracts; the element
+    # stays empty and hidden when script does not run, so nobody reads an age that nothing
+    # computed. The findings site gets none of this and keeps its stored stamps.
+    # Once the run has ended there is nothing newer for the snapshot to fall behind, so the
+    # badge goes and HERO_JS finds no element and returns.
+    stale = ("" if _run_ended() else
+             f'<p class="stale" id="stale" data-asof="{sg._esc(SNAPSHOT_DATE)}" hidden></p>')
+    # The closing section: the run's end, the final findings and the harness (T.FINAL),
+    # only once the run has ended and _final_ctx has filled its totals.
+    final = (['<h2 id="final">The run is over</h2>', _t(T.FINAL, **ctx)]
+             if "final_date" in ctx else [])
+    repos = '<div class="grid-cards">' + "".join(
+        f'<a class="gcard" href="{url}"><div class="t">{sg._esc(name)} &#8599;</div>'
+        f'<div class="d">{sg._esc(desc)}</div></a>' for name, url, desc in T.REPOS) + "</div>"
+    _claim(all(m.get("origin") in ("classical", "discovered") for m in demo["methods"]),
+           "the hero counts the widget's methods as classical or discovered")
+    body = [_t(T.HERO_LEAD), _DEMO.hero_body(demo["methods"], demo["budget_cycles"]),
+            spine, *final,
+            '<h2 id="boundary">Where these coefficients do not belong</h2>',
+            _t(T.BOUNDARY, **ctx),
+            '<h2 id="classes">Three method classes</h2>', _t(T.CLASSES_LEAD), classes,
+            '<h2 id="scale">What it took</h2>', chips, stale, _t(T.SCALE_NOTE, **ctx),
+            '<h2 id="source">The source</h2>', _t(T.SOURCE_LEAD), repos]
+    body = [b for b in body if b]
+    hero = _hero_data(demo)
+    return _page(T.HERO_TITLE, "\n".join(body), "index.html", T.HERO_SUB,
+                 head_extra="<style>" + _DEMO.HERO_CSS + "</style>\n",
+                 body_end=("<script>window.__RKFLIP__="
+                           + json.dumps(hero, separators=(",", ":"))
+                           + ";</script>\n<script>" + _DEMO.HERO_JS + "</script>\n"))
+
+
+def _results_page(ctx: dict, kf: dict, vd: dict, bench: dict, records, orders) -> str:
+    charts = {"efficiency": [frontier_chart(kf, ctx["cycles_basis"], ctx.get("tier_of")),
+                             grid_coverage_chart(records, orders)],
+              "floor-flip": [flip_slope_chart(kf),
+                             _fold("Per problem: floor against round-to-nearest",
+                                   flip_problem_chart(kf))],
+              "crossover": [crossover_chart(kf)],
+              "rc-thermal": [rc_chart(kf)],
+              "phase0": [phase0_chart(kf)],
+              "validation": [validation_chart(vd)]}
+    toc = ([("anchor", T.ANCHOR_TITLE)]
+           + [(slug, _t(title, **ctx)) for slug, title, _i, _p in T.FINDINGS]
+           + [("matrix", T.MATRIX_TITLE), ("speed", T.SPEED_TITLE),
+              ("protocol", T.PROTOCOL_TITLE), ("limits", T.LIMITS_TITLE),
+              ("others", T.OTHERS_TITLE)])
+    body = [_t(T.HEADLINE_VERDICT, **ctx),
+            f'<p class="note">{sg._esc(_t(T.RESULTS_SCOPE, **ctx))}</p>',
+            f'<p class="note">{sg._esc(T.RESULTS_CHARTS_NOTE)}</p>',
+            '<ul class="toc">' + "".join(f'<li><a href="#{s}">{sg._esc(t)}</a></li>'
+                                         for s, t in toc) + "</ul>",
+            f'<h2 id="anchor">{sg._esc(T.ANCHOR_TITLE)}</h2>',
+            '<div class="two"><div>' + _t(T.ANCHOR_TEXT, **ctx) + "</div>"
+            '<div class="panel">' + _anchor_bars_live() + "</div></div>"]
+    for i, (slug, title, intro, interp) in enumerate(T.FINDINGS, 1):
+        body.append(_finding(slug, i, _t(title, **ctx), _t(intro, **ctx), charts[slug],
+                             _t(interp, **ctx)))
+    body += [f'<h2 id="matrix">{sg._esc(T.MATRIX_TITLE)}</h2>', _t(T.MATRIX_LEAD, **ctx),
+             heldout_chart(kf, vd), _t(T.MATRIX_VERDICT, **ctx),
+             '<details class="fold"><summary>The full matrix: every method, every column, '
+             "and where each column comes from</summary><div>"
+             + method_matrix(vd, bench, kf, _t(T.MATRIX_FOOTNOTES, **ctx)) + "</div></details>",
+             f'<h2 id="speed">{sg._esc(T.SPEED_TITLE)}</h2>', _t(T.SPEED_INTRO, **ctx),
+             speedup_chart(bench, ctx.get("cf_degeneracy")), _t(T.SPEED_INTERP, **ctx),
+             f'<h2 id="protocol">{sg._esc(T.PROTOCOL_TITLE)}</h2>', _t(T.PROTOCOL, **ctx),
+             f'<h2 id="limits">{sg._esc(T.LIMITS_TITLE)}</h2>', _t(T.LIMITS, **ctx),
+             f'<h2 id="others">{sg._esc(T.OTHERS_TITLE)}</h2>', _t(T.OTHERS, **ctx)]
+    return _page("Key findings", "\n".join(body), "results.html",
+                 _t(T.RESULTS_SUB, date=SNAPSHOT_DATE), description=T.RESULTS_DESC)
+
+
+def _architecture_page(ctx: dict) -> str:
+    tiers = ('<details class="fold"><summary>What each test tier covers</summary><div>'
+             '<div class="scroll"><table><tr><th>tier</th><th class="num">tests</th>'
+             "<th>covers</th></tr>" + "".join(
+                 f'<tr><td>{t}</td><td class="num">{n:,}</td><td>{sg._esc(d)}</td></tr>'
+                 for t, n, d in SUITE_TIERS) + "</table></div></div></details>")
+    body = [_marker_sprite(), _t(T.ARCH_LEAD),
+            '<h2 id="repos">The repositories</h2>', repo_diagram(), _t(T.ARCH_REPOS),
+            '<h2 id="boundaries">Trust boundaries</h2>', system_diagram(),
+            _t(T.ARCH_BOUNDARIES),
+            '<h2 id="loop">The cycle loop</h2>', cycle_diagram(), _t(T.ARCH_CYCLE),
+            '<h2 id="lanes">Three classes, taking turns</h2>', _t(T.ARCH_LANES),
+            '<h2 id="verify">Verification, in order</h2>', pipeline_diagram(),
+            _t(T.ARCH_GATE, **ctx),
+            '<h2 id="arithmetic">Arithmetic, exactly</h2>', _t(T.ARCH_ARITH, **ctx),
+            '<h2 id="costmodel">The cost model</h2>',
+            _t(T.ARCH_COSTMODEL, table=_cost_table(), **ctx),
+            '<h2 id="candidates">Where candidates come from</h2>',
+            _t(T.ARCH_CANDIDATES, **ctx),
+            '<h2 id="archive">The archive</h2>', _t(T.ARCH_ARCHIVE),
+            '<h2 id="outer">The outer loop</h2>', _t(T.ARCH_OUTER),
+            '<h2 id="host">The host layer</h2>', _t(T.ARCH_HOST),
+            '<h2 id="tests">Testing</h2>', _t(T.ARCH_TESTS, **ctx), tiers,
+            '<h3 id="preflight">The pre-flight, run as a program</h3>', _t(T.ARCH_PREFLIGHT),
+            '<h2 id="repro">Reproducibility</h2>', _t(T.ARCH_REPRO)]
+    return _page("Architecture", "\n".join(body), "architecture.html", T.ARCH_SUB)
+
+
+def _decisions_page(ctx: dict) -> str:
+    _claim(REVISED_DECISIONS <= {slug for slug, _t_, _o, _a in T.DECISIONS},
+           "every decision tagged as revised exists on the page")
+    lead = _t(T.DECISIONS_LEAD, n=len(T.DECISIONS), n_rev=len(REVISED_DECISIONS))
+    body = [f'<p class="note">{lead}</p>']
+    for slug, title, orig, asbuilt in T.DECISIONS:
+        tag = ('<span class="tag tag-changed">revised in build</span>'
+               if slug in REVISED_DECISIONS
+               else '<span class="tag tag-kept">held up</span>')
+        # The title is trusted HTML, so a term in it can link to its definition; the link
+        # to the decision itself is the small # after it, since links cannot nest.
+        body.append(f'<div class="decision" id="{slug}">'
+                    f"<h3>{_t(title, **ctx)}"
+                    f'<a class="perm" href="#{slug}" aria-label="Link to this decision">#</a>'
+                    f"{tag}</h3>"
+                    f'<div class="orig"><strong>Before the build:</strong> '
+                    f"{_t(orig, **ctx)}</div>"
+                    f'<div class="asbuilt"><strong>As built:</strong> '
+                    f"{_t(asbuilt, **ctx)}</div></div>")
+    body += ['<h2 id="cuts">What was deliberately cut</h2>', _t(T.CUTS),
+             '<h2 id="prior-art">Related work, and where the gap is</h2>', _t(T.PRIOR_ART)]
+    return _page("Design decisions", "\n".join(body), "design-decisions.html",
+                 T.DECISIONS_SUB)
+
+
+def _demo_page(demo: dict) -> str:
+    cross = demo["_meta"]["crosscheck"]
+    body = _DEMO.body(LIVE_URL, len(demo["methods"]), demo["budget_cycles"],
+                      len(demo["expected"]), cross["comparisons"], cross["max_rel_diff"])
+    return _page("Run the arithmetic yourself", body, "demo.html",
+                 "The Q15 integrator running in your browser, checked against the "
+                 "evaluator that scored the archive.",
+                 head_extra="<style>" + _DEMO.DEMO_CSS + "</style>\n",
+                 body_end=("<script>window.__RKDEMO__="
+                           + json.dumps(demo, separators=(",", ":"))
+                           + ";</script>\n<script>" + _DEMO.DEMO_JS + "</script>\n"))
+
+
+def build() -> None:
+    global TESTS_TOTAL, SUITE_TIERS, GATE_TESTS, SNAPSHOT_DATE, COMMIT_SHAS
+    global STAMP_KF, STAMP_VD, STAMP_BENCH, STAMP_ARCHIVE, STAMP_BUILD
+    ratio_doc, n_tokens = _ratio_gate_doc()
+    print(f"forbidden-ratio gate: {n_tokens} tokens from {TRACE_RESULTS}")
+    SUITE_TIERS, TESTS_TOTAL = _collect_suite()
+    GATE_TESTS = _gate_count()
+    kinds = _collect_kinds()
+    if kinds["total"] != TESTS_TOTAL:
+        # Two separate pytest runs, so a test file written between them leaves the
+        # breakdown disagreeing with the total it is meant to split. Collect both again
+        # before failing, since the usual cause is a suite that grew mid-build.
+        SUITE_TIERS, TESTS_TOTAL = _collect_suite()
+        kinds = _collect_kinds()
+    if kinds["total"] != TESTS_TOTAL:
+        raise SystemExit(f"the by-kind test count ({kinds['total']:,}) and the tier total "
+                         f"({TESTS_TOTAL:,}) disagree; one of the two collections is stale")
+    print(f"suite: {TESTS_TOTAL:,} tests collected across {len(SUITE_TIERS)} tiers "
+          f"({kinds['golden']} golden, {kinds['canary']} canary); start gate {GATE_TESTS}")
+    records = archive.read_all()
+    if not records:
+        raise SystemExit("no archive records: refusing to build a snapshot of nothing")
+    SNAPSHOT_DATE = timefmt.fmt_ct(max(r.timestamp for r in records))[:10]
+    print(f"snapshot date derived from the newest archive record: {SNAPSHOT_DATE}")
+    kf, vd, bench, demo = _kf_load(), _validation_load(), _bench_load(), _demo_load()
+    trace = _trace_load()
+    kf_n = kf["efficiency"]["numbers"]["archive_records"]
+    if kf_n != len(records):
+        print(f"NOTE: key_findings.json covers {kf_n:,} records and the archive now holds "
+              f"{len(records):,}; rerun tools/key_findings.py to refresh the analysis")
+
+    # One stamp per source document. The validation and benchmark documents record no date
+    # of their own, so theirs name the archive state they were built at and say so rather
+    # than borrowing this page's date, which would put them a run's worth of records later
+    # than they are.
+    COMMIT_SHAS = _repo_shas()
+    vd_n = (vd.get("generated_from") or {}).get("archive_records")
+    at_vd = f"{vd_n:,} archive records" if isinstance(vd_n, int) else "an unstated state"
+    STAMP_BUILD = f"as of {SNAPSHOT_DATE} (US Central), from the code and data at build time"
+    STAMP_ARCHIVE = f"as of {SNAPSHOT_DATE} (US Central), {len(records):,} archive records"
+    STAMP_KF = (f"as of {SNAPSHOT_DATE} (US Central), computed at {kf_n:,} archive records")
+    STAMP_VD = (f"computed at {at_vd}; the validation document records no date of its own")
+    STAMP_BENCH = ("tableaus taken from validation/results.json at " + at_vd
+                   + "; the benchmark document records no archive state or date of its own")
+    print(f"provenance: {COMMIT_SHAS}")
+    print(f"computing symbolic orders for the grid chart ({len(records):,} records)...")
+    orders = [archive.record_order(r) for r in records]
+    ctx = _results_ctx(kf, vd, bench, _eff_ctx(kf, records, orders), trace, records)
+    ctx.update(_trace_ctx(trace))
+    ctx.update(_final_ctx(records))
+    ctx.update(gate=GATE_TESTS, tests=TESTS_TOTAL, tiers=len(SUITE_TIERS),
+               demo_cases=len(demo["expected"]), t_golden=kinds["golden"],
+               t_canary=kinds["canary"], t_other=kinds["other"])
+
+    pages = {"index.html": _index_page(ctx, demo),
+             "architecture.html": _architecture_page(ctx),
+             "design-decisions.html": _decisions_page(ctx),
+             "results.html": _results_page(ctx, kf, vd, bench, records, orders),
+             "demo.html": _demo_page(demo)}
+    assert list(pages) == [href for href, _l in _NAV]
+
+    # The page checks run before anything is written, so a failed check leaves docs/ as it
+    # was. The two node checks need the written pages and run last, in _check_scripts().
+    problems: list[str] = []
+    for name, text in pages.items():
+        if not _check_balance(name, text):
+            problems.append(f"{name}: unbalanced tags (see WARN lines)")
+        if name != "demo.html":          # the demo's charts are built at view time
+            problems += [f"SVG-AUDIT: {i}" for i in _audit_svg_text(name, text)]
+    problems += [f"LINK: {i}" for i in _check_links(pages)]
+    problems += [f"LINK: {i}" for i in _check_incoming(pages)]
+    problems += _check_phrasing(pages)
+    problems += _check_weighting_phrases(pages)
+    problems += _check_first_use(pages)
+    problems += _check_titles(pages)
+    problems += _check_ratio_claims(pages, ratio_doc)
+    problems += _check_stamps(pages)
+    problems += _check_modeled(pages)
+    problems += _check_terms(pages)
+    for line in problems:
+        print(line)
+    if problems:
+        raise SystemExit("page checks failed; nothing was written")
+
+    DOCS.mkdir(parents=True, exist_ok=True)
+    (DOCS / ".nojekyll").write_text("", encoding="utf-8")
+    for name, text in pages.items():
+        (DOCS / name).write_text(text, encoding="utf-8")
+        print("wrote", name, f"({len(text.encode('utf-8')) / 1024:.0f} KB, "
+              f"{len(_SVG_RE.findall(text))} charts)")
+    # Pages the site no longer has would otherwise keep being served by GitHub Pages.
+    for name in _RETIRED:
+        if (DOCS / name).exists():
+            (DOCS / name).unlink()
+            print("removed retired page", name)
+    stale = DOCS / "findings"
+    if stale.exists():
+        shutil.rmtree(stale)
+        print("removed the stale docs/findings snapshot; the nav links to the live site")
+
+    _check_scripts()
+
+
+if __name__ == "__main__":
+    import os
+    # A Windows console defaults to cp1252, which cannot print the arrows and fractions
+    # some check messages quote.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    os.environ.setdefault("RK_WORK_DIR", str(WS / "rk-work"))
+    build()
