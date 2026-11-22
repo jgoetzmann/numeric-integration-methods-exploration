@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Methodology | rk-harness findings</title>
+<meta name="description" content="How the harness searches, scores and verifies Runge-Kutta tableaus in Q15: the cost model, the measurement ledger and the glossary.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="rk-harness findings">
+<meta property="og:title" content="Methodology | rk-harness findings">
+<meta property="og:description" content="How the harness searches, scores and verifies Runge-Kutta tableaus in Q15: the cost model, the measurement ledger and the glossary.">
+<meta property="og:url" content="https://jgoetzmann.github.io/numeric-integration-methods-exploration/findings/methodology.html">
+<meta name="twitter:card" content="summary">
+<link rel="canonical" href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/findings/methodology.html">
+<style>
+:root{
+  color-scheme:light;
+  --surface-0:#f5f4f2;--surface-1:#fcfcfb;--line:#dedcd6;--grid:#eceae5;
+  --text-1:#0b0b0b;--text-2:#52514e;--text-3:#8a887f;
+  --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;
+  --good-bg:#e0f2e3;--good-fg:#0d5c1d;--warn-bg:#fdf0d3;--warn-fg:#7a5300;
+  --mut-bg:#eceae5;--mut-fg:#52514e;--bad-bg:#fbe3e3;--bad-fg:#8f1d1d;
+  --q1:#cde2fb;--q2:#9ec5f4;--q3:#6da7ec;--q4:#3987e5;--q5:#256abf;--q6:#184f95;--q7:#0d366b;
+  --on-q1:#0b0b0b;--on-q2:#0b0b0b;--on-q3:#0b0b0b;--on-q4:#0b0b0b;
+  --on-q5:#ffffff;--on-q6:#ffffff;--on-q7:#ffffff;
+  --banner-bg:#fdf0d3;--banner-line:#c98500;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme:dark;
+    --surface-0:#111110;--surface-1:#1a1a19;--line:#3a3936;--grid:#262523;
+    --text-1:#ffffff;--text-2:#c3c2b7;--text-3:#8a887f;
+    --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;
+    --good-bg:#123a1c;--good-fg:#9fdca9;--warn-bg:#42350b;--warn-fg:#ecc76a;
+    --mut-bg:#262523;--mut-fg:#c3c2b7;--bad-bg:#461414;--bad-fg:#f1a5a5;
+    --q1:#0d366b;--q2:#184f95;--q3:#256abf;--q4:#3987e5;--q5:#6da7ec;--q6:#9ec5f4;--q7:#cde2fb;
+    --on-q1:#ffffff;--on-q2:#ffffff;--on-q3:#ffffff;--on-q4:#0b0b0b;
+    --on-q5:#0b0b0b;--on-q6:#0b0b0b;--on-q7:#0b0b0b;
+    --banner-bg:#42350b;--banner-line:#ecc76a;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface-0);color:var(--text-1);
+  font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px 48px}
+header.site{background:var(--surface-1);border-bottom:1px solid var(--line);margin-bottom:28px}
+header.site .wrap{padding-top:22px;padding-bottom:0}
+h1{font-size:26px;margin:6px 0 2px;letter-spacing:-.015em}
+h2{font-size:18px;margin:36px 0 12px;letter-spacing:-.01em}
+h3{font-size:14px;margin:20px 0 6px;color:var(--text-2)}
+p{max-width:76ch}
+.sub{color:var(--text-2);margin:0 0 14px;font-size:14px}
+header.site .sub{max-width:none}
+nav.tabs{display:flex;gap:2px;flex-wrap:wrap;margin:14px 0 0}
+nav.tabs a{padding:8px 14px;border-radius:8px 8px 0 0;color:var(--text-2);
+  text-decoration:none;font-size:13.5px;border:1px solid transparent;border-bottom:none}
+nav.tabs a:hover{color:var(--text-1);background:var(--surface-0)}
+nav.tabs a.on{background:var(--surface-0);border-color:var(--line);color:var(--text-1);
+  font-weight:600;box-shadow:0 1px 0 var(--surface-0)}
+.navrow{display:flex;align-items:flex-end;justify-content:space-between;gap:4px 16px;
+  flex-wrap:wrap}
+a.about{font-size:13.5px;color:var(--text-1);text-decoration:none;white-space:nowrap;
+  padding:5px 12px;margin:0 0 6px;border:1px solid var(--line);border-radius:8px}
+a.about:hover{background:var(--surface-0);text-decoration:underline}
+a{color:var(--s1)}
+/* card rows are a grid, so every card in a row has the same width and the rows line up */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:12px;
+  margin:16px 0}
+.card{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  padding:12px 16px;min-width:0;display:flex;flex-direction:column}
+/* label, value and note line up across a row even where one label wraps to two lines:
+   each card takes its three rows from the row's own grid */
+.cards{grid-auto-rows:auto}
+.cards>.card:not(.klass){display:grid;grid-template-rows:subgrid;grid-row:span 3}
+.card .k{font-size:11px;color:var(--text-2);letter-spacing:.06em;text-transform:uppercase}
+.card .v{font-size:26px;font-weight:650;font-variant-numeric:tabular-nums;
+  letter-spacing:-.01em;line-height:1.25;margin:2px 0}
+.card .v.vh{font:600 17px/1.9 ui-monospace,Consolas,monospace;letter-spacing:0;
+  overflow-wrap:anywhere}
+.card .d{font-size:12px;color:var(--text-3);margin-top:auto}
+.panel{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  padding:16px 18px;margin:16px 0}
+/* a panel that holds one chart, one chart drawn at two widths, or one set of small
+   multiples is as wide as its content rather than the page */
+.panel:has(>figure>svg),.panel:has(>figure>.chart-wide),
+.panel:has(>figure>.multiples){width:fit-content;max-width:100%}
+figure{margin:0}
+figure figcaption{font-size:13px;color:var(--text-2);margin:0 0 10px;max-width:72ch;
+  line-height:1.5}
+/* the cap is what stops a legend from setting the panel width: the panel is fit-content,
+   and an uncapped flex row offers its whole single-line width as max-content, so five
+   long solver names would widen the panel past the charts they label */
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--text-2);
+  margin:2px 0 6px;max-width:640px}
+.legend .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;
+  vertical-align:-1px}
+.charts{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+svg{max-width:100%;height:auto;display:block}
+svg text{font:11px system-ui,-apple-system,"Segoe UI",sans-serif;fill:var(--text-2)}
+svg .lbl{font-weight:600;fill:var(--text-1);paint-order:stroke;stroke:var(--surface-1);
+  stroke-width:3px;stroke-linejoin:round}
+svg .cv{font-weight:600}
+svg .axis{stroke:var(--line)}
+svg .gridline{stroke:var(--grid)}
+svg .cellstroke{stroke:var(--surface-1);stroke-width:2px}
+/* A chart mark that is a link is a tab stop, and until now nothing marked which one had
+   the keyboard. The outline draws the ring; the stroke is the fallback for engines that
+   do not paint an outline on an SVG child. Only :focus-visible, so a mouse click on a
+   cell does not leave a ring behind it. */
+svg a:focus-visible rect,svg a:focus-visible circle,svg a:focus-visible path{
+  outline:2px solid var(--s1);outline-offset:2px;stroke:var(--s1);stroke-width:2.5px}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--s1);outline-offset:2px;
+  border-radius:3px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;margin:10px 0;font-size:13px;background:var(--surface-1);
+  border:1px solid var(--line);border-radius:8px}
+th,td{border-bottom:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}
+th{background:var(--surface-0);color:var(--text-2);font-weight:600;font-size:12px;
+  letter-spacing:.02em;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr:hover>td{background:var(--grid)}
+td{font-variant-numeric:tabular-nums}
+th.num,td.num{text-align:right}
+.tier,.badge{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11.5px;
+  font-weight:600;white-space:nowrap}
+.tier-heldout_verified{background:var(--good-bg);color:var(--good-fg)}
+.tier-search_only{background:var(--warn-bg);color:var(--warn-fg)}
+.tier-unreplicated{background:var(--mut-bg);color:var(--mut-fg)}
+/* The two tiers that replaced the merged unreplicated label. Neither is a grade, so both
+   wear the muted badge that label wore. */
+.tier-no_incumbent,.tier-no_improvement{background:var(--mut-bg);color:var(--mut-fg)}
+.badge-open{background:var(--mut-bg);color:var(--mut-fg)}
+.badge-supported{background:var(--good-bg);color:var(--good-fg)}
+.badge-refuted{background:var(--bad-bg);color:var(--bad-fg)}
+.badge-inconclusive{background:var(--warn-bg);color:var(--warn-fg)}
+.badge-active{background:var(--good-bg);color:var(--good-fg)}
+.badge-frozen{background:var(--mut-bg);color:var(--mut-fg)}
+.hash{word-break:break-all;font:12px ui-monospace,Consolas,monospace;color:var(--text-2);
+  line-height:inherit}
+p.note .hash{word-break:normal;white-space:nowrap}
+.mono{font:13px ui-monospace,Consolas,monospace}
+.note{font-size:13px;color:var(--text-2);font-style:italic}
+dl.meta{display:grid;grid-template-columns:max-content 1fr;gap:2px 16px;font-size:13px}
+dl.meta dt{color:var(--text-2)}
+dl.meta dd{margin:0}
+article.entry{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  padding:16px 20px;margin:14px 0}
+article.entry h2{margin-top:0}
+article.entry .when{font-size:12px;color:var(--text-3);margin:0 0 8px}
+.when{font-size:12px;color:var(--text-3)}
+p.lead{color:var(--text-2);font-size:13.5px;max-width:76ch;margin:10px 0 16px}
+details.explain{margin:10px 0;max-width:76ch;font-size:13px;color:var(--text-2);
+  border:1px solid var(--line);border-radius:8px;background:var(--surface-1)}
+details.explain summary{cursor:pointer;padding:6px 12px;color:var(--text-3);
+  font-size:12.5px;letter-spacing:.02em}
+details.explain summary:hover{color:var(--text-1)}
+details.explain[open] summary{border-bottom:1px solid var(--line);color:var(--text-2)}
+details.explain>div{padding:4px 12px 8px}
+details.explain p{margin:8px 0}
+details.fold{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  margin:10px 0}
+details.fold>summary{cursor:pointer;padding:10px 16px;font-size:13.5px}
+details.fold>summary:hover{color:var(--text-1)}
+details.fold[open]>summary{border-bottom:1px solid var(--line)}
+details.fold>div{padding:6px 16px 12px}
+footer{margin-top:48px;padding-top:14px;border-top:1px solid var(--line);
+  font-size:12px;color:var(--text-3)}
+footer p{margin:3px 0;max-width:none}
+footer p.prov a{color:var(--text-2)}
+table.side td{min-width:150px;max-width:34ch}
+dl.gloss{margin:10px 0;max-width:82ch}
+dl.gloss dt{font-weight:600;margin-top:12px}
+dl.gloss dd{margin:2px 0 0;font-size:13.5px}
+/* the methodology article: infobox, contents and references */
+.meth-infobox{float:right;width:320px;margin:4px 0 18px 24px;font-size:12.5px}
+.meth-infobox caption{caption-side:top;font-weight:700;font-size:13.5px;text-align:left;
+  padding:6px 2px;color:var(--text-1)}
+.meth-infobox th,.meth-infobox td{padding:4px 8px;white-space:normal;font-weight:400}
+.meth-infobox th{width:42%;color:var(--text-2);font-weight:600;font-size:12px}
+@media(max-width:760px){.meth-infobox{float:none;width:100%;margin:12px 0}}
+.meth-toc{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  padding:12px 18px 12px 40px;max-width:44ch;font-size:13.5px;margin:18px 0}
+.meth-toc li{margin:3px 0}
+.meth-refs{font-size:13px;max-width:82ch;padding-left:2.2em}
+.meth-refs li{margin:4px 0}
+sup.meth-cite{font-size:10.5px;line-height:0}
+sup.meth-cite a{text-decoration:none}
+
+/* the three method classes: one accent each, slots 1-3 of the validated palette */
+.cards:has(>.card.klass){grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.card.klass{border-left-width:3px;border-left-style:solid}
+.card.k-explicit{border-left-color:var(--s1)}
+.card.k-implicit{border-left-color:var(--s2)}
+.card.k-adaptive{border-left-color:var(--s3)}
+.card.klass .d{margin-top:0;margin-bottom:8px}
+.card.klass .n{font-size:12.5px;color:var(--text-2);margin:0 0 8px;max-width:none}
+.card.klass .g{font-size:12px;color:var(--text-3);margin:0 0 8px;max-width:none}
+.card.klass .go{font-size:13px;margin:auto 0 0;max-width:none}
+/* A class with nothing measured yet states that in words. Set smaller and in
+   the secondary color so it does not read as a headline figure sitting beside
+   one, which is the comparison the hub row invites. */
+.card.unmeasured .v{font-size:17px;font-weight:550;color:var(--text-2);letter-spacing:0}
+
+/* one-line ledger rows: the summary carries the whole record, the body carries prose */
+.ledger{min-width:820px}
+.ledhead,details.led>summary{display:grid;
+  grid-template-columns:14px 78px 104px 1fr 58px 62px 52px;
+  gap:12px;align-items:center;padding:6px 12px}
+.ledhead{font-size:11px;color:var(--text-2);font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase}
+details.led{background:var(--surface-1);border:1px solid var(--line);border-radius:8px;
+  margin:4px 0;font-size:12.5px}
+details.led>summary{cursor:pointer;list-style:none;font-variant-numeric:tabular-nums}
+details.led>summary::-webkit-details-marker{display:none}
+details.led>summary::before{content:"+";color:var(--text-3);font-weight:600}
+details.led[open]>summary::before{content:"\2212"}
+details.led[open]>summary{border-bottom:1px solid var(--line)}
+details.led>div{padding:10px 16px 12px 40px}
+details.led .pred{font:12px ui-monospace,Consolas,monospace;color:var(--text-2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* an open row shows its whole predicate, so no hover title has to repeat it */
+details.led[open] .pred{white-space:normal;overflow-wrap:anywhere}
+details.led .num,.ledhead .num{text-align:right}
+details.led .badge{justify-self:start}
+details.led .mono{font-size:12px;color:var(--text-2)}
+details.led .rep{color:var(--text-3);font-weight:600}
+details.led table{font-size:12px;margin:6px 0 0}
+.hash a,a.hash{font:12px ui-monospace,Consolas,monospace}
+/* class pages: the 2 by 2 heatmap grid, small multiples, legend keys drawn as marks */
+.charts.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;
+  align-items:stretch}
+.charts.grid2>.panel{margin:0}
+.ptitle{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--text-1)}
+/* the matched-accuracy table: columns 5 to 9 are numbers, aligned here once rather
+   than by a class on each of several hundred cells */
+table.matched td:nth-child(n+5):nth-child(-n+9){text-align:right}
+@media(max-width:900px){.charts.grid2{grid-template-columns:minmax(0,1fr)}}
+/* small multiples size the container, not the column: fixed tracks give the box a
+   max-content width of --cols panels, so the panel's fit-content wraps the charts
+   instead of resolving to one very long row and then clamping to the full width */
+.multiples{display:grid;grid-template-columns:repeat(var(--cols,3),minmax(0,var(--tw,272px)));
+  gap:10px 14px;margin-top:6px;width:fit-content;max-width:100%}
+.legend svg.key{display:inline-block;vertical-align:-1px;margin-right:5px;overflow:visible}
+dl.glance{max-width:100ch;margin:6px 0 4px}
+/* A chart drawn for a phone is emitted beside the wide one; only one of the two is ever
+   shown, so a narrow screen gets the marks inside its viewport instead of the left edge
+   of a 640-wide frame. */
+.chart-phone{display:none}
+/* phones: a chart keeps its drawn size and scrolls inside its figure or its panel, since
+   shrinking a 640-wide chart to fit leaves 5 px text. The gradients are the cue that a
+   figure scrolls: the pale pair hides where the content ends, the dark pair shows at an
+   edge with more content past it, and background-attachment:local moves them with the
+   scroll. The side-by-side table gives up its fixed widths so all four columns fit. */
+@media(max-width:640px){
+  figure{overflow-x:auto}
+  figure svg{max-width:none}
+  .charts.grid2>.panel{overflow-x:auto}
+  figure,.charts.grid2>.panel{
+    background:
+      linear-gradient(90deg,var(--surface-1) 30%,transparent),
+      linear-gradient(270deg,var(--surface-1) 30%,transparent) 100% 0,
+      radial-gradient(farthest-side at 0 50%,rgba(0,0,0,.18),transparent),
+      radial-gradient(farthest-side at 100% 50%,rgba(0,0,0,.18),transparent) 100% 0;
+    background-repeat:no-repeat;
+    background-size:28px 100%,28px 100%,14px 100%,14px 100%;
+    background-attachment:local,local,scroll,scroll}
+  .chart-wide{display:none}
+  .chart-phone{display:block}
+  table.side{table-layout:fixed;width:100%}
+  table.side th,table.side td{padding:6px;font-size:12px}
+  table.side th:nth-child(1){width:22%}
+  table.side th{white-space:normal;min-width:0}
+  table.side td{min-width:0;max-width:none;overflow-wrap:break-word}
+}
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap">
+<h1>Methodology</h1>
+<p class="sub">How the run measures, checks and reproduces its numbers.</p>
+<div class="navrow"><nav class="tabs"><a href="index.html">overview</a><a href="explicit.html">explicit</a><a href="implicit.html">implicit</a><a href="adaptive.html">adaptive</a><a href="validation.html">validation</a><a href="hypotheses.html">research log</a><a href="methodology.html" class="on">methodology</a></nav><a class="about" href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/">About the project &#8599;</a></div>
+</div></header>
+<div class="wrap">
+
+<table class="infobox meth-infobox">
+<caption>rk-harness</caption>
+<tr><th>Object of study</th><td>Explicit Runge-Kutta tableaus, orders 1 to 4, stages 2 to 6</td></tr>
+<tr><th>State arithmetic</th><td>Q15: int16 in [-32768, 32767], scale 2<sup>-15</sup></td></tr>
+<tr><th>Target</th><td>ARM Cortex-M0+, analytic cycle model, two multiplier variants; AVR model advisory only</td></tr>
+<tr><th>Evaluation budget</th><td>65,536 cycles per problem run</td></tr>
+<tr><th>Test problems</th><td>7 fixed (3 search, 4 held out)</td></tr>
+<tr><th>Verification gate</th><td>Nine ordered checks, pure code, never raises</td></tr>
+<tr><th>Integrity pin</th><td>sha256 over ten files, checked at container start</td></tr>
+</table>
+
+<p>rk-harness searches for explicit Runge-Kutta tableaus that give the lowest integration
+error in Q15 fixed-point arithmetic at a fixed cycle budget, priced by an ARM Cortex-M0+
+cost model. Classical tableaus were derived for exact real arithmetic. On a
+microcontroller with no floating-point unit, roundoff competes with truncation at
+practical step sizes, and each coefficient costs cycles that depend on its bit
+pattern<sup class="meth-cite"><a href="#meth-ref-21">[21]</a></sup>.</p>
+
+<p>Scoring is pure code: a language model may steer the search and propose
+hypotheses, but it never scores, tiers or verifies anything. Results are on the other
+tabs and the machinery on the <a href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/architecture.html">overview architecture page</a>. Terms are
+in the <a href="methodology.html#glossary">glossary</a> below, and a bracketed number such
+as <sup class="meth-cite"><a href="#meth-ref-21">[21]</a></sup> cites a file in the rk-harness repository, a section of the frozen
+specification, docs/HANDOFF.md, or a published paper.</p>
+<ol class="meth-toc">
+<li><a href="#meth-setup">Experimental setup</a></li>
+<li><a href="#meth-measurement">Measurement</a></li>
+<li><a href="#meth-protocol">Statistical protocol</a></li>
+<li><a href="#meth-trust">Verification and trust</a></li>
+<li><a href="#meth-testing">Testing</a></li>
+<li><a href="#meth-reproducibility">Reproducibility</a></li>
+<li><a href="#meth-limitations">Limitations</a></li>
+<li><a href="#costmodel">Cost model</a></li>
+<li><a href="#ledger">Measurement ledger</a></li>
+<li><a href="#related-work">Related work</a></li>
+<li><a href="#glossary">Glossary</a></li>
+<li><a href="#meth-references">References</a></li>
+</ol>
+
+<h2 id="meth-setup">1. Experimental setup</h2>
+
+<p>The object of study is the explicit tableau with symbolic order 1 to 4 and 2 to 6
+stages. A entries sit on dyadic lattices no finer than 1/32768, and each coefficient is
+stored as m / 2<sup>s</sup> with |m| &le; 32767 and 0 &le; s &le; 20. Where no exact
+pair exists (1/3 becomes 21845 / 2<sup>16</sup>) the closest one is used and the gap is
+recorded as <code>coeff_quant_error</code>, a measured property rather than a reason to
+reject<sup class="meth-cite"><a href="#meth-ref-2">[2]</a></sup>.</p>
+
+<p>State arithmetic is Q15: 16-bit signed integers at scale 2<sup>-15</sup>, multiplied
+as <code>(a * b) &gt;&gt; 15</code> with an arithmetic shift that floors toward negative
+infinity, as the ARM <code>ASRS</code> instruction does, and an out-of-range value becomes
+a verifier rejection. Because the floor is one-sided, each
+product loses about half a least-significant bit on average, and at small step sizes
+that bias dominates the Q15 error; the harness copies the hardware on purpose, since
+code shipped to this target would floor too. The semantics are on the
+<a href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/architecture.html#arithmetic">architecture page</a> and under
+<a href="methodology.html#floor-rounding">floor rounding</a><sup class="meth-cite"><a href="#meth-ref-1">[1]</a><a href="#meth-ref-21">[21]</a></sup>.</p>
+
+<h3>Budget and cost accounting</h3>
+
+<p>Methods are always compared at an equal cycle budget, never at equal step size. A
+tableau costing k cycles per step takes n = B // k steps with B = 65,536 cycles, so a
+two-stage method takes about twice the steps of a four-stage one. Comparing at equal h
+would hand the expensive methods free work<sup class="meth-cite"><a href="#meth-ref-5">[5]</a></sup>.</p>
+
+<p>Cycle counts are analytic, a pure function of the tableau with no compiler in the
+loop. m0plus_fast (single-cycle multiplier) and m0plus_slow (32-cycle multiplier) are
+primary; avr_approx is advisory. Each coefficient application is charged the cheaper of
+a shift-add chain of its <a href="methodology.html#csd-weight">CSD weight</a> and a
+hardware multiply, which is why bit structure matters under a slow multiplier. The tables
+are in the <a href="methodology.html#costmodel">cost model</a> section below and the
+counting rules on the <a href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/architecture.html#costmodel">architecture page</a><sup class="meth-cite"><a href="#meth-ref-7">[7]</a><a href="#meth-ref-2">[2]</a></sup>.</p>
+
+<h3>Test problems and the held-out split</h3>
+
+<p>Seven fixed initial-value problems drive every error measurement: three form the
+search set the optimizer sees, and four are held out to catch overfitting. Peaks and
+scales come from <code>fixtures/problems.json</code><sup class="meth-cite"><a href="#meth-ref-3">[3]</a></sup>.</p>
+
+<div class="scroll">
+<table>
+<tr><th>Problem</th><th>Set</th><th>Dynamics</th><th>States</th><th>t_end</th><th>Family</th><th>Scale</th><th>Reference</th></tr>
+<tr><td>dahlquist</td><td>search</td><td>y' = -y, y(0) = 1</td><td>1</td><td>10</td><td>linear</td><td>2<sup>-2</sup></td><td>exp(-t)</td></tr>
+<tr><td>damped_osc</td><td>search</td><td>x'' + 2&zeta;&omega;x' + &omega;&sup2;x = 0, &zeta; = 0.1, &omega; = 1</td><td>2</td><td>40</td><td>oscillatory</td><td>2<sup>-2</sup></td><td>closed form</td></tr>
+<tr><td>vanderpol_mild</td><td>search</td><td>x'' = &mu;(1 - x&sup2;)x' - x, &mu; = 0.5</td><td>2</td><td>20</td><td>nonlinear</td><td>2<sup>-4</sup></td><td>mpmath, 30 digits</td></tr>
+<tr><td>pendulum</td><td>held out</td><td>&theta;'' = -sin &theta;, &theta;(0) = 1 rad</td><td>2</td><td>60</td><td>nonlinear</td><td>2<sup>-2</sup></td><td>energy invariant</td></tr>
+<tr><td>dc_motor</td><td>held out</td><td>affine RL motor: R = 2, L = 0.5, K<sub>e</sub> = K<sub>t</sub> = 0.1, B = J = 0.02, V = 1</td><td>2</td><td>5</td><td>linear</td><td>2<sup>-3</sup></td><td>matrix exponential</td></tr>
+<tr><td>rc_thermal</td><td>held out</td><td>y' = Ay, 3-compartment linear network</td><td>3</td><td>4</td><td>stiff</td><td>2<sup>-2</sup></td><td>matrix exponential</td></tr>
+<tr><td>quaternion</td><td>held out</td><td>q' = &frac12;&Omega;(&omega;)q, body rates (0.3, 0.2, 0.5)</td><td>4</td><td>30</td><td>geometric</td><td>2<sup>-2</sup></td><td>norm invariant</td></tr>
+</table>
+</div>
+
+<p>rc_thermal is the stiff member, with a stiffness ratio of about 70. Its derivative
+would exceed Q15 range at the state scale, so it carries an extra factor
+(DERIV_SCALE = 1/8) that the step size undoes exactly. The held-out set cannot be reached
+from the search module's import graph, and a canary test checks that<sup class="meth-cite"><a href="#meth-ref-3">[3]</a><a href="#meth-ref-4">[4]</a><a href="#meth-ref-9">[9]</a><a href="#meth-ref-17">[17]</a></sup>.</p>
+
+<h2 id="meth-measurement">2. Measurement</h2>
+
+<p>Error is the Euclidean distance between the final state, converted back to physical
+units, and the reference at t_end, divided by the problem's peak amplitude. pendulum uses
+relative energy drift |E - E0| / E0 instead, and quaternion the drift of its norm from
+1<sup class="meth-cite"><a href="#meth-ref-3">[3]</a></sup>.</p>
+
+<p>Search error and held-out error are each the root mean square of the per-problem errors
+over their set, computed by <code>evaluator.set_error</code><sup class="meth-cite"><a href="#meth-ref-5">[5]</a></sup>. An RMS sums squares,
+so a problem's influence on the aggregate grows with the square of its error and the
+problems do not carry equal weight: the problem a method does worst on dominates that
+method's score, and which problem that is differs from method to method. The weighting is
+deliberate. Every per-problem error is already divided by its own problem's scale, so the
+squares are summed on one shared scale, and that magnitude weighting is what every score in
+the archive was computed under. The equal-weighting answer is a different scale: divide each
+problem by the median error of the classical anchors before the squares are summed. The
+counterfactual under that scale, and under a reference-norm scale that concentrates weight
+instead of spreading it, is published on the
+<a href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/results.html#efficiency">overview results page</a>. The two scales disagree about the
+outcome, and that disagreement is itself the result.</p>
+
+<p>The Q15 integrator takes n equal steps of h = t_end / n, and an overflow anywhere
+aborts the run. The evaluator never raises: a failure becomes an inf entry, a zero
+overflow margin or a None measured order in the ScoreVector it returns, and its
+m0plus_fast results are primary<sup class="meth-cite"><a href="#meth-ref-4">[4]</a><a href="#meth-ref-5">[5]</a></sup>.</p>
+
+<p>A verifier then applies nine checks in a fixed order and returns the earliest failure
+as a coded rejection. Five symbolic checks run before any simulation: NOT_EXPLICIT,
+ROW_SUM_INCONSISTENT, DYADIC_IMPOSSIBLE, ORDER_NOT_MET (exact residuals over rooted
+trees) and COEFF_UNREPRESENTABLE. Then come Q15_OVERFLOW, UNSTABLE, NO_ASYMPTOTIC_WINDOW
+and NAN_OR_INF. The verifier never raises, never calls a language model, never opens a
+socket and never writes<sup class="meth-cite"><a href="#meth-ref-6">[6]</a><a href="#meth-ref-8">[8]</a></sup>.</p>
+
+<h3>Measured order</h3>
+
+<p>Symbolic order says what a tableau should do; measured order says what the
+implementation does. The float64 integrator runs dahlquist to t_end = 10 at
+n = 8 &middot; 2<sup>k</sup> steps for k = 0 to 11. Slopes between consecutive halvings
+are kept where the error is finite and above 1e-12, the longest run of slopes whose
+spread stays within 0.08 is fitted by least squares, and the fitted slope is the measured
+order. With no run of at least two slopes the verifier rejects the tableau with
+NO_ASYMPTOTIC_WINDOW<sup class="meth-cite"><a href="#meth-ref-5">[5]</a></sup>.</p>
+
+<p>The golden tests reproduce the specification's values, rk4 at 4.0706 over 3 points
+among them. The study runs in float64 because Q15 roundoff would flatten every method's
+slope; the problem runs measure the Q15 error separately<sup class="meth-cite"><a href="#meth-ref-5">[5]</a><a href="#meth-ref-17">[17]</a></sup>.</p>
+
+<h2 id="meth-protocol">3. Statistical protocol</h2>
+
+<p>Code assigns each verified candidate an evidence <a href="methodology.html#tiers">tier</a>
+when it is archived. <em>heldout_verified</em>: it improved on the incumbent elite in both
+search-set and held-out error, across at least two problem families.
+<em>search_only</em>: the search error improved and the held-out error did not, which is
+the signature of overfitting. <em>no_incumbent</em>: the cell was empty.
+<em>no_improvement</em>: there was an incumbent and neither rule above applied, which
+includes improving held-out error but not search error. Those last two were one word,
+<em>unreplicated</em>, before the split, and no archived record carries it now. The tier
+words appear in no
+prompt template, and a planted tableau tuned to the search set must land in search_only;
+canaries check both. The archive
+behind the cells is on the <a href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/architecture.html#archive">architecture page</a><sup class="meth-cite"><a href="#meth-ref-11">[11]</a><a href="#meth-ref-13">[13]</a></sup>.</p>
+
+<p>The two early phases enumerate their spaces completely, so their entries are marked
+"exhaustive" with the note "optimal within the enumerated space", CMA-ES entries
+are marked "search result", and tableaus seeded at startup "seeded classical
+baseline". The lattices are on the
+<a href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/architecture.html#candidates">architecture page</a><sup class="meth-cite"><a href="#meth-ref-10">[10]</a><a href="#meth-ref-20">[20]</a></sup>.</p>
+
+<h3>Hypotheses and verdicts</h3>
+
+<p>The model may record predictions only as predicates in a closed grammar over archive
+statistics, and code writes every verdict. A predicate that names an empty cell is
+<em>inconclusive</em>, because absence of evidence is not refutation. No verdict is issued
+below the declared minimum sample count, and an effect size below Cohen's d = 0.2 forces
+<em>inconclusive</em> whatever the comparison says; otherwise the verdict is
+<em>supported</em> or <em>refuted</em>. Every model call receives the refuted list. The
+grammar is on the
+<a href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/architecture.html#outer">architecture page</a><sup class="meth-cite"><a href="#meth-ref-12">[12]</a><a href="#meth-ref-21">[21]</a></sup>.</p>
+
+<h3>Falsification protocol</h3>
+
+<p>Before the long run started, its premise was tested on rk4 and heun2 in Q15 on
+damped_osc, against criteria fixed in advance: coefficient arithmetic must be a material
+share of per-step cost, and Q15 roundoff must dominate the error somewhere in the
+practical step range. Code computes the verdict (kill, mixed or proceed), and the
+validation tab publishes it with its thresholds, whichever way it falls<sup class="meth-cite"><a href="#meth-ref-19">[19]</a></sup>.</p>
+
+<h3 id="meth-practical">Practical validation</h3>
+
+<p>A practical validation suite sits outside the search: equations from real
+applications that the optimizer never sees and that no score, tier or archive statistic
+includes. The archived champions and the classical anchors run each one at the same
+65,536-cycle budget, to see whether methods selected on the fixed problems hold up on
+dynamics they were not selected on<sup class="meth-cite"><a href="#meth-ref-5">[5]</a><a href="#meth-ref-21">[21]</a></sup>.</p>
+
+<p>Two numeric filters run before any win or loss from that suite is published. A
+problem is flagged degenerate when its finishers' Q15 errors span less than 5 percent
+from best to worst, because a field that tight is reporting the problem rather than the
+method; a flagged problem is left out of every tally with its reason printed. The second
+criterion, an error within 5 percent of the reference solution's norm, catches a state
+that decayed to nothing. validation/results.json stores that norm for each problem, on
+the same scale as the errors, so the pages read it from the document rather than
+assuming it. A third criterion catches the case that defeats both: when any
+two finishers agree to within 5 percent of each other while both sit within 5 percent
+of that norm, the field is not separating methods even though one live method widens
+the spread. Any error ratio within 2 percent of 1.0 is counted as a tie. A further
+criterion, an identical peak magnitude equal to the initial condition, was dropped because
+it flags healthy problems<sup class="meth-cite"><a href="#meth-ref-5">[5]</a><a href="#meth-ref-20">[20]</a></sup>.</p>
+
+<h2 id="meth-trust">4. Verification and trust</h2>
+
+<p>The design assumes the language model will try shortcuts. Only the runner talks to it,
+every path from its output into the system passes a validator, and a directive can narrow
+the search but never change the objective, the problems, the cost model or the tier
+rules<sup class="meth-cite"><a href="#meth-ref-15">[15]</a></sup>.</p>
+
+<p>The container mounts rk-harness read-only and exits at start-up unless a sha256 over
+the ten scoring files matches VERIFIER_HASH and the golden tests pass, and every record
+stores the hash it was scored under. Model-written code runs only inside the problem
+quarantine, and the container never receives the GitHub token. The
+<a href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/architecture.html#verify">architecture page</a> goes through the checks in
+order<sup class="meth-cite"><a href="#meth-ref-13">[13]</a><a href="#meth-ref-14">[14]</a><a href="#meth-ref-16">[16]</a></sup>.</p>
+
+<h2 id="meth-testing">5. Testing</h2>
+
+<p>The golden fixtures are ground truth computed before the implementation existed (the
+classical tableaus, rooted-tree counts, the rk4-against-rk38 anchor, the Q15
+multiplication vectors and a hand-counted ARM sequence), kept verbatim under fixtures/ so
+the tests check against an outside truth instead of ratifying the specification. A
+preflight script runs every machine-checkable item of the review checklist, and the
+<a href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/architecture.html#tests">architecture page</a> describes the suite<sup class="meth-cite"><a href="#meth-ref-17">[17]</a><a href="#meth-ref-18">[18]</a></sup>.</p>
+
+<h2 id="meth-reproducibility">6. Reproducibility</h2>
+
+<p>The Q15 core is exact integer arithmetic, the evaluator reads no clock, starts no
+threads and draws no random numbers, and the search is seeded, so two runs from one seed
+write byte-identical archives. This site is rebuilt with no clock reads, so the same
+archive always gives the same pages; the <a href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/architecture.html#repro">architecture page</a>
+has the detail<sup class="meth-cite"><a href="#meth-ref-5">[5]</a><a href="#meth-ref-9">[9]</a><a href="#meth-ref-11">[11]</a><a href="#meth-ref-20">[20]</a></sup>.</p>
+
+<h2 id="meth-limitations">7. Limitations</h2>
+
+<p>The cost model is analytic and has never been checked against silicon inside the
+loop: an assembly fixture and a reference C emitter anchor it, but no hardware
+measurement feeds a score. Derivative evaluation is left out of the cycle count, which is
+harmless between methods with the same stage count and a real simplification
+otherwise<sup class="meth-cite"><a href="#meth-ref-7">[7]</a></sup>.</p>
+
+<p>Measured order comes from one scalar problem in float64, so it certifies the
+coefficients, not fixed-point behavior across the suite. Stability extents are sampled
+along the real and imaginary axes only. Error is measured at the final time, so a method
+could trade path accuracy for endpoint accuracy without penalty. Floor rounding is one
+hardware convention; a target that rounds or saturates would shift every Q15
+result<sup class="meth-cite"><a href="#meth-ref-5">[5]</a><a href="#meth-ref-1">[1]</a></sup>.</p>
+
+<p>The search space is narrow by design, and optimality from the enumeration phases holds
+only inside the enumerated lattices. Four held-out problems make held-out verification a
+strong filter, not a statistical guarantee, and the two-family rule and the d = 0.2
+threshold are conventions chosen in advance, frozen by the specification so results
+stay comparable across the run<sup class="meth-cite"><a href="#meth-ref-21">[21]</a></sup>.</p>
+
+<h2 id="costmodel">Cost model</h2>
+<p>Cycles per integration step, computed from instruction counts. The <a href="methodology.html#cycle-budget">cycle budget</a> and the <a href="methodology.html#cost-bucket">cycle buckets</a> on the other tabs are built from these numbers.</p>
+<h3>Anchor: rk4 and rk38</h3>
+<div class="panel"><figure><figcaption>Analytic cycles per step for rk4 and rk38 under the fast and slow multiplier cost models. Bar height is the per-step cost and the printed number is the exact cycle count. Which of the two <a href="methodology.html#anchor-methods">anchor methods</a> is cheaper swaps between the multiplier models, and that swap is the cost model's main sanity check.</figcaption><div class="legend"><span><span class="sw" style="background:var(--s1)"></span>m0plus_fast (1-cycle multiplier)</span><span><span class="sw" style="background:var(--s2)"></span>m0plus_slow (32-cycle multiplier)</span></div><svg viewBox="0 0 460 260" width="460" height="260" role="img" aria-label="Cycles per step for rk4 and rk38 under the fast and slow multiplier models, 4 bars" aria-describedby="anchor-cycle-values"><line class="axis" x1="46" y1="220" x2="450" y2="220"/><path d="M 87.50 220.00 L 87.50 155.13 Q 87.50 151.13 91.50 151.13 L 139.50 151.13 Q 143.50 151.13 143.50 155.13 L 143.50 220.00 Z" fill="var(--s1)" class="cellstroke"><title>rk4 under m0plus_fast: 33 cycles per step</title></path><text class="lbl" x="115.50" y="146.13" text-anchor="middle">33</text><path d="M 145.50 220.00 L 145.50 46.61 Q 145.50 42.61 149.50 42.61 L 197.50 42.61 Q 201.50 42.61 201.50 46.61 L 201.50 220.00 Z" fill="var(--s2)" class="cellstroke"><title>rk4 under m0plus_slow: 85 cycles per step</title></path><text class="lbl" x="173.50" y="37.61" text-anchor="middle">85</text><text x="144.50" y="236" text-anchor="middle">rk4</text><path d="M 284.50 220.00 L 284.50 148.87 Q 284.50 144.87 288.50 144.87 L 336.50 144.87 Q 340.50 144.87 340.50 148.87 L 340.50 220.00 Z" fill="var(--s1)" class="cellstroke"><title>rk38 under m0plus_fast: 36 cycles per step</title></path><text class="lbl" x="312.50" y="139.87" text-anchor="middle">36</text><path d="M 342.50 220.00 L 342.50 90.43 Q 342.50 86.43 346.50 86.43 L 394.50 86.43 Q 398.50 86.43 398.50 90.43 L 398.50 220.00 Z" fill="var(--s2)" class="cellstroke"><title>rk38 under m0plus_slow: 64 cycles per step</title></path><text class="lbl" x="370.50" y="81.43" text-anchor="middle">64</text><text x="341.50" y="236" text-anchor="middle">rk38</text></svg><details class="fold" id="anchor-cycle-values"><summary>Every plotted bar, in one table (4 rows)</summary><div><div class="scroll"><table><tr><th>method</th><th>cost model</th><th class="num">cycles per step</th></tr><tr><td>rk4</td><td>m0plus_fast</td><td class="num">33</td></tr><tr><td>rk4</td><td>m0plus_slow</td><td class="num">85</td></tr><tr><td>rk38</td><td>m0plus_fast</td><td class="num">36</td></tr><tr><td>rk38</td><td>m0plus_slow</td><td class="num">64</td></tr></table></div></div></details></figure></div>
+<table><tr><th>tableau</th><th class="num">n_states</th><th class="num">m0plus_fast</th><th class="num">m0plus_slow</th></tr>
+<tr><td>rk4</td><td class="num">1</td><td class="num">33</td><td class="num">85</td></tr>
+<tr><td>rk4</td><td class="num">2</td><td class="num">66</td><td class="num">170</td></tr>
+<tr><td>rk4</td><td class="num">4</td><td class="num">132</td><td class="num">340</td></tr>
+<tr><td>rk38</td><td class="num">1</td><td class="num">36</td><td class="num">64</td></tr>
+<tr><td>rk38</td><td class="num">2</td><td class="num">72</td><td class="num">128</td></tr>
+<tr><td>rk38</td><td class="num">4</td><td class="num">144</td><td class="num">256</td></tr>
+</table>
+<h3>Classical tableaus (n_states = 1)</h3>
+<div class="scroll"><table><tr><th>tableau</th><th class="num">stages</th><th class="num">m0plus_fast</th><th class="num">m0plus_slow</th><th class="num">avr_approx</th></tr>
+<tr><td>euler</td><td class="num">1</td><td class="num">5</td><td class="num">5</td><td class="num">6</td></tr>
+<tr><td>heun2</td><td class="num">2</td><td class="num">13</td><td class="num">13</td><td class="num">30</td></tr>
+<tr><td>heun3</td><td class="num">3</td><td class="num">23</td><td class="num">50</td><td class="num">90</td></tr>
+<tr><td>kutta3</td><td class="num">3</td><td class="num">26</td><td class="num">65</td><td class="num">106</td></tr>
+<tr><td>midpoint</td><td class="num">2</td><td class="num">11</td><td class="num">11</td><td class="num">20</td></tr>
+<tr><td>ralston2</td><td class="num">2</td><td class="num">16</td><td class="num">30</td><td class="num">62</td></tr>
+<tr><td>rk38</td><td class="num">4</td><td class="num">36</td><td class="num">64</td><td class="num">132</td></tr>
+<tr><td>rk4</td><td class="num">4</td><td class="num">33</td><td class="num">85</td><td class="num">134</td></tr>
+</table></div>
+<p class="note">avr_approx is an approximate model, shown for context only. It never drives the search or the archive grids. A tableau of simple <a href="methodology.html#dyadic-rational">dyadic</a> values can cost much less than its stage count suggests.</p>
+<h3>Model parameters</h3>
+<table><tr><th>model</th><th class="num">mul</th><th class="num">add</th><th class="num">shift</th><th class="num">load</th><th class="num">store</th></tr>
+<tr><td>m0plus_fast</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">2</td><td class="num">2</td></tr>
+<tr><td>m0plus_slow</td><td class="num">32</td><td class="num">1</td><td class="num">1</td><td class="num">2</td><td class="num">2</td></tr>
+<tr><td>avr_approx</td><td class="num">14</td><td class="num">2</td><td class="num">8</td><td class="num">2</td><td class="num">2</td></tr>
+</table>
+<p class="note">m0plus_fast and m0plus_slow differ only in the multiplier. Every archive cycle count is these five numbers applied to a tableau's instruction sequence, never a hardware measurement. The off-archive lanes add their own stated terms, named on the implicit and adaptive tabs.</p>
+
+<h2 id="ledger">Measurement ledger</h2>
+<p>Every measurement the run takes outside the scored archive is a line in rk-work/sidetrack/ledger.jsonl, stamped with the code hash that produced it and the artifact it was read from. The ledger holds 103 points across 10 jobs. The readings are on the <a href="implicit.html">implicit</a> and <a href="adaptive.html">adaptive</a> tabs. The newest measurement ran under code hash <span class="hash">305c692a1b5c</span>.</p>
+<h3>The code-hash rule</h3>
+<p>Every artifact is a pure function of the code and the point's parameters, so measuring a point again reproduces it byte for byte. A point counts as measured only under the code hash that measured it, a digest over the executor and the prototype modules, so editing a prototype re-opens its points instead of leaving stale numbers beside fresh ones.</p>
+<p class="note">Points in the ledger were measured under 2 code hashes: <span class="hash">305c692a1b5c085a</span>, <span class="hash">a98acb39fb4f31ca</span>.</p>
+<h3>The retry policy</h3>
+<p>A point that raises is recorded with its message and retried on later firings; after three failures under one code hash it is set aside and listed here. A side-track failure never costs a cycle, because the executor catches it and the run continues.</p>
+
+<h2 id="related-work">Related work</h2>
+
+<p>Rounding error in time integration is an active line of work, and this project did
+not discover it. Croci and Giles analyse Runge-Kutta discretizations of the heat
+equation in low-precision floating point and show that under round-to-nearest the
+computed solution stagnates once the timestep is small enough, with global rounding
+error growing like unit roundoff divided by the timestep until it does<sup class="meth-cite"><a href="#meth-ref-22">[22]</a></sup>.
+Hopkins and colleagues measure stochastic rounding and reduced-precision fixed point in
+ODE solvers built for neuromorphic hardware, the same arithmetic regime as this
+work on different hardware<sup class="meth-cite"><a href="#meth-ref-23">[23]</a></sup>. Croci and Rosilho de Souza build mixed-precision
+explicit stabilized Runge-Kutta methods and show where the low-precision part can sit
+without costing accuracy<sup class="meth-cite"><a href="#meth-ref-24">[24]</a></sup>.</p>
+
+<p>The crossover this run measures, where Q15 error turns back up as the step size falls,
+is the fixed-point counterpart of that stagnation result in a different arithmetic.
+Finding the same shape under a different rounding rule is a check on this harness rather
+than a new phenomenon, and it is consistent with what that literature shows.</p>
+
+<p>Two things here are different from that line of work, and both are narrow. The
+arithmetic is fixed point with directed rounding: every Q15 multiply ends in an
+arithmetic right shift that floors, so the error is biased one way, where round-to-nearest
+is symmetric and stochastic rounding is unbiased by construction. And the object of study
+is the tableau rather than the arithmetic: this run searches coefficient space against
+that bias and prices every coefficient on a cost model, where the work above analyses
+fixed methods under a rounding mode. Neither difference is a claim of priority over that
+work.</p>
+
+
+<h2 id="glossary">Glossary</h2>
+<p>Terms used across this site, in alphabetical order. Each definition says what the code does.</p>
+<dl class="gloss">
+<dt id="anchor-methods">anchor methods</dt>
+<dd>rk4 and rk38, two classical four-stage, order-4 tableaus with the same stability polynomial, so they differ in cost only through coefficient arithmetic; the cost model section compares them.</dd>
+<dt id="cohens-d">Cohen&#x27;s d</dt>
+<dd>The effect size on a hypothesis verdict: the difference of two cell populations&#x27; means over their pooled standard deviation, with the 0.2 threshold of section 3.</dd>
+<dt id="cost-bucket">cost bucket (cycle bucket)</dt>
+<dd>A log2-spaced bin of cycles per step under m0plus_fast, one axis of the archive grids: bucket 0 is under 16 cycles, bucket 1 is 16 to 31, and so on up to bucket 7 at 1024 cycles or more.</dd>
+<dt id="csd-weight">CSD weight</dt>
+<dd>The fewest nonzero signed power-of-two terms that write an integer multiplier m. The cost model charges a coefficient the cheaper of a shift-add chain of that length and a hardware multiply.</dd>
+<dt id="cycle-budget">cycle budget</dt>
+<dd>The fixed allowance of every archive evaluation, 65536 cycles per problem per cost model, so archive errors compare methods at equal budget (section 1).</dd>
+<dt id="cycles-to-tolerance">cycles to tolerance</dt>
+<dd>The modeled cycles a method needs to reach a fixed accuracy target, whether by more steps, a tighter tolerance or more Newton work per step. The lanes measure it on the axis-T ladder, one fixed list of final-state error targets run on every validation problem, and never mix it with the archive&#x27;s fixed cycle budget.</dd>
+<dt id="directive">directive</dt>
+<dd>A JSON search instruction from the planning model, checked against a strict schema and stamped on every record it produces. Ids starting with D-E mark exhaustive enumeration cycles.</dd>
+<dt id="dyadic-rational">dyadic rational</dt>
+<dd>A number m / 2^s, which binary fixed-point hardware applies exactly, so A entries are snapped to dyadics and every coefficient is stored as an (m, s) pair. The b weights are solved exactly from the order conditions instead, since snapping them would put order 3 out of reach.</dd>
+<dt id="elite">elite</dt>
+<dd>The one record a MAP-Elites cell holds: the verified tableau with the lowest held-out error for that order, stage count and cost bucket, displaced only by a strictly lower one.</dd>
+<dt id="embedded-pair">embedded pair</dt>
+<dd>Two Runge-Kutta methods sharing one A matrix and one set of stages, with weight vectors of different order whose difference estimates the local error. An archive record holds one b vector, so a pair cannot be scored there and is measured off-archive.</dd>
+<dt id="floor-rounding">floor rounding (ASRS)</dt>
+<dd>The Q15 multiply rounds toward negative infinity, as the ARM ASRS shift does, so every product loses up to one LSB, always downward (section 1).</dd>
+<dt id="held-out-set">held-out set</dt>
+<dd>The four problems that decide which tableau a cell keeps: pendulum, dc_motor, rc_thermal and quaternion. The inner optimizer scores on the search set alone, but elites are selected on held-out error and the outer-loop model is shown one held-out figure per occupied cell, so a champion&#x27;s held-out error carries selection bias and is not a clean test-set result.</dd>
+<dt id="hypothesis-ledger">hypothesis ledger</dt>
+<dd>An append-only file of falsifiable statements about the archive, each carrying a machine-checkable predicate over cell statistics. Code writes the verdict once the named cells have enough records.</dd>
+<dt id="l-stability">L-stability</dt>
+<dd>A-stability plus a stability function that tends to zero as stiffness grows, so a very fast mode is damped out in one step. For the two-stage SDIRK it holds only for particular values of the diagonal gamma.</dd>
+<dt id="lsb">LSB</dt>
+<dd>Least significant bit: the smallest step Q15 can represent, 2^-15, about 3.05e-5.</dd>
+<dt id="map-elites">MAP-Elites archive</dt>
+<dd>One grid per algebraic order 1 to 4, with cells keyed by stage count 2 to 6 and cost bucket 0 to 7, each holding only its elite. The filled grid, a map of the accuracy each shape and cost can reach, is the project&#x27;s output.</dd>
+<dt id="off-archive">off-archive</dt>
+<dd>Measured outside the scored path: no verifier run, no archive record, and no part of any archive statistic or hypothesis verdict. Implicit and adaptive numbers are off-archive because the record schema cannot hold them; they are not order-verified and not scored, and they do not compare with an archive score.</dd>
+<dt id="order">order (measured vs algebraic)</dt>
+<dd>Algebraic order is the largest p whose order conditions the exact coefficients satisfy, and it keys the grids. Measured order is the fitted slope of section 2, and the two can differ.</dd>
+<dt id="q15">Q15</dt>
+<dd>Signed 16-bit fixed point: an integer q in [-32768, 32767] standing for q / 32768, in which every problem state is stored. Overflow is never saturated; the verifier turns it into a rejection.</dd>
+<dt id="sdirk">SDIRK</dt>
+<dd>Singly diagonally implicit Runge-Kutta: A is lower triangular with one repeated value gamma on the diagonal, so each stage is solved for, here with a fixed number of Newton iterations. The repeated diagonal lets one Jacobian factorization serve every stage.</dd>
+<dt id="stage">stage</dt>
+<dd>One derivative evaluation inside a step: an s-stage method calls the right-hand side s times per step. Stage count is one axis of the archive grids.</dd>
+<dt id="step-size-controller">step-size controller</dt>
+<dd>The rule that turns an error estimate into the next step size, here proportional-integral on the ratio of tolerance to estimated error. A step whose estimate exceeds the tolerance is rejected and retried smaller, so rejected attempts cost work too.</dd>
+<dt id="stiffness-ratio">stiffness ratio</dt>
+<dd>The fastest decay rate in a problem over the slowest, from its linearization. A large ratio caps an explicit method&#x27;s step size at a mode that has already died away, and the validation suite labels problems stiff on this basis.</dd>
+<dt id="tableau">tableau</dt>
+<dd>The Butcher tableau (A, b, c) that defines a Runge-Kutta method: stage weights, final weights and stage times, with A strictly lower triangular for an explicit method. On this site every tableau is exact fractions, hashed by content.</dd>
+<dt id="tiers">tier names</dt>
+<dd>The evidence tier a record gets on entering its cell by the rules in section 3: heldout_verified, search_only, no_incumbent for an empty cell, no_improvement when an incumbent was there and neither applied, and unreplicated, the one word those last two replaced, which no record carries now. The grid ranks on held-out error alone, so the heldout_verified count can fall without anything going wrong.</dd>
+<dt id="verifier-hash">verifier hash</dt>
+<dd>A sha256 over the ten pinned scoring files, checked at container start and stored on every record. Every score therefore carries the version of the code that produced it, and a table holding more than one hash says so beneath it.</dd>
+<dt id="work-precision">work-precision</dt>
+<dd>A chart of achieved error against work spent, one line per method, for comparing methods that share no control parameter. Down and to the left is better.</dd>
+</dl>
+
+<h2 id="meth-references">References</h2>
+
+<ol class="meth-refs">
+<li id="meth-ref-1">rk_harness/fixedpoint.py; HANDOFF 4.2 (Q15 semantics) and 10 (divergence vectors).</li>
+<li id="meth-ref-2">rk_harness/coeffrep.py; HANDOFF 4.2b (coefficient representation, CSD weight).</li>
+<li id="meth-ref-3">rk_harness/problems.py and fixtures/problems.json; HANDOFF 11 (problem fixture).</li>
+<li id="meth-ref-4">rk_harness/simulate.py (Q15 and float64 integrators, derivative scaling, budget-to-steps).</li>
+<li id="meth-ref-5">rk_harness/evaluator.py; HANDOFF 4.7 (equal-budget rule, measured order, stability extents).</li>
+<li id="meth-ref-6">rk_harness/verifier.py; HANDOFF 4.4 (nine ordered checks).</li>
+<li id="meth-ref-7">rk_harness/costmodel.py, fixtures/known_sequence.s; HANDOFF 4.5 (counting rules), 9.5 (anchor comparison) and 12 (assembly fixture).</li>
+<li id="meth-ref-8">rk_harness/orderconditions.py; HANDOFF 4.3 (rooted trees, dyadic impossibility).</li>
+<li id="meth-ref-9">rk_harness/search.py; HANDOFF 4.9 (CMA-ES, projection, islands).</li>
+<li id="meth-ref-10">rk_harness/enumeration.py; HANDOFF 8 (phase table) and 9.6 (phase 0 count).</li>
+<li id="meth-ref-11">rk_harness/archive.py; HANDOFF 4.8 (grids, buckets, tiers, replay).</li>
+<li id="meth-ref-12">rk_harness/ledger.py; HANDOFF 6 (predicate grammar, verdicts, effect size).</li>
+<li id="meth-ref-13">rk_harness/quarantine.py; HANDOFF 7 (admission checks, shadow mode, proposal gate).</li>
+<li id="meth-ref-14">rk_harness/verifier_hash.py, VERIFIER_HASH, rk_harness/credentials.py; HANDOFF 4.11 and 2.2.</li>
+<li id="meth-ref-15">rk_harness/directive.py, rk_harness/runner.py; HANDOFF 5 (directive schema and validation).</li>
+<li id="meth-ref-16">entrypoint.sh; HANDOFF 13.1 (start-up order: probe, hash, golden gate).</li>
+<li id="meth-ref-17">tests/test_t1_fixedpoint_coeff_cost.py through tests/test_t7_methodology.py; HANDOFF 14 (acceptance criteria G, F, V, C, K, R, E).</li>
+<li id="meth-ref-18">scripts/preflight.py and docs/REVIEW-REPORT.md (executed review checklist).</li>
+<li id="meth-ref-19">rk_harness/falsification.py; HANDOFF 15 (criteria and sweep).</li>
+<li id="meth-ref-20">rk_harness/sitegen.py; HANDOFF 17 (auto-publish rules, determinism, labels).</li>
+<li id="meth-ref-21">docs/HANDOFF.md (frozen specification; section numbers as cited above).</li>
+<li id="meth-ref-22">M. Croci and M. B. Giles, "Effects of round-to-nearest and stochastic rounding in the numerical solution of the heat equation in low precision", IMA Journal of Numerical Analysis 43(3), 2023, pages 1358-1390.</li>
+<li id="meth-ref-23">M. Hopkins, M. Mikaitis, D. R. Lester and S. Furber, "Stochastic rounding and reduced-precision fixed-point arithmetic for solving neural ordinary differential equations", Philosophical Transactions of the Royal Society A 378:20190052, 2020.</li>
+<li id="meth-ref-24">M. Croci and G. Rosilho de Souza, "Mixed-precision explicit stabilized Runge-Kutta methods for single- and multi-scale differential equations", Journal of Computational Physics 464, 2022, 111349.</li>
+</ol>
+
+<footer>
+<p>rk-harness findings: Runge-Kutta integrators for a Cortex-M0+ microcontroller, with cycle counts from a model rather than from hardware.</p>
+<p class="prov">Generated from run data by the harness, with no human review. The container starts only if the ten pinned scoring files still match their hash, no page is written unless every page passes the banned-word check, and pages this site has retired are deleted on the same build. Human interpretation is at <a href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/">the rk-overview site</a>.</p>
+</footer>
+</div>
+</body>
+</html>

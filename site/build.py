@@ -113,8 +113,8 @@ def values(rk: dict, novel: dict, claims: dict) -> dict:
 
 def evidence_link(f: dict) -> str:
     if f["kind"] == "release":
-        return (f'<a href="{RELEASE}">{e(f["path"])}</a> '
-                f'<span class="muted">(in rk-work-final.tar.gz, final-archive release)</span>')
+        return (f'<a href="{RELEASE}"><code>{e(f["path"])}</code></a> '
+                f'<span class="muted">(in rk-work-final.tar.gz, in the final-archive release)</span>')
     label = f.get("label", f["path"])
     url = (TREE if f["kind"] == "tree" else BLOB) + f["path"].rstrip("/")
     return f'<a href="{e(url)}"><code>{e(label)}</code></a>'
@@ -204,6 +204,7 @@ def build(out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     for old in out.glob("*.html"):
         old.unlink()
+    # docs/findings/ is the frozen findings site that the run wrote; build.py does not touch it.
     for name in ("style.css", "app.js", "q15.js"):
         shutil.copyfile(SRC / name, out / name)
     (out / "index.html").write_text(page, encoding="utf-8", newline="\n")

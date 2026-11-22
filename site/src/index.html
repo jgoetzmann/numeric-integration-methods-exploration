@@ -164,7 +164,7 @@
     <li><time>{{e1_start}}</time><p>Epoch 1 starts. The best method appears at cycle {{champ_cycle}}.</p></li>
     <li><time>{{e1_stop}}</time><p>Epoch 1 stops after {{e1_cycles}} cycles and {{e1_records}} scored records.</p></li>
     <li><time>{{e1_frozen}}</time><p>The run freezes epoch 1. An audit of the compiled step found an error in the cost model, and the run does not score epoch 1 again.</p></li>
-    <li><time>{{e2_start}}</time><p>Epoch 2 starts with a corrected cost model and three method classes: explicit, adaptive and implicit.</p></li>
+    <li><time>{{e2_start}}</time><p>Epoch 2 starts with a corrected cost model and {{pinned}} pinned files.</p></li>
     <li><time>{{end_date}}</time><p>The run stops for good after cycle {{end_cycle}}. Epoch 2 wrote {{e2_records}} records. The headline results stay from epoch 1.</p></li>
   </ol>
 </section>
@@ -175,7 +175,7 @@
   <div class="cards">
     <article class="card"><h3>What worked</h3><p>The evaluation harness works from start to end for explicit tables: a Butcher-table stepper, an ODE generator and a SciPy reference solver. <a href="#N9">N9</a></p></article>
     <article class="card"><h3>What did not</h3><p>The search started from RK4 and Dormand-Prince, and a score capped at 1 kept them. For this reason, it did not find them again. Nobody trained the generator. <a href="#N2">N2</a> <a href="#N4">N4</a></p></article>
-    <article class="card"><h3>What changed</h3><p>The rk run fixed these faults: an exact verifier, a scorer that the search cannot change, out-of-sample tests and published limits for each claim.</p></article>
+    <article class="card"><h3>What the rk run does differently</h3><p>It has an exact order check, a scorer that the search cannot change, tests on new problems and stated limits for each claim. <a href="#R11">R11</a> <a href="#R4">R4</a></p></article>
   </div>
 </section>
 
@@ -228,6 +228,7 @@ RK_WORK_DIR=/tmp/rk-work RK_FINDINGS_DIR=/tmp/rk-findings python -m rk_harness.r
     <tr><td><a href="{{tree}}run-data"><code>run-data/</code></a></td><td>The final run data: validation, trace, benchmark, hypotheses and lane results.</td></tr>
     <tr><td><a href="{{tree}}analysis"><code>analysis/</code></a></td><td>The scripts that compute the key findings from the run data.</td></tr>
     <tr><td><a href="{{tree}}ml-2025"><code>ml-2025/</code></a></td><td>The 2025 machine-learning project, with its own MIT license.</td></tr>
+    <tr><td><a href="findings/index.html"><code>findings</code></a></td><td>The final findings pages that the run wrote itself, frozen on {{end_date}}. A machine made them, so their text does not follow STE.</td></tr>
     <tr><td><a href="{{tree}}site"><code>site/</code></a> <a href="{{tree}}data"><code>data/</code></a></td><td>The source of this page and the snapshot of numbers that it shows.</td></tr>
     <tr><td><a href="{{release}}">final-archive</a></td><td>A release with the raw run logs (1.3 GB) and the full git history of the five old repositories.</td></tr>
   </table>
@@ -235,7 +236,7 @@ RK_WORK_DIR=/tmp/rk-work RK_FINDINGS_DIR=/tmp/rk-findings python -m rk_harness.r
 </main>
 
 <footer>
-  <p>Text in ASD-STE100 Simplified Technical English. Code under the MIT license. <a href="{{repo}}">github.com/jgoetzmann/numeric-integration-methods-exploration</a></p>
+  <p>The text follows the sentence rules of ASD-STE100 (Simplified Technical English). Code under the MIT license. <a href="{{repo}}">github.com/jgoetzmann/numeric-integration-methods-exploration</a></p>
 </footer>
 <script type="application/json" id="page-data">{{data_json}}</script>
 <script src="q15.js"></script>

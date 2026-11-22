@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cell p2 s6 b3 | rk-harness findings</title>
+<meta name="description" content="The full archive record for the elite of grid cell order 2, 6 stages, cycle bucket 3: its tableau, its scores and the pinned code that verified it.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="rk-harness findings">
+<meta property="og:title" content="Cell p2 s6 b3 | rk-harness findings">
+<meta property="og:description" content="The full archive record for the elite of grid cell order 2, 6 stages, cycle bucket 3: its tableau, its scores and the pinned code that verified it.">
+<meta property="og:url" content="https://jgoetzmann.github.io/numeric-integration-methods-exploration/findings/cell-p2-s6-b3.html">
+<meta name="twitter:card" content="summary">
+<link rel="canonical" href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/findings/cell-p2-s6-b3.html">
+<style>
+:root{
+  color-scheme:light;
+  --surface-0:#f5f4f2;--surface-1:#fcfcfb;--line:#dedcd6;--grid:#eceae5;
+  --text-1:#0b0b0b;--text-2:#52514e;--text-3:#8a887f;
+  --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;
+  --good-bg:#e0f2e3;--good-fg:#0d5c1d;--warn-bg:#fdf0d3;--warn-fg:#7a5300;
+  --mut-bg:#eceae5;--mut-fg:#52514e;--bad-bg:#fbe3e3;--bad-fg:#8f1d1d;
+  --q1:#cde2fb;--q2:#9ec5f4;--q3:#6da7ec;--q4:#3987e5;--q5:#256abf;--q6:#184f95;--q7:#0d366b;
+  --on-q1:#0b0b0b;--on-q2:#0b0b0b;--on-q3:#0b0b0b;--on-q4:#0b0b0b;
+  --on-q5:#ffffff;--on-q6:#ffffff;--on-q7:#ffffff;
+  --banner-bg:#fdf0d3;--banner-line:#c98500;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme:dark;
+    --surface-0:#111110;--surface-1:#1a1a19;--line:#3a3936;--grid:#262523;
+    --text-1:#ffffff;--text-2:#c3c2b7;--text-3:#8a887f;
+    --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;
+    --good-bg:#123a1c;--good-fg:#9fdca9;--warn-bg:#42350b;--warn-fg:#ecc76a;
+    --mut-bg:#262523;--mut-fg:#c3c2b7;--bad-bg:#461414;--bad-fg:#f1a5a5;
+    --q1:#0d366b;--q2:#184f95;--q3:#256abf;--q4:#3987e5;--q5:#6da7ec;--q6:#9ec5f4;--q7:#cde2fb;
+    --on-q1:#ffffff;--on-q2:#ffffff;--on-q3:#ffffff;--on-q4:#0b0b0b;
+    --on-q5:#0b0b0b;--on-q6:#0b0b0b;--on-q7:#0b0b0b;
+    --banner-bg:#42350b;--banner-line:#ecc76a;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface-0);color:var(--text-1);
+  font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px 48px}
+header.site{background:var(--surface-1);border-bottom:1px solid var(--line);margin-bottom:28px}
+header.site .wrap{padding-top:22px;padding-bottom:0}
+h1{font-size:26px;margin:6px 0 2px;letter-spacing:-.015em}
+h2{font-size:18px;margin:36px 0 12px;letter-spacing:-.01em}
+h3{font-size:14px;margin:20px 0 6px;color:var(--text-2)}
+p{max-width:76ch}
+.sub{color:var(--text-2);margin:0 0 14px;font-size:14px}
+header.site .sub{max-width:none}
+nav.tabs{display:flex;gap:2px;flex-wrap:wrap;margin:14px 0 0}
+nav.tabs a{padding:8px 14px;border-radius:8px 8px 0 0;color:var(--text-2);
+  text-decoration:none;font-size:13.5px;border:1px solid transparent;border-bottom:none}
+nav.tabs a:hover{color:var(--text-1);background:var(--surface-0)}
+nav.tabs a.on{background:var(--surface-0);border-color:var(--line);color:var(--text-1);
+  font-weight:600;box-shadow:0 1px 0 var(--surface-0)}
+.navrow{display:flex;align-items:flex-end;justify-content:space-between;gap:4px 16px;
+  flex-wrap:wrap}
+a.about{font-size:13.5px;color:var(--text-1);text-decoration:none;white-space:nowrap;
+  padding:5px 12px;margin:0 0 6px;border:1px solid var(--line);border-radius:8px}
+a.about:hover{background:var(--surface-0);text-decoration:underline}
+a{color:var(--s1)}
+/* card rows are a grid, so every card in a row has the same width and the rows line up */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:12px;
+  margin:16px 0}
+.card{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  padding:12px 16px;min-width:0;display:flex;flex-direction:column}
+/* label, value and note line up across a row even where one label wraps to two lines:
+   each card takes its three rows from the row's own grid */
+.cards{grid-auto-rows:auto}
+.cards>.card:not(.klass){display:grid;grid-template-rows:subgrid;grid-row:span 3}
+.card .k{font-size:11px;color:var(--text-2);letter-spacing:.06em;text-transform:uppercase}
+.card .v{font-size:26px;font-weight:650;font-variant-numeric:tabular-nums;
+  letter-spacing:-.01em;line-height:1.25;margin:2px 0}
+.card .v.vh{font:600 17px/1.9 ui-monospace,Consolas,monospace;letter-spacing:0;
+  overflow-wrap:anywhere}
+.card .d{font-size:12px;color:var(--text-3);margin-top:auto}
+.panel{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  padding:16px 18px;margin:16px 0}
+/* a panel that holds one chart, one chart drawn at two widths, or one set of small
+   multiples is as wide as its content rather than the page */
+.panel:has(>figure>svg),.panel:has(>figure>.chart-wide),
+.panel:has(>figure>.multiples){width:fit-content;max-width:100%}
+figure{margin:0}
+figure figcaption{font-size:13px;color:var(--text-2);margin:0 0 10px;max-width:72ch;
+  line-height:1.5}
+/* the cap is what stops a legend from setting the panel width: the panel is fit-content,
+   and an uncapped flex row offers its whole single-line width as max-content, so five
+   long solver names would widen the panel past the charts they label */
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--text-2);
+  margin:2px 0 6px;max-width:640px}
+.legend .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;
+  vertical-align:-1px}
+.charts{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+svg{max-width:100%;height:auto;display:block}
+svg text{font:11px system-ui,-apple-system,"Segoe UI",sans-serif;fill:var(--text-2)}
+svg .lbl{font-weight:600;fill:var(--text-1);paint-order:stroke;stroke:var(--surface-1);
+  stroke-width:3px;stroke-linejoin:round}
+svg .cv{font-weight:600}
+svg .axis{stroke:var(--line)}
+svg .gridline{stroke:var(--grid)}
+svg .cellstroke{stroke:var(--surface-1);stroke-width:2px}
+/* A chart mark that is a link is a tab stop, and until now nothing marked which one had
+   the keyboard. The outline draws the ring; the stroke is the fallback for engines that
+   do not paint an outline on an SVG child. Only :focus-visible, so a mouse click on a
+   cell does not leave a ring behind it. */
+svg a:focus-visible rect,svg a:focus-visible circle,svg a:focus-visible path{
+  outline:2px solid var(--s1);outline-offset:2px;stroke:var(--s1);stroke-width:2.5px}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--s1);outline-offset:2px;
+  border-radius:3px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;margin:10px 0;font-size:13px;background:var(--surface-1);
+  border:1px solid var(--line);border-radius:8px}
+th,td{border-bottom:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}
+th{background:var(--surface-0);color:var(--text-2);font-weight:600;font-size:12px;
+  letter-spacing:.02em;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr:hover>td{background:var(--grid)}
+td{font-variant-numeric:tabular-nums}
+th.num,td.num{text-align:right}
+.tier,.badge{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11.5px;
+  font-weight:600;white-space:nowrap}
+.tier-heldout_verified{background:var(--good-bg);color:var(--good-fg)}
+.tier-search_only{background:var(--warn-bg);color:var(--warn-fg)}
+.tier-unreplicated{background:var(--mut-bg);color:var(--mut-fg)}
+/* The two tiers that replaced the merged unreplicated label. Neither is a grade, so both
+   wear the muted badge that label wore. */
+.tier-no_incumbent,.tier-no_improvement{background:var(--mut-bg);color:var(--mut-fg)}
+.badge-open{background:var(--mut-bg);color:var(--mut-fg)}
+.badge-supported{background:var(--good-bg);color:var(--good-fg)}
+.badge-refuted{background:var(--bad-bg);color:var(--bad-fg)}
+.badge-inconclusive{background:var(--warn-bg);color:var(--warn-fg)}
+.badge-active{background:var(--good-bg);color:var(--good-fg)}
+.badge-frozen{background:var(--mut-bg);color:var(--mut-fg)}
+.ended{background:var(--banner-bg);border:1px solid var(--banner-line);border-radius:10px;
+  padding:10px 16px;margin:16px 0 0;max-width:76ch;font-size:13.5px}
+.hash{word-break:break-all;font:12px ui-monospace,Consolas,monospace;color:var(--text-2);
+  line-height:inherit}
+p.note .hash{word-break:normal;white-space:nowrap}
+.mono{font:13px ui-monospace,Consolas,monospace}
+.note{font-size:13px;color:var(--text-2);font-style:italic}
+dl.meta{display:grid;grid-template-columns:max-content 1fr;gap:2px 16px;font-size:13px}
+dl.meta dt{color:var(--text-2)}
+dl.meta dd{margin:0}
+article.entry{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  padding:16px 20px;margin:14px 0}
+article.entry h2{margin-top:0}
+article.entry .when{font-size:12px;color:var(--text-3);margin:0 0 8px}
+.when{font-size:12px;color:var(--text-3)}
+p.lead{color:var(--text-2);font-size:13.5px;max-width:76ch;margin:10px 0 16px}
+details.explain{margin:10px 0;max-width:76ch;font-size:13px;color:var(--text-2);
+  border:1px solid var(--line);border-radius:8px;background:var(--surface-1)}
+details.explain summary{cursor:pointer;padding:6px 12px;color:var(--text-3);
+  font-size:12.5px;letter-spacing:.02em}
+details.explain summary:hover{color:var(--text-1)}
+details.explain[open] summary{border-bottom:1px solid var(--line);color:var(--text-2)}
+details.explain>div{padding:4px 12px 8px}
+details.explain p{margin:8px 0}
+details.fold{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  margin:10px 0}
+details.fold>summary{cursor:pointer;padding:10px 16px;font-size:13.5px}
+details.fold>summary:hover{color:var(--text-1)}
+details.fold[open]>summary{border-bottom:1px solid var(--line)}
+details.fold>div{padding:6px 16px 12px}
+footer{margin-top:48px;padding-top:14px;border-top:1px solid var(--line);
+  font-size:12px;color:var(--text-3)}
+footer p{margin:3px 0;max-width:none}
+footer p.prov a{color:var(--text-2)}
+table.side td{min-width:150px;max-width:34ch}
+dl.gloss{margin:10px 0;max-width:82ch}
+dl.gloss dt{font-weight:600;margin-top:12px}
+dl.gloss dd{margin:2px 0 0;font-size:13.5px}
+/* the methodology article: infobox, contents and references */
+.meth-infobox{float:right;width:320px;margin:4px 0 18px 24px;font-size:12.5px}
+.meth-infobox caption{caption-side:top;font-weight:700;font-size:13.5px;text-align:left;
+  padding:6px 2px;color:var(--text-1)}
+.meth-infobox th,.meth-infobox td{padding:4px 8px;white-space:normal;font-weight:400}
+.meth-infobox th{width:42%;color:var(--text-2);font-weight:600;font-size:12px}
+@media(max-width:760px){.meth-infobox{float:none;width:100%;margin:12px 0}}
+.meth-toc{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;
+  padding:12px 18px 12px 40px;max-width:44ch;font-size:13.5px;margin:18px 0}
+.meth-toc li{margin:3px 0}
+.meth-refs{font-size:13px;max-width:82ch;padding-left:2.2em}
+.meth-refs li{margin:4px 0}
+sup.meth-cite{font-size:10.5px;line-height:0}
+sup.meth-cite a{text-decoration:none}
+
+/* the three method classes: one accent each, slots 1-3 of the validated palette */
+.cards:has(>.card.klass){grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.card.klass{border-left-width:3px;border-left-style:solid}
+.card.k-explicit{border-left-color:var(--s1)}
+.card.k-implicit{border-left-color:var(--s2)}
+.card.k-adaptive{border-left-color:var(--s3)}
+.card.klass .d{margin-top:0;margin-bottom:8px}
+.card.klass .n{font-size:12.5px;color:var(--text-2);margin:0 0 8px;max-width:none}
+.card.klass .g{font-size:12px;color:var(--text-3);margin:0 0 8px;max-width:none}
+.card.klass .go{font-size:13px;margin:auto 0 0;max-width:none}
+/* A class with nothing measured yet states that in words. Set smaller and in
+   the secondary color so it does not read as a headline figure sitting beside
+   one, which is the comparison the hub row invites. */
+.card.unmeasured .v{font-size:17px;font-weight:550;color:var(--text-2);letter-spacing:0}
+
+/* one-line ledger rows: the summary carries the whole record, the body carries prose */
+.ledger{min-width:820px}
+.ledhead,details.led>summary{display:grid;
+  grid-template-columns:14px 78px 104px 1fr 58px 62px 52px;
+  gap:12px;align-items:center;padding:6px 12px}
+.ledhead{font-size:11px;color:var(--text-2);font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase}
+details.led{background:var(--surface-1);border:1px solid var(--line);border-radius:8px;
+  margin:4px 0;font-size:12.5px}
+details.led>summary{cursor:pointer;list-style:none;font-variant-numeric:tabular-nums}
+details.led>summary::-webkit-details-marker{display:none}
+details.led>summary::before{content:"+";color:var(--text-3);font-weight:600}
+details.led[open]>summary::before{content:"\2212"}
+details.led[open]>summary{border-bottom:1px solid var(--line)}
+details.led>div{padding:10px 16px 12px 40px}
+details.led .pred{font:12px ui-monospace,Consolas,monospace;color:var(--text-2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* an open row shows its whole predicate, so no hover title has to repeat it */
+details.led[open] .pred{white-space:normal;overflow-wrap:anywhere}
+details.led .num,.ledhead .num{text-align:right}
+details.led .badge{justify-self:start}
+details.led .mono{font-size:12px;color:var(--text-2)}
+details.led .rep{color:var(--text-3);font-weight:600}
+details.led table{font-size:12px;margin:6px 0 0}
+.hash a,a.hash{font:12px ui-monospace,Consolas,monospace}
+/* class pages: the 2 by 2 heatmap grid, small multiples, legend keys drawn as marks */
+.charts.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;
+  align-items:stretch}
+.charts.grid2>.panel{margin:0}
+.ptitle{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--text-1)}
+/* the matched-accuracy table: columns 5 to 9 are numbers, aligned here once rather
+   than by a class on each of several hundred cells */
+table.matched td:nth-child(n+5):nth-child(-n+9){text-align:right}
+@media(max-width:900px){.charts.grid2{grid-template-columns:minmax(0,1fr)}}
+/* small multiples size the container, not the column: fixed tracks give the box a
+   max-content width of --cols panels, so the panel's fit-content wraps the charts
+   instead of resolving to one very long row and then clamping to the full width */
+.multiples{display:grid;grid-template-columns:repeat(var(--cols,3),minmax(0,var(--tw,272px)));
+  gap:10px 14px;margin-top:6px;width:fit-content;max-width:100%}
+.legend svg.key{display:inline-block;vertical-align:-1px;margin-right:5px;overflow:visible}
+dl.glance{max-width:100ch;margin:6px 0 4px}
+/* A chart drawn for a phone is emitted beside the wide one; only one of the two is ever
+   shown, so a narrow screen gets the marks inside its viewport instead of the left edge
+   of a 640-wide frame. */
+.chart-phone{display:none}
+/* phones: a chart keeps its drawn size and scrolls inside its figure or its panel, since
+   shrinking a 640-wide chart to fit leaves 5 px text. The gradients are the cue that a
+   figure scrolls: the pale pair hides where the content ends, the dark pair shows at an
+   edge with more content past it, and background-attachment:local moves them with the
+   scroll. The side-by-side table gives up its fixed widths so all four columns fit. */
+@media(max-width:640px){
+  figure{overflow-x:auto}
+  figure svg{max-width:none}
+  .charts.grid2>.panel{overflow-x:auto}
+  figure,.charts.grid2>.panel{
+    background:
+      linear-gradient(90deg,var(--surface-1) 30%,transparent),
+      linear-gradient(270deg,var(--surface-1) 30%,transparent) 100% 0,
+      radial-gradient(farthest-side at 0 50%,rgba(0,0,0,.18),transparent),
+      radial-gradient(farthest-side at 100% 50%,rgba(0,0,0,.18),transparent) 100% 0;
+    background-repeat:no-repeat;
+    background-size:28px 100%,28px 100%,14px 100%,14px 100%;
+    background-attachment:local,local,scroll,scroll}
+  .chart-wide{display:none}
+  .chart-phone{display:block}
+  table.side{table-layout:fixed;width:100%}
+  table.side th,table.side td{padding:6px;font-size:12px}
+  table.side th:nth-child(1){width:22%}
+  table.side th{white-space:normal;min-width:0}
+  table.side td{min-width:0;max-width:none;overflow-wrap:break-word}
+}
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap">
+<h1>Cell p2 s6 b3</h1>
+<p class="sub">grid order 2, 6 stages, cycle bucket 3</p>
+<div class="navrow"><nav class="tabs"><a href="index.html">overview</a><a href="explicit.html" class="on">explicit</a><a href="implicit.html">implicit</a><a href="adaptive.html">adaptive</a><a href="validation.html">validation</a><a href="hypotheses.html">research log</a><a href="methodology.html">methodology</a></nav><a class="about" href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/">About the project &#8599;</a></div>
+</div></header>
+<div class="wrap">
+<p class="ended">The rk run ended on 2026-11-10, and no more compute goes to it. Epoch 2 is frozen and these pages are its final snapshot: the site is no longer rebuilt. The overview site sums up <a href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/">the final findings</a>, and <a href="https://github.com/jgoetzmann/numeric-integration-methods-exploration/tree/main/harness">the harness</a> is public for anyone to download and run.</p>
+<p class="lead">This page is the full archive record for this cell's <a href="methodology.html#elite">elite</a>. Every number here was produced by the pinned scoring code, and <a href="methodology.html#verifier-hash">verifier_hash</a> pins which version of it; see the <a href="explicit.html">explicit archive</a> for where this cell sits in the grids. The <a href="methodology.html#tiers">tier</a> and phase label are assigned mechanically.</p>
+<div class="panel"><dl class="meta">
+<dt>tier</dt><dd><span class="tier tier-no_improvement">no_improvement</span></dd>
+<dt>phase label</dt><dd>search result</dd>
+<dt>tableau_hash</dt><dd><span class="hash">4a62c0ce629f07943844d6e1a36ba33cd250f123946b763854ba024c85716bc1</span></dd>
+<dt>verifier_hash</dt><dd><span class="hash">2db0816c621c44aa5b4b8efbadfde3a37497780460be138cd8af5439ab176611</span></dd>
+<dt>cycle_id</dt><dd>2485</dd>
+<dt>seed</dt><dd>248405</dd>
+<dt>directive_id</dt><dd>D-2485</dd>
+<dt>hypothesis_id</dt><dd>none</dd>
+<dt>recorded</dt><dd>2026-09-28 09:02 CT <span class="when">(stored 2026-09-28T14:02:10Z UTC)</span></dd>
+</dl></div>
+<h2>Tableau</h2>
+<div class="scroll"><table>
+<tr><th></th><th>A[.][0]</th><th>A[.][1]</th><th>A[.][2]</th><th>A[.][3]</th><th>A[.][4]</th><th>A[.][5]</th></tr>
+<tr><th class="mono">c[0] = 0/1</th><td class="mono">0/1</td><td class="mono">0/1</td><td class="mono">0/1</td><td class="mono">0/1</td><td class="mono">0/1</td><td class="mono">0/1</td></tr>
+<tr><th class="mono">c[1] = 1/2</th><td class="mono">1/2</td><td class="mono">0/1</td><td class="mono">0/1</td><td class="mono">0/1</td><td class="mono">0/1</td><td class="mono">0/1</td></tr>
+<tr><th class="mono">c[2] = -1/4</th><td class="mono">0/1</td><td class="mono">-1/4</td><td class="mono">0/1</td><td class="mono">0/1</td><td class="mono">0/1</td><td class="mono">0/1</td></tr>
+<tr><th class="mono">c[3] = 1/8</th><td class="mono">0/1</td><td class="mono">-5/8</td><td class="mono">3/4</td><td class="mono">0/1</td><td class="mono">0/1</td><td class="mono">0/1</td></tr>
+<tr><th class="mono">c[4] = -3/8</th><td class="mono">0/1</td><td class="mono">-3/8</td><td class="mono">-3/8</td><td class="mono">3/8</td><td class="mono">0/1</td><td class="mono">0/1</td></tr>
+<tr><th class="mono">c[5] = -3/8</th><td class="mono">0/1</td><td class="mono">-3/4</td><td class="mono">1/4</td><td class="mono">-1/4</td><td class="mono">3/8</td><td class="mono">0/1</td></tr>
+<tr><th>b</th><td class="mono">0/1</td><td class="mono">1/1</td><td class="mono">0/1</td><td class="mono">0/1</td><td class="mono">0/1</td><td class="mono">0/1</td></tr>
+</table></div>
+<p class="note">All values are exact fractions; the Q15 integrator applies each one as a <a href="methodology.html#dyadic-rational">dyadic</a> m/2^s pair, listed below. The <a href="methodology.html#tableau">tableau</a> layout is defined in the glossary.</p>
+<details class="fold"><summary>Raw coefficient representation (m/2^s)</summary><div><p>The Q15 integrator applies each nonzero A and b entry to a state value v as (v * m) &gt;&gt; s, an arithmetic right shift that <a href="methodology.html#floor-rounding">floors</a>. Zero entries are skipped. When exact is no, m/2^s only approximates the fraction and the largest such gap is the record's coeff_quant_error. <a href="methodology.html#csd-weight">CSD weight</a> is the fewest signed power-of-two terms that write m; it prices the advisory avr_approx model, and the two M0+ models price this coefficient from its entry in the <a href="methodology.html#coeff-table">coefficient price table</a>.</p>
+<div class="scroll"><table><tr><th>entry</th><th>exact value</th><th class="num">m</th><th class="num">s</th><th>m/2^s</th><th>exact</th><th class="num">csd weight</th></tr>
+<tr><td class="mono">A[1][0]</td><td class="mono">1/2</td><td class="num">1</td><td class="num">1</td><td class="mono">1/2^1</td><td>yes</td><td class="num">1</td></tr>
+<tr><td class="mono">A[2][1]</td><td class="mono">-1/4</td><td class="num">-1</td><td class="num">2</td><td class="mono">-1/2^2</td><td>yes</td><td class="num">1</td></tr>
+<tr><td class="mono">A[3][1]</td><td class="mono">-5/8</td><td class="num">-5</td><td class="num">3</td><td class="mono">-5/2^3</td><td>yes</td><td class="num">2</td></tr>
+<tr><td class="mono">A[3][2]</td><td class="mono">3/4</td><td class="num">3</td><td class="num">2</td><td class="mono">3/2^2</td><td>yes</td><td class="num">2</td></tr>
+<tr><td class="mono">A[4][1]</td><td class="mono">-3/8</td><td class="num">-3</td><td class="num">3</td><td class="mono">-3/2^3</td><td>yes</td><td class="num">2</td></tr>
+<tr><td class="mono">A[4][2]</td><td class="mono">-3/8</td><td class="num">-3</td><td class="num">3</td><td class="mono">-3/2^3</td><td>yes</td><td class="num">2</td></tr>
+<tr><td class="mono">A[4][3]</td><td class="mono">3/8</td><td class="num">3</td><td class="num">3</td><td class="mono">3/2^3</td><td>yes</td><td class="num">2</td></tr>
+<tr><td class="mono">A[5][1]</td><td class="mono">-3/4</td><td class="num">-3</td><td class="num">2</td><td class="mono">-3/2^2</td><td>yes</td><td class="num">2</td></tr>
+<tr><td class="mono">A[5][2]</td><td class="mono">1/4</td><td class="num">1</td><td class="num">2</td><td class="mono">1/2^2</td><td>yes</td><td class="num">1</td></tr>
+<tr><td class="mono">A[5][3]</td><td class="mono">-1/4</td><td class="num">-1</td><td class="num">2</td><td class="mono">-1/2^2</td><td>yes</td><td class="num">1</td></tr>
+<tr><td class="mono">A[5][4]</td><td class="mono">3/8</td><td class="num">3</td><td class="num">3</td><td class="mono">3/2^3</td><td>yes</td><td class="num">2</td></tr>
+<tr><td class="mono">b[1]</td><td class="mono">1/1</td><td class="num">1</td><td class="num">0</td><td class="mono">1/2^0</td><td>yes</td><td class="num">1</td></tr>
+</table></div></div></details>
+<h2>Per problem</h2>
+<div class="panel"><figure><figcaption>Final-state error of this tableau on each problem, integrated in Q15 under m0plus_fast at the fixed cycle budget. Bar length is error on a log scale; the printed value is exact. dahlquist, damped_osc and vanderpol_mild are the search set the optimizer sees; the other four are the <a href="methodology.html#held-out-set">held-out set</a> that decides archive fitness, and on several problems <a href="methodology.html#floor-rounding">floor rounding</a> dominates the method choice, so bars can look similar across very different tableaus. The share column gives each problem's part of its own set's sum of squares, because both aggregates are a root mean square: the three search rows share one total and the four held-out rows share another, and a share from one set never adds to a share from the other. Each set adds to 100 before rounding, so a set printed to two decimals can read 99.99 or 100.01. A problem that finished with no error carries none of its set's total and reads 0. A set holding an overflowed run has no usable total, and neither has a set whose errors are all zero, so in both cases the shares read n/a.</figcaption><svg viewBox="0 0 560 228" width="560" height="228" role="img" aria-label="Per-problem error on 7 problems, log scale" aria-describedby="per-problem-values"><line class="gridline" x1="118.00" y1="10" x2="118.00" y2="202"/><text x="118.00" y="216" text-anchor="middle">1e-5</text><line class="gridline" x1="224.50" y1="10" x2="224.50" y2="202"/><text x="224.50" y="216" text-anchor="middle">1e-4</text><line class="gridline" x1="331.00" y1="10" x2="331.00" y2="202"/><text x="331.00" y="216" text-anchor="middle">1e-3</text><line class="gridline" x1="437.50" y1="10" x2="437.50" y2="202"/><text x="437.50" y="216" text-anchor="middle">1e-2</text><line class="gridline" x1="544.00" y1="10" x2="544.00" y2="202"/><text x="544.00" y="216" text-anchor="middle">1e-1</text><text x="112" y="27.00" text-anchor="end">dahlquist</text><rect x="118" y="14" width="94.21" height="18" rx="4" fill="var(--s1)" class="cellstroke"><title>dahlquist: 7.66704e-05</title></rect><text class="lbl" x="218.21" y="27.00">7.66704e-05</text><text x="112" y="53.00" text-anchor="end">damped_osc</text><rect x="118" y="40" width="241.72" height="18" rx="4" fill="var(--s1)" class="cellstroke"><title>damped_osc: 0.00186064</title></rect><text class="lbl" x="365.72" y="53.00">0.00186064</text><text x="112" y="79.00" text-anchor="end">dc_motor</text><rect x="118" y="66" width="312.87" height="18" rx="4" fill="var(--s1)" class="cellstroke"><title>dc_motor: 0.00866433</title></rect><text class="lbl" x="436.87" y="79.00">0.00866433</text><text x="112" y="105.00" text-anchor="end">pendulum</text><rect x="118" y="92" width="345.49" height="18" rx="4" fill="var(--s1)" class="cellstroke"><title>pendulum: 0.017539</title></rect><text class="lbl" x="469.49" y="105.00">0.017539</text><text x="112" y="131.00" text-anchor="end">quaternion</text><rect x="118" y="118" width="288.77" height="18" rx="4" fill="var(--s1)" class="cellstroke"><title>quaternion: 0.00514628</title></rect><text class="lbl" x="412.77" y="131.00">0.00514628</text><text x="112" y="157.00" text-anchor="end">rc_thermal</text><rect x="118" y="144" width="347.03" height="18" rx="4" fill="var(--s1)" class="cellstroke"><title>rc_thermal: 0.0181358</title></rect><text class="lbl" x="471.03" y="157.00">0.0181358</text><text x="112" y="183.00" text-anchor="end">vanderpol_mild</text><rect x="118" y="170" width="319.25" height="18" rx="4" fill="var(--s1)" class="cellstroke"><title>vanderpol_mild: 0.0099466</title></rect><text class="lbl" x="443.25" y="183.00">0.0099466</text></svg><details class="fold" id="per-problem-values"><summary>Every plotted bar, in one table (7 rows)</summary><div><div class="scroll"><table><tr><th>problem</th><th>set</th><th class="num">final-state error</th><th class="num">share of its set, percent</th></tr><tr><td>dahlquist</td><td>search</td><td class="num">7.66704e-05</td><td class="num">0.0057</td></tr><tr><td>damped_osc</td><td>search</td><td class="num">0.00186064</td><td class="num">3.38</td></tr><tr><td>dc_motor</td><td>held-out</td><td class="num">0.00866433</td><td class="num">10.17</td></tr><tr><td>pendulum</td><td>held-out</td><td class="num">0.017539</td><td class="num">41.68</td></tr><tr><td>quaternion</td><td>held-out</td><td class="num">0.00514628</td><td class="num">3.59</td></tr><tr><td>rc_thermal</td><td>held-out</td><td class="num">0.0181358</td><td class="num">44.56</td></tr><tr><td>vanderpol_mild</td><td>search</td><td class="num">0.0099466</td><td class="num">96.61</td></tr></table></div></div></details></figure></div>
+<h2>Cycle counts (n_states = 1)</h2>
+<table><tr><th>model</th><th class="num">cycles</th><th>note</th></tr>
+<tr><td>m0plus_fast</td><td class="num">64</td><td></td></tr>
+<tr><td>m0plus_slow</td><td class="num">64</td><td></td></tr>
+<tr><td>avr_approx</td><td class="num">206</td><td><span class="note">avr_approx is an approximate model, shown for context only.</span></td></tr>
+</table>
+<h2>Score</h2>
+<table><tr><th>metric</th><th class="num">value</th></tr>
+<tr><td>measured_order</td><td class="num">2.01094</td></tr>
+<tr><td>order_fit_points</td><td class="num">8</td></tr>
+<tr><td>error_constant</td><td class="num">0.186339</td></tr>
+<tr><td>stability_real</td><td class="num">-2</td></tr>
+<tr><td>stability_imag <span class="note">(bisection floor)</span></td><td class="num">0.00168185</td></tr>
+<tr><td>csd_weight_total</td><td class="num">18</td></tr>
+<tr><td>coeff_quant_error</td><td class="num">0</td></tr>
+<tr><td>search_error</td><td class="num">0.00584245</td></tr>
+<tr><td>heldout_error</td><td class="num">0.0135838</td></tr>
+<tr><td>overflow_margin</td><td class="num">1.90889</td></tr>
+</table>
+<p class="note">stability_imag is the smallest imaginary-axis interval the scorer&#x27;s search can resolve, from 4000 samples and 200 bisection steps, so it is a floor rather than a measured extent: a method whose stability region meets the imaginary axis only at the origin reports that floor and not 0. Read a value at the floor as no resolvable interval. stability_real carries no such floor, because the real-axis interval of these methods is well inside the sampled range.</p>
+<details class="explain"><summary>How to read this</summary><div><p>measured_order is the slope of a log-log fit of float64 final-state error against step size on the dahlquist problem, over the longest usable run of points (order_fit_points of them); it is measured evidence, distinct from the algebraic <a href="methodology.html#order">order</a> that keys the grid. error_constant is the L2 norm of the order-condition residuals one order past the achieved one, a size estimate for the leading truncation term. stability_real and stability_imag are read off the stability region by the bisection described under the table above, along the negative real axis and along the imaginary axis.</p><p>csd_weight_total sums <a href="methodology.html#csd-weight">CSD weights</a> over the non-trivial coefficients, a proxy for coefficient-arithmetic cost. coeff_quant_error is the largest gap between an exact coefficient and its m/2^s form. search_error and heldout_error are root-mean-square errors over the two problem sets at the fixed cycle budget; heldout_error is the archive fitness. overflow_margin is 1 / max|state| observed at twice the nominal amplitude and must exceed 1.0, meaning a doubled signal still fits in <a href="methodology.html#q15">Q15</a> range.</p></div></details>
+<h3>Every per-problem error, by cost model</h3>
+<div class="scroll"><table><tr><th>problem</th><th>set</th><th class="num">m0plus_fast</th><th class="num">m0plus_fast share, percent</th><th class="num">m0plus_slow</th><th class="num">m0plus_slow share, percent</th><th class="num">avr_approx</th><th class="num">avr_approx share, percent</th></tr>
+<tr><td>dahlquist</td><td>search</td><td class="num">7.66704e-05</td><td class="num">0.0057</td><td class="num">7.66704e-05</td><td class="num">0.0057</td><td class="num">7.66704e-05</td><td class="num">0.00028</td></tr>
+<tr><td>damped_osc</td><td>search</td><td class="num">0.00186064</td><td class="num">3.38</td><td class="num">0.00186064</td><td class="num">3.38</td><td class="num">0.00832409</td><td class="num">3.35</td></tr>
+<tr><td>vanderpol_mild</td><td>search</td><td class="num">0.0099466</td><td class="num">96.61</td><td class="num">0.0099466</td><td class="num">96.61</td><td class="num">0.0447314</td><td class="num">96.65</td></tr>
+<tr><td>pendulum</td><td>held-out</td><td class="num">0.017539</td><td class="num">41.68</td><td class="num">0.017539</td><td class="num">41.68</td><td class="num">0.668237</td><td class="num">99.99</td></tr>
+<tr><td>dc_motor</td><td>held-out</td><td class="num">0.00866433</td><td class="num">10.17</td><td class="num">0.00866433</td><td class="num">10.17</td><td class="num">0.00218169</td><td class="num">0.0011</td></tr>
+<tr><td>rc_thermal</td><td>held-out</td><td class="num">0.0181358</td><td class="num">44.56</td><td class="num">0.0181358</td><td class="num">44.56</td><td class="num">0.00619791</td><td class="num">0.0086</td></tr>
+<tr><td>quaternion</td><td>held-out</td><td class="num">0.00514628</td><td class="num">3.59</td><td class="num">0.00514628</td><td class="num">3.59</td><td class="num">0.000311594</td><td class="num">2.2e-05</td></tr>
+<tr><td><strong>search_error</strong></td><td>search</td><td class="num">0.00584245</td><td class="num">set total</td><td class="num">0.00584245</td><td class="num">set total</td><td class="num">0.0262691</td><td class="num">set total</td></tr>
+<tr><td><strong>heldout_error</strong></td><td>held-out</td><td class="num">0.0135838</td><td class="num">set total</td><td class="num">0.0135838</td><td class="num">set total</td><td class="num">0.334135</td><td class="num">set total</td></tr>
+</table></div>
+<p class="note">Each cost model is scored by its own integration, so it has its own per-problem errors and its own two sums, and one share column would describe one of these three while mislabeling the other two. The set column says which total a row belongs to: within one cost model the search rows divide one sum of squares and the held-out rows divide another, and a share is the row's error squared over the sum for its own set. Each set adds to 100 before rounding, so a set printed to two decimals can read 99.99 or 100.01, and a share below a tenth of a percent prints to two significant figures instead so that a small contribution does not read as none. The two rows in bold are those sets' own root mean square values rather than members of a set, which is why they carry the words set total in place of a share; under m0plus_fast they are the record's own search_error and heldout_error, and the other two models store theirs under their own prefix. A row whose error is 0 carries none of its set's total and reads 0. A set holding an overflowed run has an infinite error and so has no usable total, and a set whose errors are all zero has nothing to divide by, so in both cases every share reads n/a rather than being spread over the rows that finished.</p>
+<footer>
+<p>rk-harness findings: Runge-Kutta integrators for a Cortex-M0+ microcontroller, with cycle counts from a model rather than from hardware.</p>
+<p class="prov">Generated from run data by the harness, with no human review. The container starts only if the fourteen pinned scoring files still match their hash, no page is written unless every page passes the banned-word check, and pages this site has retired are deleted on the same build. Human interpretation is at <a href="https://jgoetzmann.github.io/numeric-integration-methods-exploration/">the rk-overview site</a>.</p>
+<p class="prov">Built from rk-findings fdeca9757b4f, rk-harness 9102a747256e, rk-work 1f3214bad7dd: the commit each repository was at when this page was written.</p>
+</footer>
+</div>
+</body>
+</html>

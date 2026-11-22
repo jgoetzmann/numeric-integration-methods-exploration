@@ -37,6 +37,7 @@ each with its verdict, its limits and the files that show it.
 | [`analysis/`](analysis) | The scripts that compute the key findings from the run data. |
 | [`ml-2025/`](ml-2025) | The 2025 machine-learning project, and an audit note about its claims. |
 | [`site/`](site), [`data/`](data), [`docs/`](docs) | The site source, its snapshot of numbers, and the built site. |
+| [`docs/findings/`](docs/findings) | The final findings pages that the run wrote, frozen on 2026-11-10 ([live](https://jgoetzmann.github.io/numeric-integration-methods-exploration/findings/)). |
 
 The [final-archive release](https://github.com/jgoetzmann/numeric-integration-methods-exploration/releases/tag/final-archive)
 has the raw archive logs (1.3 GB), the final findings site, and the full git history of the five
@@ -61,7 +62,8 @@ To use the harness for a different search, read
 [harness/README.md](harness/README.md#using-it-for-another-search).
 
 To build the site: `python site/build.py`. To check it: `python -m pytest site` and
-`python site/ste_check.py`. The site text follows ASD-STE100 (Simplified Technical English).
+`python site/ste_check.py`. The site text follows the sentence rules of ASD-STE100
+(Simplified Technical English). The checker does not hold the STE dictionary.
 
 ## License
 

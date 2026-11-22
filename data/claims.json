@@ -1,5 +1,5 @@
 {
- "about": "Each claim about the two projects has a verdict, its limits and the files that show it. For the 2025 project, the original words stay next to each correction. The text follows ASD-STE100 (Simplified Technical English). The audit wrote the verdicts in September 2026.",
+ "about": "Each claim about the two projects has a verdict, its limits and the files that show it. For the 2025 project, the original words stay next to each correction. The text follows the sentence rules of ASD-STE100 (Simplified Technical English), but a machine did not check its words against the STE dictionary. The audit wrote the verdicts in September 2026.",
  "verdicts": {
   "supported": {
    "label": "True",

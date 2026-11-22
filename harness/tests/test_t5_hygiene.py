@@ -21,6 +21,12 @@ from pathlib import Path
 import pytest
 
 HARNESS = Path(__file__).resolve().parent.parent
+
+
+def _ci_path():
+    """ci.yml, or, since the 2026-11-21 merge, the copy at the root of the merged repository."""
+    p = HARNESS / ".github" / "workflows" / "ci.yml"
+    return p if p.exists() else HARNESS.parent / ".github" / "workflows" / "harness-ci.yml"
 WORKSPACE = HARNESS.parent
 SCRIPTS = HARNESS / "scripts"
 
@@ -84,7 +90,7 @@ def test_C32_the_golden_gate_expression_is_identical_in_entrypoint_and_ci():
     assert ok, detail
 
     ep = hygiene.gate_expressions((HARNESS / "entrypoint.sh").read_text(encoding="utf-8"))
-    ci = hygiene.gate_expressions((HARNESS / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
+    ci = hygiene.gate_expressions(_ci_path().read_text(encoding="utf-8"))
     assert len(ep) == 1 and len(ci) == 2
     assert ep[0] == ci[0] == ci[1]
     assert ep[0].startswith("G1_ or ") and ep[0].endswith(" or K2_")
@@ -94,7 +100,7 @@ def test_C32_the_golden_gate_expression_is_identical_in_entrypoint_and_ci():
     assert crlf == ep
 
     # A planted third variant is caught: one term dropped from one of the two ci.yml copies.
-    text = (HARNESS / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    text = _ci_path().read_text(encoding="utf-8")
     planted = text.replace("G28_ or K1_ or K2_", "G28_ or K1_", 1)
     assert planted != text
     variants = hygiene.gate_expressions(planted)
@@ -391,7 +397,7 @@ def test_C38c_the_evidence_job_expects_exactly_the_shard_matrix():
     Read out of ci.yml with a regex rather than a YAML parser: pyyaml is not a dependency of
     this project and the suite must not grow one to check a workflow file.
     """
-    ci = (HARNESS / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    ci = _ci_path().read_text(encoding="utf-8")
     include = ci.split("      matrix:", 1)[1].split("    name: suite (", 1)[0]
     matrix = re.findall(r"^\s+- name: (\S+)\s*$", include, re.M)
     assert len(matrix) == 5, matrix
