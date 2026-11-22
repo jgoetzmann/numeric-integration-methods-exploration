@@ -1,0 +1,1714 @@
+"""T1 spec tests: fixedpoint, coeffrep, tableau, costmodel.
+
+Every test name carries the SPEC ``## Behaviors`` ID it arbitrates. Fixtures are
+loaded by path from ``fixtures/`` and never regenerated. Tableaus are built three
+independent ways (``classical()``, ``make_tableau`` from the HANDOFF section 9.1
+coefficients, and a direct ``Tableau`` from the fixture JSON) so a broken loader
+cannot hide behind a broken constructor or vice versa.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import random
+from fractions import Fraction
+
+import pytest
+
+from rk_harness.paths import FIXTURES_DIR, PACKAGE_DIR
+from rk_harness.types import CoeffRep, CostModel, Q15Tableau, Tableau
+from rk_harness.fixedpoint import (
+    Q15_MAX,
+    Q15_MIN,
+    Q15OverflowError,
+    q15_add,
+    q15_apply,
+    q15_from_float,
+    q15_mul,
+    q15_to_float,
+)
+from rk_harness.coeffrep import (
+    csd_weight,
+    is_trivial,
+    quant_error,
+    rep_value,
+    tableau_csd_total,
+    tableau_quant_error,
+    to_rep,
+)
+from rk_harness.tableau import (
+    all_dyadic,
+    canonical,
+    classical,
+    content_hash,
+    from_json,
+    is_explicit,
+    make_tableau,
+    row_sums_consistent,
+    stages,
+    to_json,
+    to_q15,
+)
+from rk_harness.costmodel import (
+    AVR_APPROX,
+    COST_MODELS,
+    M0PLUS_FAST,
+    M0PLUS_SLOW,
+    coeff_cost,
+    count_sequence,
+    cycle_count,
+    emit_c,
+)
+
+F = Fraction
+
+# ---------------------------------------------------------------------------
+# Fixtures (inline, loaded by path)
+# ---------------------------------------------------------------------------
+
+_Q15_FIXTURE = json.loads((FIXTURES_DIR / "q15.json").read_text(encoding="utf-8"))
+_CLASSICAL_FIXTURE = json.loads((FIXTURES_DIR / "classical.json").read_text(encoding="utf-8"))
+
+CLASSICAL_NAMES = ("euler", "midpoint", "heun2", "ralston2", "heun3", "kutta3", "rk4", "rk38")
+
+_MUL_ROWS = _Q15_FIXTURE["mul"]
+_MUL_IDS = [f"F{i + 1}" for i in range(len(_MUL_ROWS))]
+
+_COEFFREP_ROWS = [
+    (key, row[0], row[1], row[2], row[3])
+    for key, row in _CLASSICAL_FIXTURE["_coeffrep"].items()
+    if not key.startswith("_")
+]
+
+_ANCHOR_ROWS = [
+    (name, int(n), model_name, cycles)
+    for name, per_n in _CLASSICAL_FIXTURE["_anchor_cycles"].items()
+    if not name.startswith("_")
+    for n, per_model in per_n.items()
+    for model_name, cycles in per_model.items()
+]
+
+
+def _tab(A, b, c) -> Tableau:
+    """Direct Tableau construction (bypasses make_tableau and classical())."""
+    return Tableau(
+        A=tuple(tuple(F(x) for x in row) for row in A),
+        b=tuple(F(x) for x in b),
+        c=tuple(F(x) for x in c),
+    )
+
+
+def _fixture_tableau(name: str) -> Tableau:
+    d = _CLASSICAL_FIXTURE[name]
+    return _tab(d["A"], d["b"], d["c"])
+
+
+def _inline_classical() -> dict[str, Tableau]:
+    """HANDOFF section 9.1 coefficients, exact, through make_tableau with Fractions."""
+    return {
+        "euler": make_tableau([[F(0)]], [F(1)], [F(0)]),
+        "midpoint": make_tableau([[F(0), F(0)], [F(1, 2), F(0)]], [F(0), F(1)], [F(0), F(1, 2)]),
+        "heun2": make_tableau([[F(0), F(0)], [F(1), F(0)]], [F(1, 2), F(1, 2)], [F(0), F(1)]),
+        "ralston2": make_tableau(
+            [[F(0), F(0)], [F(2, 3), F(0)]], [F(1, 4), F(3, 4)], [F(0), F(2, 3)]
+        ),
+        "kutta3": make_tableau(
+            [[F(0), F(0), F(0)], [F(1, 2), F(0), F(0)], [F(-1), F(2), F(0)]],
+            [F(1, 6), F(2, 3), F(1, 6)],
+            [F(0), F(1, 2), F(1)],
+        ),
+        "heun3": make_tableau(
+            [[F(0), F(0), F(0)], [F(1, 3), F(0), F(0)], [F(0), F(2, 3), F(0)]],
+            [F(1, 4), F(0), F(3, 4)],
+            [F(0), F(1, 3), F(2, 3)],
+        ),
+        "rk4": make_tableau(
+            [
+                [F(0), F(0), F(0), F(0)],
+                [F(1, 2), F(0), F(0), F(0)],
+                [F(0), F(1, 2), F(0), F(0)],
+                [F(0), F(0), F(1), F(0)],
+            ],
+            [F(1, 6), F(1, 3), F(1, 3), F(1, 6)],
+            [F(0), F(1, 2), F(1, 2), F(1)],
+        ),
+        "rk38": make_tableau(
+            [
+                [F(0), F(0), F(0), F(0)],
+                [F(1, 3), F(0), F(0), F(0)],
+                [F(-1, 3), F(1), F(0), F(0)],
+                [F(1), F(-1), F(1), F(0)],
+            ],
+            [F(1, 8), F(3, 8), F(3, 8), F(1, 8)],
+            [F(0), F(1, 3), F(2, 3), F(1)],
+        ),
+    }
+
+
+def _all_entries(t: Tableau):
+    for row in t.A:
+        yield from row
+    yield from t.b
+    yield from t.c
+
+
+# ===========================================================================
+# Fixed point
+# ===========================================================================
+
+
+@pytest.mark.parametrize("a,b,expected", _MUL_ROWS, ids=_MUL_IDS)
+def test_F1_F16_q15_mul_fixture_row(a, b, expected):
+    if isinstance(expected, str):
+        assert expected == "Q15OverflowError"
+        with pytest.raises(Q15OverflowError):
+            q15_mul(a, b)
+    else:
+        got = q15_mul(a, b)
+        assert got == expected
+        assert isinstance(got, int) and not isinstance(got, bool)
+        assert Q15_MIN <= got <= Q15_MAX
+
+
+def test_F16_last_fixture_row_is_the_overflow_row():
+    a, b, expected = _MUL_ROWS[-1]
+    assert (a, b, expected) == (-32768, -32768, "Q15OverflowError")
+    with pytest.raises(Q15OverflowError):
+        q15_mul(a, b)
+
+
+@pytest.mark.parametrize(
+    "row", _Q15_FIXTURE["floor_vs_trunc"], ids=lambda r: f"{r['a']}x{r['b']}"
+)
+def test_F17_floor_vs_trunc_rows_give_floor_result(row):
+    got = q15_mul(row["a"], row["b"])
+    assert got == row["floor"]
+    assert got == -1
+    assert got != row["trunc"]
+
+
+def test_F18_mul_min_times_min_raises():
+    assert Q15_MIN == -32768 and Q15_MAX == 32767
+    with pytest.raises(Q15OverflowError):
+        q15_mul(Q15_MIN, Q15_MIN)
+
+
+def test_F18_overflow_error_is_an_exception_subclass():
+    assert issubclass(Q15OverflowError, Exception)
+    with pytest.raises(Exception):
+        q15_mul(-32768, -32768)
+
+
+@pytest.mark.parametrize(
+    "a,b",
+    [(32768, 1), (1, 32768), (-32769, 1), (1, -32769), (65536, 0), (0, -65536)],
+)
+def test_F18_mul_out_of_range_inputs_raise(a, b):
+    with pytest.raises(Q15OverflowError):
+        q15_mul(a, b)
+
+
+def test_F18_mul_min_times_max_does_not_raise():
+    # The only raising pair is (-32768, -32768); its neighbour is fine.
+    assert q15_mul(-32768, 32767) == -32767
+    assert q15_mul(32767, -32768) == -32767
+
+
+@pytest.mark.parametrize("a,b", _Q15_FIXTURE["add_raises"], ids=["max+1", "min-1"])
+def test_F19_add_fixture_rows_raise(a, b):
+    with pytest.raises(Q15OverflowError):
+        q15_add(a, b)
+
+
+@pytest.mark.parametrize("a,b", [(32768, 0), (0, 32768), (-32769, 0), (0, -32769)])
+def test_F19_add_out_of_range_inputs_raise(a, b):
+    with pytest.raises(Q15OverflowError):
+        q15_add(a, b)
+
+
+@pytest.mark.parametrize("a,b", [(16384, 16384), (-16384, -16385), (32767, 32767), (-32768, -32768)])
+def test_F19_add_result_overflow_raises(a, b):
+    with pytest.raises(Q15OverflowError):
+        q15_add(a, b)
+
+
+def test_F19_add_in_range_boundaries_succeed():
+    assert q15_add(32767, 0) == 32767
+    assert q15_add(-32768, 0) == -32768
+    assert q15_add(16384, 16383) == 32767
+    assert q15_add(-16384, -16384) == -32768
+    assert q15_add(32767, -32768) == -1
+    assert q15_add(0, 0) == 0
+
+
+def test_F20_roundtrip_max_error_over_100k_samples():
+    rng = random.Random(0)
+    worst = 0.0
+    overflowed = 0
+    for _ in range(100_000):
+        x = rng.uniform(-1, 0.99999)
+        try:
+            q = q15_from_float(x)
+        except Q15OverflowError:
+            # Legitimate only when the scaled sample rounds past Q15_MAX (the
+            # spec's sampler can reach 0.99999 > 32767.5/32768). Anything else
+            # is a bug in q15_from_float. See spec-gaps note.
+            assert round(x * 32768) > Q15_MAX
+            overflowed += 1
+            continue
+        assert isinstance(q, int) and not isinstance(q, bool)
+        assert Q15_MIN <= q <= Q15_MAX
+        worst = max(worst, abs(x - q15_to_float(q)))
+    assert overflowed <= 10
+    assert worst <= _Q15_FIXTURE["roundtrip_max_error"]  # 1.526e-05
+    assert worst <= _Q15_FIXTURE["roundtrip_bound"]  # 3.052e-05
+    # The round-trip is lossy by construction; 100k samples fill the LSB.
+    assert worst >= 1.52e-05
+
+
+def test_F20_q15_to_float_exact_values():
+    assert q15_to_float(16384) == 0.5
+    assert q15_to_float(-32768) == -1.0
+    assert q15_to_float(32767) == 32767 / 32768.0
+    assert q15_to_float(0) == 0.0
+    assert q15_to_float(1) == 2.0 ** -15
+    assert isinstance(q15_to_float(1), float)
+
+
+def test_F21_mul_by_zero_is_zero_for_random_int16():
+    rng = random.Random(0)
+    for _ in range(1000):
+        x = rng.randint(Q15_MIN, Q15_MAX)
+        assert q15_mul(x, 0) == 0
+        assert q15_mul(0, x) == 0
+    assert q15_mul(Q15_MIN, 0) == 0
+    assert q15_mul(Q15_MAX, 0) == 0
+
+
+def test_B1_from_float_values():
+    assert q15_from_float(-1.0) == -32768
+    assert q15_from_float(0.5) == 16384
+    assert q15_from_float(0.0) == 0
+    assert q15_from_float(-0.5) == -16384
+    assert q15_from_float(0.25) == 8192
+    assert q15_from_float(32767 / 32768) == 32767
+    got = q15_from_float(0.5)
+    assert isinstance(got, int) and not isinstance(got, bool)
+
+
+def test_B1_from_float_rounds_half_to_even():
+    # x*32768 is exact in float64 for these dyadic inputs.
+    assert q15_from_float(1.5 / 32768) == 2
+    assert q15_from_float(2.5 / 32768) == 2
+    assert q15_from_float(0.5 / 32768) == 0
+    assert q15_from_float(-0.5 / 32768) == 0
+    assert q15_from_float(-1.5 / 32768) == -2
+    assert q15_from_float(-2.5 / 32768) == -2
+    # -32768.5 rounds half-to-even to -32768, which is in range.
+    assert q15_from_float(-32768.5 / 32768) == -32768
+
+
+@pytest.mark.parametrize(
+    "x",
+    [
+        1.0,
+        2.0,
+        -2.0,
+        float("nan"),
+        float("inf"),
+        float("-inf"),
+        32767.5 / 32768,  # rounds half-to-even to 32768: out of range
+        -1.0 - 2.0 ** -15,  # -32769
+        1e300,
+        -1e300,
+    ],
+)
+def test_B1_from_float_raises_out_of_range_or_non_finite(x):
+    with pytest.raises(Q15OverflowError):
+        q15_from_float(x)
+
+
+def test_B2_apply_values():
+    assert q15_apply(16384, 3, 2) == 12288
+    assert q15_apply(16384, -3, 2) == -12288
+    assert q15_apply(32767, 1, 0) == 32767
+    assert q15_apply(-32768, 1, 0) == -32768
+    assert q15_apply(0, 32767, 0) == 0
+    assert q15_apply(1, 1, 1) == 0
+    assert q15_apply(8192, 21845, 16) == 2730  # 1/4 * ~1/3, floored
+    got = q15_apply(16384, 3, 2)
+    assert isinstance(got, int) and not isinstance(got, bool)
+
+
+def test_B2_apply_floors_toward_negative_infinity():
+    assert q15_apply(-1, 1, 1) == -1
+    assert q15_apply(-3, 5, 4) == -1  # -15 >> 4
+    assert q15_apply(-8192, 21845, 16) == -2731  # floor(-2730.625)
+    assert q15_apply(-1, 1, 15) == -1
+
+
+@pytest.mark.parametrize(
+    "v,m,s",
+    [(32767, 2, 0), (-32768, 2, 0), (-32768, -1, 0), (16384, 32767, 0), (32767, 3, 1)],
+)
+def test_B2_apply_raises_when_result_leaves_int16(v, m, s):
+    with pytest.raises(Q15OverflowError):
+        q15_apply(v, m, s)
+
+
+# ===========================================================================
+# Coefficient representation
+# ===========================================================================
+
+
+@pytest.mark.parametrize("key,m,s,exact,w", _COEFFREP_ROWS, ids=[r[0] for r in _COEFFREP_ROWS])
+def test_G24_to_rep_fixture_rows(key, m, s, exact, w):
+    r = to_rep(F(key))
+    assert isinstance(r, CoeffRep)
+    assert (r.m, r.s, r.exact, r.csd_weight) == (m, s, exact, w)
+    assert r == CoeffRep(m, s, exact, w)
+
+
+@pytest.mark.parametrize("key,m,s,exact,w", _COEFFREP_ROWS, ids=[r[0] for r in _COEFFREP_ROWS])
+def test_G24_rep_value_and_quant_error_agree_with_fixture_rows(key, m, s, exact, w):
+    x = F(key)
+    r = to_rep(x)
+    assert rep_value(r) == F(m, 2 ** s)
+    assert isinstance(rep_value(r), Fraction)
+    expected_err = abs(float(x - F(m, 2 ** s)))
+    assert abs(quant_error(x) - expected_err) <= 1e-15
+    if exact:
+        assert rep_value(r) == x
+        assert quant_error(x) == 0.0
+    else:
+        assert rep_value(r) != x
+        assert quant_error(x) > 0.0
+
+
+@pytest.mark.parametrize("key", ["1/3", "1/6", "2/3", "-1/3"])
+def test_G24_thirds_are_inexact_with_weight_8(key):
+    r = to_rep(F(key))
+    assert r.exact is False
+    assert abs(r.m) == 21845
+    assert r.csd_weight == 8
+    assert quant_error(F(key)) > 0.0
+
+
+def test_G24_fixture_has_eleven_coeffrep_rows():
+    assert len(_COEFFREP_ROWS) == 11
+
+
+def test_G25_csd_weight_of_3_and_of_3_over_8_scaled():
+    assert csd_weight(3) == 2
+    assert csd_weight(int(3 / 8 * 2 ** 3)) == 2
+
+
+@pytest.mark.parametrize(
+    "m,w",
+    [
+        (21845, 8),
+        (0, 0),
+        (-7, 2),
+        (1, 1),
+        (2, 1),
+        (-1, 1),
+        (5, 2),
+        (6, 2),
+        (7, 2),
+        (15, 2),
+        (16385, 2),
+        (32767, 2),
+        (-32767, 2),
+        (1024, 1),
+        (-21845, 8),
+    ],
+)
+def test_B3_csd_weight_values(m, w):
+    got = csd_weight(m)
+    assert got == w
+    assert isinstance(got, int) and not isinstance(got, bool)
+
+
+def test_B3_csd_weight_is_sign_symmetric_and_never_exceeds_popcount():
+    rng = random.Random(0)
+    for _ in range(500):
+        m = rng.randint(-32767, 32767)
+        assert csd_weight(m) == csd_weight(-m)
+        assert csd_weight(m) <= bin(abs(m)).count("1")
+        assert csd_weight(m) >= (1 if m else 0)
+    for k in range(0, 15):
+        assert csd_weight(2 ** k) == 1
+    for k in range(2, 15):
+        assert csd_weight(2 ** k - 1) == 2
+
+
+def test_B4_to_rep_clamps_large_value_to_m_max():
+    r = to_rep(F(40000))
+    assert r.m == 32767
+    assert r.exact is False
+    assert r.s == 0
+    assert r.csd_weight == csd_weight(32767)
+
+
+def test_B4_to_rep_negative_large_value_clamps_symmetrically():
+    r = to_rep(F(-40000))
+    assert r.m == -32767
+    assert r.exact is False
+    assert r.s == 0
+
+
+def test_B4_to_rep_32768_is_just_outside_m_max():
+    r = to_rep(F(32768))
+    assert r.exact is False
+    assert r.m == 32767
+    assert r.s == 0
+    r2 = to_rep(F(32767))
+    assert r2 == CoeffRep(32767, 0, True, 2)
+
+
+def test_B4_to_rep_tiny_value_underflows_to_zero_inexact():
+    r = to_rep(F(1, 2 ** 21))
+    assert r.m == 0
+    assert r.exact is False
+    assert r.csd_weight == 0
+    assert rep_value(r) == 0
+
+
+def test_B4_to_rep_zero_is_exact():
+    r = to_rep(F(0))
+    assert r == CoeffRep(0, 0, True, 0)
+    assert (r.m, r.s, r.exact, r.csd_weight) == (0, 0, True, 0)
+
+
+def test_B4_to_rep_exact_at_smallest_shift():
+    assert to_rep(F(4)) == CoeffRep(4, 0, True, 1)
+    assert to_rep(F(3, 2)) == CoeffRep(3, 1, True, 2)
+    assert to_rep(F(1, 2 ** 20)) == CoeffRep(1, 20, True, 1)
+    assert to_rep(F(-3, 8)) == CoeffRep(-3, 3, True, 2)
+    assert to_rep(F(16385, 32768)) == CoeffRep(16385, 15, True, 2)
+
+
+def test_B4_to_rep_keyword_s_max_limits_the_search_and_ties_go_to_smaller_s():
+    # 1/3 with s <= 2: errors 1/3, 1/6, 1/12 -> s = 2, m = 1
+    assert to_rep(F(1, 3), s_max=2) == CoeffRep(1, 2, False, 1)
+    # 3/8 with s <= 2: s=1 -> 1/2 (err 1/8), s=2 -> round(3/2)=2 -> 1/2 (err 1/8); tie -> s = 1
+    assert to_rep(F(3, 8), s_max=2) == CoeffRep(1, 1, False, 1)
+
+
+def test_B4_to_rep_keyword_m_max_clamps():
+    r = to_rep(F(5), m_max=4)
+    assert r == CoeffRep(4, 0, False, 1)
+
+
+def test_B4_to_rep_never_raises_and_stays_in_bounds_on_random_fractions():
+    rng = random.Random(0)
+    samples = [F(rng.randint(-100_000, 100_000), rng.randint(1, 100_000)) for _ in range(300)]
+    samples += [F(10 ** 12), F(-(10 ** 12)), F(1, 10 ** 12), F(-1, 10 ** 12), F(32767), F(-32767)]
+    for x in samples:
+        r = to_rep(x)
+        assert isinstance(r, CoeffRep)
+        assert -32767 <= r.m <= 32767
+        assert 0 <= r.s <= 20
+        assert r.csd_weight == csd_weight(r.m)
+        assert r.exact == (rep_value(r) == x)
+        assert isinstance(quant_error(x), float)
+        assert quant_error(x) >= 0.0
+
+
+@pytest.mark.parametrize("name", CLASSICAL_NAMES)
+def test_B5_classical_csd_total_and_quant_error_match_fixture(name):
+    fx = _CLASSICAL_FIXTURE[name]
+    t = classical()[name]
+    total = tableau_csd_total(t)
+    assert isinstance(total, int) and not isinstance(total, bool)
+    assert total == fx["csd_total"]
+    qe = tableau_quant_error(t)
+    assert isinstance(qe, float)
+    assert abs(qe - fx["quant_err"]) <= 1e-8
+
+
+def test_B5_exact_tableaus_have_quant_error_exactly_zero():
+    cl = classical()
+    for name in ("euler", "midpoint", "heun2"):
+        assert tableau_quant_error(cl[name]) == 0.0
+    t = _tab([[0, 0], ["1/2", 0]], ["3/8", "5/8"], [0, "1/2"])
+    assert tableau_quant_error(t) == 0.0
+    # 1/2 (w1) + 3/8 (w2) + 5/8 (w2: 101 -> 8 - 3 = weight 2) = 5; c excluded
+    assert tableau_csd_total(t) == 5
+
+
+def test_B5_c_is_excluded_from_csd_total_and_quant_error():
+    # Same A and b, wildly different c: c contributes nothing.
+    t1 = _tab([[0, 0], ["1/2", 0]], ["1/2", "1/2"], [0, "1/2"])
+    t2 = _tab([[0, 0], ["1/2", 0]], ["1/2", "1/2"], ["1/3", "2/3"])
+    assert tableau_csd_total(t1) == tableau_csd_total(t2) == 3
+    assert tableau_quant_error(t1) == tableau_quant_error(t2) == 0.0
+
+
+def test_B5_is_trivial_only_for_zero_and_plus_minus_one():
+    for x in (F(0), F(1), F(-1)):
+        assert is_trivial(x) is True
+    for x in (F(2), F(-2), F(1, 2), F(-1, 2), F(3, 8), F(1, 3), F(32767)):
+        assert is_trivial(x) is False
+
+
+def test_B5_named_quant_errors():
+    assert abs(quant_error(F(1, 3)) - 5.086e-06) <= 1e-8
+    assert abs(quant_error(F(1, 6)) - 2.543e-06) <= 1e-8
+    assert abs(quant_error(F(2, 3)) - 1.017e-05) <= 1e-8
+    assert quant_error(F(1, 2)) == 0.0
+    assert quant_error(F(2)) == 0.0
+    assert quant_error(F(0)) == 0.0
+
+
+# ===========================================================================
+# Tableau
+# ===========================================================================
+
+
+def test_B6_content_hash_is_64_lowercase_hex_and_stable():
+    cl = classical()
+    h1 = content_hash(cl["rk4"])
+    h2 = content_hash(cl["rk4"])
+    assert isinstance(h1, str)
+    assert len(h1) == 64
+    assert h1 == h1.lower()
+    assert all(ch in "0123456789abcdef" for ch in h1)
+    assert h1 == h2
+    assert h1 == content_hash(_inline_classical()["rk4"])
+    assert h1 == content_hash(_fixture_tableau("rk4"))
+
+
+def test_B6_content_hash_differs_between_rk4_and_rk38_and_when_only_c_differs():
+    cl = classical()
+    assert content_hash(cl["rk4"]) != content_hash(cl["rk38"])
+    rk4 = cl["rk4"]
+    c_changed = Tableau(A=rk4.A, b=rk4.b, c=(rk4.c[0], F(1, 3), rk4.c[2], rk4.c[3]))
+    assert content_hash(c_changed) != content_hash(rk4)
+    assert canonical(c_changed) != canonical(rk4)
+    hashes = {content_hash(t) for t in cl.values()}
+    assert len(hashes) == 8
+
+
+def test_B6_canonical_euler_literal():
+    assert canonical(classical()["euler"]) == '{"A":[["0/1"]],"b":["1/1"],"c":["0/1"]}'
+    assert canonical(_tab([[0]], [1], [0])) == '{"A":[["0/1"]],"b":["1/1"],"c":["0/1"]}'
+
+
+@pytest.mark.parametrize("name", CLASSICAL_NAMES)
+def test_B6_canonical_matches_handoff_4_11_formula_and_hash_is_sha256(name):
+    t = classical()[name]
+    expected = json.dumps(
+        {
+            "A": [[f"{x.numerator}/{x.denominator}" for x in row] for row in t.A],
+            "b": [f"{x.numerator}/{x.denominator}" for x in t.b],
+            "c": [f"{x.numerator}/{x.denominator}" for x in t.c],
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    assert canonical(t) == expected
+    assert content_hash(t) == hashlib.sha256(expected.encode("utf-8")).hexdigest()
+
+
+def test_B6_canonical_kutta3_renders_negative_and_integer_entries():
+    s = canonical(classical()["kutta3"])
+    assert '"-1/1"' in s
+    assert '"2/1"' in s
+    assert '"1/6"' in s
+    assert " " not in s
+
+
+def test_B7_make_tableau_defaults_c_to_row_sums():
+    t = make_tableau([[0, 0], ["1/2", 0]], [0, 1])
+    assert isinstance(t, Tableau)
+    assert t.c == (F(0), F(1, 2))
+    assert t.A == ((F(0), F(0)), (F(1, 2), F(0)))
+    assert t.b == (F(0), F(1))
+    assert isinstance(t.A, tuple) and all(isinstance(row, tuple) for row in t.A)
+    assert isinstance(t.b, tuple) and isinstance(t.c, tuple)
+    for x in _all_entries(t):
+        assert isinstance(x, Fraction)
+    assert t == classical()["midpoint"]
+
+
+def test_B7_make_tableau_honours_explicit_c_and_mixed_entry_forms():
+    t = make_tableau([[0, 0, 0], ["1/2", 0, 0], [-1, "2", 0]], [F(1, 6), "2/3", "1/6"], [0, "1/2", 1])
+    assert t == classical()["kutta3"]
+    ovf = make_tableau([[0, 0], [100, 0]], [1, 0], [0, 100])
+    assert ovf.c == (F(0), F(100))
+    assert ovf.A[1][0] == F(100)
+    neg = make_tableau([[0, 0], ["-1/3", 0]], ["1", "0"])
+    assert neg.A[1][0] == F(-1, 3)
+    assert neg.c == (F(0), F(-1, 3))
+    assert neg.b == (F(1), F(0))
+
+
+@pytest.mark.parametrize(
+    "A,b,c",
+    [
+        ([[0, 0], [0.5, 0]], [0, 1], None),
+        ([[0, 0], [1, 0]], [0.5, 0.5], None),
+        ([[0, 0], [1, 0]], [0, 1], [0, 1.0]),
+        ([[0.0]], [1], [0]),
+    ],
+    ids=["float-in-A", "float-in-b", "float-in-c", "float-zero-in-A"],
+)
+def test_B7_make_tableau_float_entry_raises_TypeError(A, b, c):
+    with pytest.raises(TypeError):
+        if c is None:
+            make_tableau(A, b)
+        else:
+            make_tableau(A, b, c)
+
+
+@pytest.mark.parametrize("name", CLASSICAL_NAMES)
+def test_B7_json_roundtrip_all_classical(name):
+    t = classical()[name]
+    d = to_json(t)
+    assert isinstance(d, dict)
+    assert set(d.keys()) == {"A", "b", "c"}
+    assert from_json(d) == t
+    assert from_json(json.loads(json.dumps(d))) == t
+    # to_json uses the same strings as canonical
+    assert json.dumps(d, sort_keys=True, separators=(",", ":")) == canonical(t)
+
+
+def test_B7_to_json_shape_euler():
+    assert to_json(classical()["euler"]) == {"A": [["0/1"]], "b": ["1/1"], "c": ["0/1"]}
+    d = to_json(classical()["rk4"])
+    assert d["b"] == ["1/6", "1/3", "1/3", "1/6"]
+    assert d["c"] == ["0/1", "1/2", "1/2", "1/1"]
+    assert d["A"][3] == ["0/1", "0/1", "1/1", "0/1"]
+
+
+def test_B7_from_json_accepts_short_strings_ints_and_fractions():
+    d = {"A": [["0", 0], ["1", F(0)]], "b": ["1/2", F(1, 2)], "c": [0, "1"]}
+    t = from_json(d)
+    assert t == classical()["heun2"]
+    for x in _all_entries(t):
+        assert isinstance(x, Fraction)
+    d2 = {"A": [["0", "0"], ["-1/3", "0"]], "b": ["1", "0"], "c": ["0", "-1/3"]}
+    assert from_json(d2).A[1][0] == F(-1, 3)
+
+
+@pytest.mark.parametrize("name", CLASSICAL_NAMES)
+def test_B7_from_json_of_fixture_entry_equals_classical(name):
+    fx = _CLASSICAL_FIXTURE[name]
+    t = from_json({"A": fx["A"], "b": fx["b"], "c": fx["c"]})
+    assert t == classical()[name]
+    assert t == _fixture_tableau(name)
+
+
+def test_B8_classical_has_exactly_eight_named_entries():
+    cl = classical()
+    assert isinstance(cl, dict)
+    assert len(cl) == 8
+    assert set(cl.keys()) == set(CLASSICAL_NAMES)
+    assert not any(k.startswith("_") for k in cl)
+    for t in cl.values():
+        assert isinstance(t, Tableau)
+        for x in _all_entries(t):
+            assert isinstance(x, Fraction)
+
+
+@pytest.mark.parametrize("name", CLASSICAL_NAMES)
+def test_B8_classical_predicates_match_fixture(name):
+    fx = _CLASSICAL_FIXTURE[name]
+    t = classical()[name]
+    assert stages(t) == fx["stages"]
+    assert row_sums_consistent(t) is True
+    assert is_explicit(t) is True
+    assert all_dyadic(t) is fx["all_dyadic"]
+    assert fx["row_sums_ok"] is True
+
+
+@pytest.mark.parametrize("name", CLASSICAL_NAMES)
+def test_B8_classical_equals_inline_handoff_and_fixture_constructions(name):
+    loaded = classical()[name]
+    inline = _inline_classical()[name]
+    direct = _fixture_tableau(name)
+    assert loaded == inline
+    assert loaded == direct
+    assert inline == direct
+
+
+def test_B8_all_dyadic_known_answers():
+    cl = classical()
+    assert all_dyadic(cl["midpoint"]) is True
+    assert all_dyadic(cl["heun2"]) is True
+    assert all_dyadic(cl["euler"]) is True
+    assert all_dyadic(cl["rk4"]) is False
+    assert all_dyadic(cl["rk38"]) is False
+    assert all_dyadic(cl["ralston2"]) is False
+    assert all_dyadic(_tab([[0, 0], ["3/8", 0]], ["5/8", "3/8"], [0, "3/8"])) is True
+    assert all_dyadic(_tab([[0, 0], ["1/2", 0]], ["1/2", "1/2"], [0, "1/3"])) is False  # c counts
+    assert all_dyadic(_tab([[0, 0], ["1/2", 0]], ["1/3", "2/3"], [0, "1/2"])) is False  # b counts
+    assert all_dyadic(_tab([[0, 0], ["1/5", 0]], ["1/2", "1/2"], [0, "1/5"])) is False  # A counts
+
+
+def test_B8_row_sums_inconsistent_detected():
+    rk4 = classical()["rk4"]
+    bad = Tableau(A=rk4.A, b=rk4.b, c=(rk4.c[0], F(1, 3), rk4.c[2], rk4.c[3]))
+    assert row_sums_consistent(bad) is False
+    ovf_bad_c = _tab([[0, 0], [100, 0]], [1, 0], [0, 99])
+    assert row_sums_consistent(ovf_bad_c) is False
+    ovf = _tab([[0, 0], [100, 0]], [1, 0], [0, 100])
+    assert row_sums_consistent(ovf) is True
+
+
+def test_B8_row_sums_consistent_rejects_length_mismatch_and_non_square():
+    A = ((F(0), F(0)), (F(1), F(0)))
+    assert row_sums_consistent(Tableau(A=A, b=(F(1),), c=(F(0), F(1)))) is False
+    assert row_sums_consistent(Tableau(A=A, b=(F(1, 2), F(1, 2)), c=(F(0),))) is False
+    non_square = ((F(0), F(0)), (F(1), F(0)), (F(0), F(0)))
+    assert row_sums_consistent(Tableau(A=non_square, b=(F(1), F(0), F(0)), c=(F(0), F(1), F(0)))) is False
+
+
+@pytest.mark.parametrize(
+    "A",
+    [
+        [[0, "1/2"], [0, 0]],  # above diagonal
+        [["1/2", 0], [0, 0]],  # on diagonal
+        [[0, 0], [1, "1/2"]],  # on diagonal, last row
+        [[0, 0, "1/8"], ["1/2", 0, 0], [0, "1/2", 0]],  # far above diagonal
+    ],
+    ids=["above", "diag0", "diag1", "far-above"],
+)
+def test_B8_not_explicit_detected(A):
+    n = len(A)
+    t = _tab(A, [1] + [0] * (n - 1), [sum(F(x) for x in row) for row in A])
+    assert is_explicit(t) is False
+
+
+def test_B8_is_explicit_false_for_non_square_A():
+    non_square = ((F(0), F(0)), (F(1), F(0)), (F(0), F(0)))
+    t = Tableau(A=non_square, b=(F(1), F(0), F(0)), c=(F(0), F(1), F(0)))
+    assert is_explicit(t) is False
+    wide = ((F(0), F(0), F(0)), (F(1), F(0), F(0)))
+    t2 = Tableau(A=wide, b=(F(1), F(0)), c=(F(0), F(1)))
+    assert is_explicit(t2) is False
+
+
+def test_B8_stages_counts_rows():
+    cl = classical()
+    assert stages(cl["euler"]) == 1
+    assert stages(cl["heun2"]) == 2
+    assert stages(cl["kutta3"]) == 3
+    assert stages(cl["rk4"]) == 4
+    assert stages(_tab([[0] * 6 for _ in range(6)], [1, 0, 0, 0, 0, 0], [0] * 6)) == 6
+
+
+def test_B9_to_q15_exact_true_for_a_fully_representable_tableau():
+    t = _tab([[0, 0], ["1/2", 0]], ["1/4", "3/4"], [0, "1/2"])
+    q = to_q15(t)
+    assert isinstance(q, Q15Tableau)
+    assert q.exact is True
+    assert q.A == ((0, 0), (16384, 0))
+    assert q.b == (8192, 24576)
+    assert q.c == (0, 16384)
+    for row in q.A:
+        for v in row:
+            assert isinstance(v, int) and not isinstance(v, bool)
+
+
+def test_B9_to_q15_rk4_is_not_exact_and_rounds_half_to_even():
+    q = to_q15(classical()["rk4"])
+    assert q.exact is False
+    assert q.A[1][0] == 16384
+    assert q.A[2][1] == 16384
+    assert q.b[0] == 5461  # round(32768/6 = 5461.33)
+    assert q.b[1] == 10923  # round(32768/3 = 10922.67)
+    assert q.b == (5461, 10923, 10923, 5461)
+    assert q.c[1] == 16384
+
+
+def test_B9_to_q15_kutta3_clamps_two_to_int16_max():
+    q = to_q15(classical()["kutta3"])
+    assert q.A[2][1] == 32767
+    assert q.A[2][0] == -32768
+    assert q.A[1][0] == 16384
+    assert q.exact is False
+    assert all(Q15_MIN <= v <= Q15_MAX for row in q.A for v in row)
+    assert all(Q15_MIN <= v <= Q15_MAX for v in q.b)
+    assert all(Q15_MIN <= v <= Q15_MAX for v in q.c)
+
+
+def test_B9_to_q15_clamps_one_and_large_negative_values():
+    q = to_q15(classical()["heun2"])
+    assert q.A[1][0] == 32767  # 1 * 32768 clamped
+    assert q.b == (16384, 16384)
+    big = _tab([[0, 0], [100, 0]], [1, 0], [0, 100])
+    qb = to_q15(big)
+    assert qb.A[1][0] == 32767
+    assert qb.c[1] == 32767
+    assert qb.exact is False
+    neg = _tab([[0, 0], [-100, 0]], [1, 0], [0, -100])
+    qn = to_q15(neg)
+    assert qn.A[1][0] == -32768
+    assert qn.exact is False
+
+
+def test_B9_to_q15_third_is_inexact():
+    t = _tab([[0, 0], ["1/3", 0]], ["1/2", "1/2"], [0, "1/3"])
+    q = to_q15(t)
+    assert q.exact is False
+    assert q.A[1][0] == 10923
+
+
+# ===========================================================================
+# Cost model
+# ===========================================================================
+
+
+def _known_sequence_lines() -> list[str]:
+    return (FIXTURES_DIR / "known_sequence.s").read_text().splitlines()
+
+
+def test_C1_count_sequence_known_sequence_fast_and_slow():
+    lines = _known_sequence_lines()
+    assert len(lines) == 10
+    fast = count_sequence(lines, M0PLUS_FAST)
+    slow = count_sequence(lines, M0PLUS_SLOW)
+    assert fast == 13
+    assert slow == 75
+    assert isinstance(fast, int) and not isinstance(fast, bool)
+    assert isinstance(slow, int) and not isinstance(slow, bool)
+
+
+def test_C1_count_sequence_known_sequence_avr_from_mapping():
+    # 2 LDR (2 each) + 2 MULS (14) + 2 ASRS (8) + ADDS (2) + LSLS (8) + SUBS (2) + STR (2)
+    assert count_sequence(_known_sequence_lines(), AVR_APPROX) == 62
+
+
+def test_C2_rk4_slow_strictly_greater_than_fast():
+    # D45: no coefficient rk4 uses is in the compiler's MULS set, so the two
+    # M0+ models agree on rk4. They differ exactly where GCC multiplies, e.g.
+    # the 43/64 tableau below (fast 3, slow 34 per coefficient application).
+    rk4 = classical()["rk4"]
+    assert cycle_count(rk4, M0PLUS_SLOW, 1) == cycle_count(rk4, M0PLUS_FAST, 1)
+    inline = _inline_classical()["rk4"]
+    assert cycle_count(inline, M0PLUS_SLOW, 1) == cycle_count(inline, M0PLUS_FAST, 1)
+    muls = _tab([[F(0)], [F(43, 64)]], [F(0), F(1)], [F(0), F(43, 64)])
+    assert cycle_count(muls, M0PLUS_SLOW, 1) > cycle_count(muls, M0PLUS_FAST, 1)
+
+
+def test_C2_cost_model_constants_and_registry():
+    assert isinstance(M0PLUS_FAST, CostModel)
+    assert M0PLUS_FAST == CostModel("m0plus_fast", {"mul": 1, "add": 1, "shift": 1, "load": 2, "store": 2})
+    assert M0PLUS_SLOW == CostModel("m0plus_slow", {"mul": 32, "add": 1, "shift": 1, "load": 2, "store": 2})
+    assert AVR_APPROX == CostModel("avr_approx", {"mul": 14, "add": 2, "shift": 8, "load": 2, "store": 2})
+    assert set(COST_MODELS.keys()) == {"m0plus_fast", "m0plus_slow", "avr_approx"}
+    assert COST_MODELS["m0plus_fast"] == M0PLUS_FAST
+    assert COST_MODELS["m0plus_slow"] == M0PLUS_SLOW
+    assert COST_MODELS["avr_approx"] == AVR_APPROX
+    for name, model in COST_MODELS.items():
+        assert model.name == name
+
+
+def test_C3_low_csd_weight_is_strictly_cheaper_under_slow_model():
+    assert coeff_cost(F(1, 2), M0PLUS_SLOW) < coeff_cost(F(43, 64), M0PLUS_SLOW)
+    assert coeff_cost(F(1, 2), M0PLUS_FAST) < coeff_cost(F(43, 64), M0PLUS_FAST)
+    # The thesis under D45: the models differ exactly where the compiler
+    # multiplies. 43/64 is movs+muls+asrs (fast 3, slow 34); 1/2 is one
+    # shift in both models, and 1/3 is shift-add in both.
+    assert coeff_cost(F(43, 64), M0PLUS_FAST) == 3
+    assert coeff_cost(F(43, 64), M0PLUS_SLOW) == 34
+    assert coeff_cost(F(1, 2), M0PLUS_SLOW) == coeff_cost(F(1, 2), M0PLUS_FAST)
+
+
+_COEFF_OPS = None
+
+
+def _coeff_ops():
+    global _COEFF_OPS
+    if _COEFF_OPS is None:
+        doc = json.loads((FIXTURES_DIR / "m0plus_coeff_ops.json").read_text(encoding="utf-8"))
+        tuples = [tuple(t) for t in doc["tuples"]]
+        _COEFF_OPS = {
+            key: [None if i is None else tuples[i] for i in doc[key]]
+            for key in ("shifted", "unshifted")
+        }
+    return _COEFF_OPS
+
+
+def _price_from_pinned_fixture(x, model):
+    """Independent derivation of the D45 price straight from the fixture file."""
+    ops = _coeff_ops()
+    r = to_rep(F(x))
+    if x == 0 or x == 1 or x == -1 or r.m == 0 or (r.s == 0 and abs(r.m) == 1):
+        return 0
+    key = "shifted" if r.s > 0 else "unshifted"
+    entry = ops[key][r.m + 32767]
+    assert entry is not None
+    mul, shift, add, load = entry
+    cyc = model.cycles
+    return mul * cyc["mul"] + shift * cyc["shift"] + add * cyc["add"] + load * cyc["load"]
+
+
+@pytest.mark.parametrize(
+    "x,model,expected",
+    [
+        (F(1, 2), M0PLUS_SLOW, 1),
+        (F(1, 2), M0PLUS_FAST, 1),
+        (F(1, 2), AVR_APPROX, 8),
+        (F(43, 64), M0PLUS_FAST, 3),
+        (F(43, 64), M0PLUS_SLOW, 34),
+        (F(16385, 32768), M0PLUS_SLOW, 3),
+        (F(16385, 32768), M0PLUS_FAST, 3),
+        (F(16385, 32768), AVR_APPROX, 18),
+        (F(3, 8), M0PLUS_SLOW, 3),
+        (F(3, 8), M0PLUS_FAST, 3),
+        (F(3, 8), AVR_APPROX, 18),
+        (F(3, 4), M0PLUS_SLOW, 3),
+        (F(1, 3), M0PLUS_SLOW, 7),
+        (F(1, 3), M0PLUS_FAST, 7),
+        (F(1, 3), AVR_APPROX, 22),
+        (F(-1, 3), M0PLUS_SLOW, 8),
+        (F(-1, 3), M0PLUS_FAST, 8),
+        (F(1, 6), M0PLUS_SLOW, 7),
+        (F(2, 3), M0PLUS_SLOW, 7),
+        (F(2), M0PLUS_SLOW, 1),
+        (F(2), M0PLUS_FAST, 1),
+        (F(2), AVR_APPROX, 8),
+        (F(1, 8), M0PLUS_SLOW, 1),
+    ],
+    ids=lambda v: (v.name if isinstance(v, CostModel) else str(v)),
+)
+def test_C3_coeff_cost_follows_the_pinned_table(x, model, expected):
+    # Every M0+ row is taken from fixtures/m0plus_coeff_ops.json: the pinned
+    # literal must equal the price derived straight from the fixture file, and
+    # the showcase rows match the lab disassembly sequences (headlines.json).
+    # AVR rows keep the min(csd, mul) rule, unchanged by D45.
+    got = coeff_cost(x, model)
+    assert got == expected
+    assert isinstance(got, int) and not isinstance(got, bool)
+    if model.name in ("m0plus_fast", "m0plus_slow"):
+        assert got == _price_from_pinned_fixture(x, model)
+
+
+@pytest.mark.parametrize("model", [M0PLUS_FAST, M0PLUS_SLOW, AVR_APPROX], ids=lambda m: m.name)
+def test_C4_zero_coefficient_costs_nothing(model):
+    assert coeff_cost(F(0), model) == 0
+
+
+@pytest.mark.parametrize("model", [M0PLUS_FAST, M0PLUS_SLOW, AVR_APPROX], ids=lambda m: m.name)
+@pytest.mark.parametrize("x", [F(1), F(-1)], ids=["+1", "-1"])
+def test_C5_unit_coefficient_costs_nothing(x, model):
+    assert coeff_cost(x, model) == 0
+
+
+def test_C6_cycle_count_is_deterministic():
+    cl = classical()
+    for name in CLASSICAL_NAMES:
+        for model in (M0PLUS_FAST, M0PLUS_SLOW, AVR_APPROX):
+            first = cycle_count(cl[name], model, 1)
+            second = cycle_count(cl[name], model, 1)
+            assert first == second
+    rk4 = cl["rk4"]
+    assert cycle_count(rk4, M0PLUS_SLOW, 3) == cycle_count(rk4, M0PLUS_SLOW, 3)
+
+
+def test_C7_rk38_cheaper_than_rk4_under_slow_model():
+    cl = classical()
+    slow_rk38 = cycle_count(cl["rk38"], M0PLUS_SLOW, 1)
+    slow_rk4 = cycle_count(cl["rk4"], M0PLUS_SLOW, 1)
+    assert slow_rk38 == 49
+    assert slow_rk4 == 53
+    assert slow_rk38 < slow_rk4
+
+
+def test_C7c_rk38_cheaper_than_rk4_under_both_models_as_traced():
+    # D45 retires the C7b reversal: under the pinned table rk38 is cheaper
+    # than rk4 under both M0+ models, matching the traced model scope.
+    cl = classical()
+    fast_rk4 = cycle_count(cl["rk4"], M0PLUS_FAST, 1)
+    fast_rk38 = cycle_count(cl["rk38"], M0PLUS_FAST, 1)
+    assert fast_rk4 == 53
+    assert fast_rk38 == 49
+    assert fast_rk38 < fast_rk4
+    # And the same ordering from the inline HANDOFF coefficients.
+    inline = _inline_classical()
+    assert cycle_count(inline["rk38"], M0PLUS_FAST, 1) < cycle_count(inline["rk4"], M0PLUS_FAST, 1)
+    assert cycle_count(inline["rk38"], M0PLUS_SLOW, 1) < cycle_count(inline["rk4"], M0PLUS_SLOW, 1)
+
+
+def test_C8_all_classical_computable_under_avr_and_fast():
+    cl = classical()
+    avr = {}
+    fast = {}
+    for name in CLASSICAL_NAMES:
+        a = cycle_count(cl[name], AVR_APPROX, 1)
+        f = cycle_count(cl[name], M0PLUS_FAST, 1)
+        assert isinstance(a, int) and not isinstance(a, bool)
+        assert isinstance(f, int) and not isinstance(f, bool)
+        assert a > 0 and f > 0
+        avr[name] = a
+        fast[name] = f
+    ranked_avr = sorted(CLASSICAL_NAMES, key=lambda n: (avr[n], n))
+    ranked_fast = sorted(CLASSICAL_NAMES, key=lambda n: (fast[n], n))
+    assert ranked_avr[0] == "euler"
+    assert ranked_fast[0] == "euler"
+    # Derived by hand from the section 4.5 rules with AVR costs.
+    assert avr["euler"] == 6
+    assert avr["midpoint"] == 20
+    assert avr["heun2"] == 30
+
+
+def test_C9_costmodel_source_does_not_contain_is_dyadic():
+    src = (PACKAGE_DIR / "costmodel.py").read_text(encoding="utf-8")
+    assert len(src) > 0
+    assert "is_dyadic" not in src
+
+
+@pytest.mark.parametrize("model", [M0PLUS_FAST, M0PLUS_SLOW], ids=lambda m: m.name)
+@pytest.mark.parametrize("n", [1, 2, 4])
+@pytest.mark.parametrize("name", CLASSICAL_NAMES)
+def test_C10_cycle_count_scales_linearly_in_n_states(name, n, model):
+    t = classical()[name]
+    assert cycle_count(t, model, n) == n * cycle_count(t, model, 1)
+
+
+def test_C10_all_zero_b_still_costs_load_and_store_and_scales():
+    t = _tab([[0, 0], ["1/2", 0]], [0, 0], [0, "1/2"])
+    # stage 1: load 2 + (coeff 1 + add 1) + store 2 = 6; b: load 2 + store 2 = 4
+    assert cycle_count(t, M0PLUS_FAST, 1) == 10
+    assert cycle_count(t, M0PLUS_SLOW, 1) == 10
+    assert cycle_count(t, M0PLUS_FAST, 2) == 20
+    assert cycle_count(t, M0PLUS_FAST, 4) == 40
+    assert cycle_count(t, AVR_APPROX, 1) == 2 + (8 + 2) + 2 + 2 + 2
+
+
+def test_C10_all_zero_stage_rows_are_skipped():
+    # Two all-zero rows and a trivial b: only the b combination costs anything.
+    t = _tab([[0, 0], [0, 0]], [1, 0], [0, 0])
+    assert cycle_count(t, M0PLUS_FAST, 1) == 5
+    assert cycle_count(t, M0PLUS_SLOW, 1) == 5
+    assert cycle_count(t, M0PLUS_FAST, 3) == 15
+
+
+@pytest.mark.parametrize("name", CLASSICAL_NAMES)
+def test_G20_tableau_csd_total_matches_fixture(name):
+    assert tableau_csd_total(classical()[name]) == _CLASSICAL_FIXTURE[name]["csd_total"]
+    assert tableau_csd_total(_inline_classical()[name]) == _CLASSICAL_FIXTURE[name]["csd_total"]
+
+
+def test_G20_known_totals_rk4_and_rk38():
+    cl = classical()
+    assert tableau_csd_total(cl["rk4"]) == 34
+    assert tableau_csd_total(cl["rk38"]) == 22
+    assert tableau_csd_total(cl["euler"]) == 0
+
+
+def test_G21_fixture_has_twelve_anchor_values():
+    assert len(_ANCHOR_ROWS) == 12
+    assert {r[0] for r in _ANCHOR_ROWS} == {"rk4", "rk38"}
+    assert {r[1] for r in _ANCHOR_ROWS} == {1, 2, 4}
+    assert {r[2] for r in _ANCHOR_ROWS} == {"m0plus_fast", "m0plus_slow"}
+
+
+@pytest.mark.parametrize(
+    "name,n,model_name,expected",
+    _ANCHOR_ROWS,
+    ids=[f"{r[0]}-n{r[1]}-{r[2]}" for r in _ANCHOR_ROWS],
+)
+def test_G21_anchor_cycles(name, n, model_name, expected):
+    model = COST_MODELS[model_name]
+    assert cycle_count(classical()[name], model, n) == expected
+    assert cycle_count(_inline_classical()[name], model, n) == expected
+    assert cycle_count(_fixture_tableau(name), model, n) == expected
+
+
+def test_G21_anchor_ordering_matches_the_trace():
+    # D45 retires the reversal: rk38 is cheaper than rk4 under both models at
+    # every state count, matching the traced model scope (rk38 59, rk4 67).
+    cl = classical()
+    for n in (1, 2, 4):
+        assert cycle_count(cl["rk38"], M0PLUS_FAST, n) < cycle_count(cl["rk4"], M0PLUS_FAST, n)
+        assert cycle_count(cl["rk38"], M0PLUS_SLOW, n) < cycle_count(cl["rk4"], M0PLUS_SLOW, n)
+
+
+@pytest.mark.parametrize("model_key,fixture_key", [("m0plus_fast", "cycles_fast"), ("m0plus_slow", "cycles_slow")])
+@pytest.mark.parametrize("name", CLASSICAL_NAMES)
+def test_G22_classical_cycles_at_n1_match_fixture(name, model_key, fixture_key):
+    expected = _CLASSICAL_FIXTURE[name][fixture_key]
+    model = COST_MODELS[model_key]
+    assert cycle_count(classical()[name], model, 1) == expected
+    assert cycle_count(_inline_classical()[name], model, 1) == expected
+
+
+# ---------------------------------------------------------------------------
+# G28: the pinned per-multiplier table (D45)
+
+_EVIDENCE_DIR = PACKAGE_DIR.parent / "docs" / "evidence" / "coeff-ops"
+
+
+def _raw_coeff_ops_fixture():
+    return json.loads((FIXTURES_DIR / "m0plus_coeff_ops.json").read_text(encoding="utf-8"))
+
+
+def test_G28_table_price_equals_trm_price():
+    """Every pinned count tuple prices the same through the model's own table
+    and through tracecheck.instruction_cycles over the lab disassembly (D45 V1).
+
+    The class order of the tuples is checked against the TRM pricing of one
+    representative mnemonic per class, and every evidence showcase row's
+    fixture entry must equal its recorded tuple while the tuple price equals
+    the sum of instruction_cycles over its recorded disassembly sequence.
+    """
+    tc = _tc()
+    doc = _raw_coeff_ops_fixture()
+    reps = {"mul": ("MULS", "r0, r1"), "shift": ("LSLS", "r0, r0, #1"),
+            "add": ("ADDS", "r0, r0, r1"), "load": ("LDR", "r0, [pc, #4]")}
+    for model in (M0PLUS_FAST, M0PLUS_SLOW):
+        per_class = {cls: tc.instruction_cycles(mn, ops, model, False)
+                     for cls, (mn, ops) in reps.items()}
+        assert per_class == {k: model.cycles[k] for k in ("mul", "shift", "add", "load")}
+    show = json.loads((_EVIDENCE_DIR / "headlines.json").read_text(encoding="utf-8"))
+    rows = show["showcase"]["rows"]
+    assert len(rows) == 52
+    tuples = doc["tuples"]
+    shifted = doc["shifted"]
+    checked = 0
+    for row in rows:
+        assert row["templates_agree"]
+        entry = tuples[shifted[row["m"] + 32767]]
+        assert entry == row["byval_tuple"], row["m"]
+        for model in (M0PLUS_FAST, M0PLUS_SLOW):
+            mul, shift, add, load = entry
+            price = (mul * model.cycles["mul"] + shift * model.cycles["shift"]
+                     + add * model.cycles["add"] + load * model.cycles["load"])
+            ops = {"muls": "r0, r1", "ldr": "r0, [pc, #4]"}
+            traced = sum(tc.instruction_cycles(mn, ops.get(mn, "r0, r0, r1"), model, False)
+                         for mn in row["byval_seq"])
+            assert traced == price, (row["m"], row["s"], model.name)
+            checked += 1
+    assert checked == 104
+
+
+def test_G28_table_meta_matches_tracecheck_flags_and_toolchain():
+    """The fixture _meta names the pinned compiler, flags and templates (D45 V0)."""
+    tc = _tc()
+    meta = _raw_coeff_ops_fixture()["_meta"]
+    assert meta["cflags"] == list(tc.CFLAGS)
+    assert meta["compiler"].startswith("arm-none-eabi-gcc")
+    assert "13.2.1" in meta["compiler"]
+    assert "2.42" in meta["objdump"]
+    assert meta["decision"] == "D45"
+    assert meta["tuple_order"] == ["mul", "shift", "add", "load"]
+    assert meta["key_domains"] == {"shifted": "odd m in [-32767, 32767]",
+                                   "unshifted": "m with 2 <= |m| <= 32767"}
+    # The templates compile exactly the term costmodel emits (costmodel.py:120).
+    assert "(int32_t){m}) >> {s}" in meta["shifted_template"]
+    assert "(int32_t){m}) >> 0" in meta["unshifted_template"]
+    assert meta["shifted_canonical_s"] == 16
+    assert meta["n_keys"] == 98300
+    script = PACKAGE_DIR.parent / "scripts" / "build_coeff_ops.py"
+    assert script.is_file()
+    digest = hashlib.sha256(script.read_bytes()).hexdigest()
+    assert meta["generator_sha256"] == digest
+
+
+def test_G28_table_covers_every_rep_to_rep_can_return():
+    """Totality: every multiplier to_rep can return has a table entry (D45 V0/V6).
+
+    Shifted slots are filled for every odd m, unshifted slots for every m with
+    2 <= |m| <= 32767, and pricing the coefficients of the eight classical
+    anchors plus the lab corpus synthetics raises no KeyError.
+    """
+    ops = _coeff_ops()
+    for m in range(-32767, 32768, 2):  # odd m only: -32767 is odd
+        assert ops["shifted"][m + 32767] is not None, m
+    for m in range(-32767, 32768):
+        if abs(m) >= 2:
+            assert ops["unshifted"][m + 32767] is not None, m
+        else:
+            assert ops["unshifted"][m + 32767] is None, m
+    # The D45 corner slots stay empty so the rule fails closed without it.
+    assert ops["unshifted"][1 + 32767] is None
+    assert ops["unshifted"][-1 + 32767] is None
+    seen = set()
+    for name in CLASSICAL_NAMES:
+        t = classical()[name]
+        for row in list(t.A) + [t.b]:
+            for x in row:
+                seen.add(x)
+                for model in (M0PLUS_FAST, M0PLUS_SLOW):
+                    assert isinstance(coeff_cost(x, model), int)
+    corpus = json.loads((_EVIDENCE_DIR / "corpus.json").read_text(encoding="utf-8"))
+    for row in corpus["rows"]:
+        for entries in (row["tableau"]["A"], [row["tableau"]["b"]]):
+            for entry in entries:
+                for v in (entry if isinstance(entry, list) else [entry]):
+                    x = F(v)
+                    seen.add(x)
+                    for model in (M0PLUS_FAST, M0PLUS_SLOW):
+                        assert isinstance(coeff_cost(x, model), int)
+    assert len(seen) > 20
+
+
+def test_G28_slow_minus_fast_is_31_per_muls_application():
+    """The slow variant is priced from the same binary as fast: slow - fast is
+    31 per MULS-kind coefficient application per state (D45 section 2.2)."""
+    assert M0PLUS_SLOW.cycles["mul"] - M0PLUS_FAST.cycles["mul"] == 31
+    assert coeff_cost(F(43, 64), M0PLUS_SLOW) - coeff_cost(F(43, 64), M0PLUS_FAST) == 31
+    t = _tab([[F(43, 64)]], [F(1)], [F(43, 64)])
+    for n in (1, 2, 4):
+        assert cycle_count(t, M0PLUS_SLOW, n) - cycle_count(t, M0PLUS_FAST, n) == 31 * n
+    rk4 = classical()["rk4"]
+    for n in (1, 2, 4):
+        assert cycle_count(rk4, M0PLUS_SLOW, n) == cycle_count(rk4, M0PLUS_FAST, n)
+
+
+def test_G28_nine_traced_methods_have_no_muls_entry():
+    """No coefficient of the nine traced methods is in the MULS set, so fast
+    and slow agree on every one of them (D45 V2 premise)."""
+    tc = _tc()
+    assert len(tc.DEFAULT_METHODS) == 9
+    corpus = json.loads((_EVIDENCE_DIR / "corpus.json").read_text(encoding="utf-8"))
+    anchors = {row["key"]: row for row in corpus["rows"] if row["key"].startswith("anchor:")}
+    assert len(anchors) == 9
+    ops = _coeff_ops()
+    for name in tc.DEFAULT_METHODS:
+        row = anchors["anchor:" + name]
+        coefs = [F(v) for r in row["tableau"]["A"] for v in r] + [F(v) for v in row["tableau"]["b"]]
+        assert coefs, name
+        for x in coefs:
+            if x == 0 or x == 1 or x == -1:
+                continue
+            r = to_rep(x)
+            if r.m == 0 or (r.s == 0 and abs(r.m) == 1):
+                continue
+            entry = ops["shifted" if r.s > 0 else "unshifted"][r.m + 32767]
+            assert entry is not None, (name, x)
+            assert entry[0] == 0, (name, x, entry)
+
+
+def test_G28_avr_keeps_min_rule():
+    """avr_approx still prices min(csd_cost, mul_cost) from CSD weight (D45)."""
+    w = to_rep(F(1, 3)).csd_weight
+    assert w == 8
+    cyc = AVR_APPROX.cycles
+    assert coeff_cost(F(1, 3), AVR_APPROX) == min(w * cyc["shift"] + (w - 1) * cyc["add"],
+                                                 cyc["mul"] + cyc["shift"])
+    assert coeff_cost(F(1, 3), AVR_APPROX) == 22
+    assert coeff_cost(F(1, 2), AVR_APPROX) == 8
+    assert coeff_cost(F(3, 8), AVR_APPROX) == 18
+    assert coeff_cost(F(2), AVR_APPROX) == 8
+
+
+@pytest.mark.parametrize("line", ["FOO r0", "NOP", "MOV r0, r1", "BX lr", "    foo r0"])
+def test_B14_unknown_mnemonic_raises_ValueError(line):
+    with pytest.raises(ValueError):
+        count_sequence([line], M0PLUS_FAST)
+
+
+def test_B14_unknown_mnemonic_raises_even_after_valid_lines():
+    with pytest.raises(ValueError):
+        count_sequence(["LDR r0, [r4]", "MULS r0, r0, r1", "FOO r0"], M0PLUS_SLOW)
+
+
+def test_B14_blank_and_comment_only_lines_cost_zero():
+    assert count_sequence([], M0PLUS_FAST) == 0
+    assert count_sequence(["", "   ", "\t"], M0PLUS_FAST) == 0
+    assert count_sequence(["@ only a comment", "  @ MULS r0, r0, r1", "\t@ FOO"], M0PLUS_FAST) == 0
+    assert count_sequence(["", "@ x", "   ", "@ FOO BAR"], AVR_APPROX) == 0
+
+
+def test_B14_comment_stripping_and_case_insensitive_mnemonics():
+    assert count_sequence(["STR r2, [r6, #0] @ FOO BAR"], M0PLUS_FAST) == 2
+    assert count_sequence(["ldr r0, [r4]"], M0PLUS_FAST) == 2
+    assert count_sequence(["Muls r0, r0, r1"], M0PLUS_SLOW) == 32
+    assert count_sequence(["MULS r0, r0, r1"], M0PLUS_FAST) == 1
+    assert count_sequence(["\tLDR\tr0, [r4]"], M0PLUS_FAST) == 2
+    assert count_sequence(["LSRS r0, r0, #1", "LSLS r1, r1, #2", "ASRS r2, r2, #3"], AVR_APPROX) == 24
+    assert count_sequence(["ADDS r0, r0, r1", "SUBS r0, r0, r1"], AVR_APPROX) == 4
+    assert count_sequence(["ADDS r0, r0, r1", "SUBS r0, r0, r1"], M0PLUS_FAST) == 2
+    # Only the first whitespace token is the mnemonic.
+    assert count_sequence(["ADDS MULS"], M0PLUS_SLOW) == 1
+
+
+def test_B15_emit_c_rk4_contains_function_name_and_shift():
+    src = emit_c(classical()["rk4"], 2)
+    assert isinstance(src, str)
+    assert "rk_step" in src
+    assert ">> 15" in src
+    assert "int16_t" in src
+    assert "h_q" in src
+
+
+def test_B15_emit_c_is_a_nonempty_string_for_every_classical():
+    for name in CLASSICAL_NAMES:
+        src = emit_c(classical()[name], 1)
+        assert isinstance(src, str)
+        assert len(src) > 0
+        assert "rk_step" in src
+
+
+# --------------------------------------------------------------------------- tracecheck
+
+# B86-B96 arbitrate rk_harness/tracecheck.py, which compiles emit_c's output for
+# cortex-m0plus, executes it, and prices the executed instructions against the TRM table.
+# None of these needs the toolchain: what needs arm-none-eabi-gcc and the unicorn engine is
+# marked slow and skips when they are absent, and B95 pins the rule that a missing toolchain
+# is a failure rather than a skip when the tracer itself runs.
+
+
+def _tc():
+    from rk_harness import tracecheck
+    return tracecheck
+
+
+def test_B86_every_emitted_c_line_is_classified_and_the_model_scope_is_the_combination():
+    """The region map decides what counts as the analytic model's own scope, so an
+    unclassified line would silently move work out of the comparison."""
+    tc = _tc()
+    for name in CLASSICAL_NAMES:
+        t = classical()[name]
+        src = emit_c(t, 1)
+        regions = tc.classify_step_source(src)
+        assert len(regions) == len(src.splitlines())
+        counts = {}
+        for region in regions.values():
+            counts[region] = counts.get(region, 0) + 1
+        priced_rows = sum(1 for row in t.A if any(x != 0 for x in row)) + 1
+        nonzero = sum(1 for row in t.A if any(x != 0 for x in row)
+                      for x in row if x != 0) + sum(1 for x in t.b if x != 0)
+        assert counts.get("load", 0) == priced_rows, name
+        assert counts.get("store", 0) == priced_rows, name
+        assert counts.get("coeff", 0) == nonzero, name
+        assert counts.get("hscale", 0) == len(t.b), name
+        assert set(tc._REGION_MODEL_SCOPE) == {"load", "coeff", "store"}
+
+
+def test_B86_an_unrecognised_emitted_line_raises_rather_than_landing_in_other():
+    tc = _tc()
+    src = emit_c(classical()["rk4"], 1).replace(
+        "        acc[m] = (int16_t)tmp;                   /* store */",
+        "        acc[m] = saturate(tmp);", 1)
+    with pytest.raises(tc.TraceCheckError):
+        tc.classify_step_source(src)
+
+
+def test_B87_replay_q15_is_the_pinned_evaluator_operation_for_operation():
+    """The tracer's replica exists to record what the C port needs. If it drifted from
+    simulate.solve_q15 the whole comparison would be against a copy rather than against the
+    code that scored the archive, so the equivalence is pinned rather than assumed."""
+    from rk_harness import problems, simulate
+    tc = _tc()
+    checked = 0
+    for name in ("euler", "midpoint", "heun2", "rk4", "rk38"):
+        t = classical()[name]
+        for pname in ("dahlquist", "damped_osc"):
+            p = problems.PROBLEMS[pname]
+            try:
+                want = simulate.solve_q15(t, p, 48)
+            except Q15OverflowError:
+                want = None
+            rep = tc.replay_q15(t, p, 48)
+            if want is None:
+                assert rep.status == "overflow", (name, pname)
+                assert rep.final is None
+            else:
+                assert rep.status == "ok", (name, pname)
+                assert rep.final == want[0], (name, pname)
+                assert rep.max_abs == want[1], (name, pname)
+            checked += 1
+    assert checked == 10
+
+
+def test_B87_replay_records_one_stage_input_and_one_derivative_per_stage_and_state():
+    from rk_harness import problems
+    tc = _tc()
+    t = classical()["rk4"]
+    p = problems.PROBLEMS["dahlquist"]
+    rep = tc.replay_q15(t, p, 48)
+    assert rep.status == "ok"
+    assert len(rep.acc_log) == 48 * len(t.b) * p.n_states
+    assert len(rep.k_log) == len(rep.acc_log)
+    assert rep.ops > 0
+
+
+def test_B88_an_overflow_has_a_position_and_not_only_a_fact():
+    """Nothing wraps and nothing saturates: the primitives raise. The C port has to trap at
+    the same operation, so the replica has to count operations the same way."""
+    from rk_harness import problems
+    tc = _tc()
+    t = classical()["midpoint"]
+    p = problems.PROBLEMS["damped_osc"]
+    rep = tc.replay_q15(t, p, 2, y0=(32000, -32000), h_q=32767)
+    assert rep.status == "overflow"
+    assert rep.trap_op >= 1
+    assert rep.final is None
+    assert "outside int16" in rep.detail
+    clean = tc.replay_q15(t, p, 2, y0=(1000, 500), h_q=2048)
+    assert clean.status == "ok"
+    assert clean.trap_op == 0
+
+
+def test_B89_the_pinned_five_classes_are_used_unchanged_and_an_unknown_mnemonic_raises():
+    from rk_harness.costmodel import _MNEMONIC_CLASS
+    tc = _tc()
+    for mnemonic, cls in _MNEMONIC_CLASS.items():
+        assert tc.mnemonic_class(mnemonic) == cls
+        assert tc.mnemonic_class(mnemonic.lower()) == cls
+    assert tc.mnemonic_class("ldrsh") == "load"
+    assert tc.mnemonic_class("strh") == "store"
+    assert tc.mnemonic_class("sxth") == "alu"
+    assert tc.mnemonic_class("bne.n") == "branch"
+    assert tc.mnemonic_class("bgt") == "branch"
+    assert tc.mnemonic_class("bl") == "call"
+    assert tc.mnemonic_class("push") == "multi"
+    with pytest.raises(tc.TraceCheckError):
+        tc.mnemonic_class("vldr")
+
+
+def test_B90_shared_mnemonics_are_priced_out_of_the_cost_models_own_table():
+    """The point of the comparison is that both sides use one table. If the traced side
+    priced a multiply differently from cycle_count, the ratio would measure the tables."""
+    tc = _tc()
+    for model in (M0PLUS_FAST, M0PLUS_SLOW):
+        assert tc.instruction_cycles("MULS", "r0, r1", model, False) == model.cycles["mul"]
+        assert tc.instruction_cycles("LDR", "r0, [r1]", model, False) == model.cycles["load"]
+        assert tc.instruction_cycles("LDRSH", "r0, [r1, r2]", model, False) == model.cycles["load"]
+        assert tc.instruction_cycles("STRH", "r0, [r1]", model, False) == model.cycles["store"]
+        assert tc.instruction_cycles("ADDS", "r0, r0, r1", model, False) == model.cycles["add"]
+        assert tc.instruction_cycles("ASRS", "r0, r0, #4", model, False) == model.cycles["shift"]
+    assert tc.instruction_cycles("MULS", "r0, r1", M0PLUS_FAST, False) == 1
+    assert tc.instruction_cycles("MULS", "r0, r1", M0PLUS_SLOW, False) == 32
+    assert tc.instruction_cycles("MOV", "r3, sp", M0PLUS_FAST, False) == 1
+    assert tc.instruction_cycles("BL", "7c <rk_rhs>", M0PLUS_FAST, False) == 4
+    assert tc.instruction_cycles("B", "20 <x>", M0PLUS_FAST, True) == 3
+    assert tc.instruction_cycles("BNE", "20 <x>", M0PLUS_FAST, False) == 1
+    assert tc.instruction_cycles("PUSH", "{r4, r5, lr}", M0PLUS_FAST, False) == 4
+    assert tc.instruction_cycles("POP", "{r4, r5, pc}", M0PLUS_FAST, False) == 6
+    assert tc.instruction_cycles("PUSH", "{r4-r7, lr}", M0PLUS_FAST, False) == 6
+
+
+def test_B91_rank_correlation_and_the_pairs_behind_it():
+    tc = _tc()
+    assert tc.spearman([1.0, 2.0, 3.0], [10.0, 20.0, 30.0]) == pytest.approx(1.0)
+    assert tc.spearman([1.0, 2.0, 3.0], [30.0, 20.0, 10.0]) == pytest.approx(-1.0)
+    assert tc.spearman([1.0, 1.0, 1.0], [1.0, 2.0, 3.0]) is None
+    assert tc.spearman([1.0], [1.0]) is None
+    rows = [
+        {"name": "a", "cycles_analytic": {"m": 10}, "cycles_traced": {"m": 100}},
+        {"name": "b", "cycles_analytic": {"m": 20}, "cycles_traced": {"m": 300}},
+        {"name": "c", "cycles_analytic": {"m": 30}, "cycles_traced": {"m": 200}},
+    ]
+    found = tc.inversions(rows, "m", "cycles_traced")
+    assert [d["pair"] for d in found] == [["b", "c"]]
+    assert found[0]["cheaper_analytic"] == "b"
+    assert found[0]["cheaper_traced"] == "c"
+    rows[1]["cycles_traced"]["m"] = 150
+    assert tc.inversions(rows, "m", "cycles_traced") == []
+
+
+def test_B92_paths_cross_the_wsl_boundary_without_being_guessed_at():
+    tc = _tc()
+    assert tc.Toolchain.wsl_path("D:\\a\\b.c") == "/mnt/d/a/b.c"
+    assert tc.Toolchain.wsl_path("D:/a/b.c") == "/mnt/d/a/b.c"
+    assert tc.Toolchain.wsl_path("/mnt/d/a/b.c") == "/mnt/d/a/b.c"
+    assert tc.Toolchain.wsl_path("relative/b.c") == "relative/b.c"
+
+
+def test_B93_the_gate_fails_closed_on_a_mismatch_and_on_an_unexercised_trap():
+    """generate._check_scripts warns and returns when node is missing, which makes a gate on
+    a correctness claim fail open. This one raises."""
+    tc = _tc()
+
+    def doc(**over):
+        cc = {"cases": 2, "comparable": 2, "matched": 2, "overflow_cases": 1,
+              "trap_index_matched": 1, "not_comparable": 0}
+        cc.update(over)
+        return {"methods": [{"name": "m", "crosscheck": cc, "crosscheck_cases": [
+            {"case": "c1", "verdict": "match", "python_status": "ok",
+             "shift_is_arithmetic": True, "problems": []}]}]}
+
+    tc.gate(doc())
+    with pytest.raises(tc.TraceCheckError):
+        tc.gate(doc(matched=1))
+    with pytest.raises(tc.TraceCheckError):
+        tc.gate(doc(overflow_cases=0, trap_index_matched=0))
+    with pytest.raises(tc.TraceCheckError):
+        tc.gate(doc(trap_index_matched=0))
+    bad = doc()
+    bad["methods"][0]["crosscheck_cases"][0]["shift_is_arithmetic"] = False
+    with pytest.raises(tc.TraceCheckError):
+        tc.gate(bad)
+
+
+def test_B94_the_traced_step_carries_no_range_check_and_the_checked_one_carries_them_all():
+    """Two entry points on purpose. The traced one is emit_c output, unedited, so its
+    instruction mix is the thing under test. The checked one mirrors the primitives, and the
+    difference between them is the reason the cross-check reads the overflow verdict."""
+    tc = _tc()
+    t = classical()["rk4"]
+    step = emit_c(t, 1)
+    assert "ck(" not in step
+    assert "32767" not in step
+    drv = tc.driver_c(t, 1)
+    assert "static int ck(int32_t v)" in drv
+    assert drv.count("rk_trap = rk_op; return 1;") >= 3
+    assert "__attribute__((noinline, noclone))" in drv
+    assert "void rk_rhs(const int16_t *y, int16_t *dy)" in drv
+    assert "acc_table[k_index + m]" in drv
+    assert "g_shift_ok = ((((int32_t)-3) >> 1) == -2) ? 1 : 0;" in drv
+
+
+def test_B94_the_checked_step_counts_one_operation_for_every_pinned_primitive_call():
+    from rk_harness import problems
+    tc = _tc()
+    t = classical()["rk4"]
+    drv = tc.driver_c(t, 1)
+    # 48 steps because h_q is q15_from_float(t_end / n): a one-step run of a t_end of 10
+    # has no Q15 step size, which is a property of the problem set and not of the tracer.
+    rep = tc.replay_q15(t, problems.PROBLEMS["dahlquist"], 48)
+    assert rep.status == "ok"
+    # one rk_op++ per counted primitive call site, and the replica counts the same calls
+    assert drv.count("rk_op++;") == _expected_ops_per_step(t)
+    assert rep.ops == _expected_ops_per_step(t) * 48
+
+
+def _expected_ops_per_step(t):
+    """q15_apply + q15_add per nonzero A and b entry, plus one q15_mul per stage."""
+    per_a = sum(2 for row in t.A for x in row if x != 0)
+    per_b = sum(2 for x in t.b if x != 0)
+    return per_a + per_b + len(t.b)
+
+
+def test_B95_the_trace_pin_is_its_own_and_never_joins_the_verifier_pin():
+    """CLAUDE.md rule 1: VERIFIER_FILES is the fourteen-file tuple whose sha256 every archived
+    record carries. Adding to it is an epoch boundary. The trace gets the same guarantee
+    from a second pin that costs no score."""
+    from rk_harness import trace_hash
+    from rk_harness.verifier_hash import VERIFIER_FILES
+    assert trace_hash.TRACE_FILES == ("rk_harness/tracecheck.py", "rk_harness/trace_hash.py")
+    assert not set(trace_hash.TRACE_FILES) & set(VERIFIER_FILES)
+    assert len(VERIFIER_FILES) == 14
+    for rel in trace_hash.TRACE_FILES:
+        assert (PACKAGE_DIR.parent / rel).is_file(), rel
+    assert trace_hash.compute_trace_hash() == trace_hash.pinned_trace_hash()
+    assert trace_hash.matches()
+
+
+def test_B95_a_missing_toolchain_is_a_failure_and_not_a_skip(monkeypatch):
+    tc = _tc()
+    monkeypatch.setattr(tc.Toolchain, "resolve",
+                        classmethod(lambda cls: (_ for _ in ()).throw(
+                            tc.TraceCheckError("no arm-none-eabi toolchain"))))
+    with pytest.raises(tc.TraceCheckError):
+        tc.run()
+    assert tc.main([]) == 1
+
+
+def test_B96_load_method_takes_a_classical_name_or_an_archive_hash_prefix(monkeypatch, tmp_path):
+    tc = _tc()
+    origin, t, thash = tc.load_method("rk4")
+    assert origin == "classical"
+    assert thash == content_hash(classical()["rk4"])
+    work = tmp_path / "work"
+    (work / "archive").mkdir(parents=True)
+    rec = {"tableau_hash": "abc123def456" + "0" * 52,
+           "tableau": to_json(classical()["heun2"])}
+    (work / "archive" / "2026-01-01.jsonl").write_text(
+        json.dumps(rec) + "\n", encoding="utf-8")
+    monkeypatch.setenv("RK_WORK_DIR", str(work))
+    origin, t, thash = tc.load_method("abc123de")
+    assert origin == "discovered"
+    assert t == classical()["heun2"]
+    assert thash.startswith("abc123de")
+    with pytest.raises(tc.TraceCheckError):
+        tc.load_method("ffffffff")
+    with pytest.raises(tc.TraceCheckError):
+        tc.load_method("not a method")
+
+
+def test_B96_every_state_count_the_scored_problems_use_is_compiled_and_checked():
+    """A state count with no case has no traced price, and the one thing that must not be
+    done with a missing price is model it. rc_thermal has three states and quaternion four,
+    so both are compiled and cross-checked rather than extrapolated to from one and two."""
+    from rk_harness.problems import HELDOUT_SET, PROBLEMS, SEARCH_SET
+    tc = _tc()
+    scored = {p.n_states for p in SEARCH_SET + HELDOUT_SET}
+    assert scored == {1, 2, 3, 4}
+    assert {PROBLEMS[c["problem"]].n_states for c in tc.CASES} == scored
+    # _trace_per_step picks one trace case by n_states, so each count needs exactly one
+    traced = [PROBLEMS[c["problem"]].n_states for c in tc.TRACE_CASES]
+    assert sorted(traced) == sorted(scored)
+    assert len(traced) == len(set(traced))
+
+
+def test_B96_a_state_count_with_no_trace_case_raises_rather_than_reporting_a_count():
+    tc = _tc()
+    with pytest.raises(tc.TraceCheckError, match="no trace case at 5 states"):
+        tc._trace_per_step(None, None, {}, 5)
+
+
+def test_B96_all_eight_classical_anchors_carry_a_trace_row():
+    """A counterfactual that prices steps from this document re-chooses its best classical
+    anchor by minimum over the anchor set. Pricing five of the eight would take that minimum
+    over a different set from the published one, and the two ratios would not compare."""
+    tc = _tc()
+    assert set(CLASSICAL_NAMES) <= set(tc.DEFAULT_METHODS)
+    assert len(tc.DEFAULT_METHODS) == len(CLASSICAL_NAMES) + 1
+    assert len(set(tc.DEFAULT_METHODS)) == len(tc.DEFAULT_METHODS)
+
+
+def test_B96_no_case_can_overrun_the_recorded_derivative_log():
+    """emulate raises when the recorded log exceeds K_CAP. That log is steps times stages
+    times states, so whether it fits is a property of the case list rather than of a run,
+    and it is what holds quaternion to 120 steps where the other problems take 144."""
+    from rk_harness.problems import PROBLEMS
+    tc = _tc()
+    worst_stages = max(len(classical()[name].b) for name in CLASSICAL_NAMES)
+    for case in tc.CASES:
+        p = PROBLEMS[case["problem"]]
+        assert case["steps"] * worst_stages * p.n_states <= tc.K_CAP, case["id"]
+
+
+def test_B96_no_case_dies_in_the_right_hand_side_and_the_new_rails_reach_the_trap():
+    """A case that raises inside the float right-hand side is reported as not comparable,
+    because the cost model prices no derivative and the C port evaluates none. It says
+    nothing about the trap contract, so no case is allowed to end that way. The two new
+    rails are the reason rc_thermal holds every state at one sign: alternating them drives
+    the stiff row out of int16 before any Q15 primitive is reached."""
+    from rk_harness.problems import PROBLEMS
+    tc = _tc()
+    trapped: dict[str, list[str]] = {}
+    for name in CLASSICAL_NAMES:
+        t = classical()[name]
+        for case in tc.CASES:
+            p = PROBLEMS[case["problem"]]
+            y0 = tuple(case.get("y0") or [int(v) for v in p.y0])
+            rep = tc.replay_q15(t, p, case["steps"], y0=y0, h_q=case.get("h_q"))
+            assert rep.status in ("ok", "overflow"), (name, case["id"], rep.status)
+            if rep.status == "overflow":
+                assert rep.trap_op >= 1
+                trapped.setdefault(case["id"], []).append(name)
+    assert "rc_thermal_rail" in trapped
+    assert "quaternion_rail" in trapped
+
+
+@pytest.mark.slow
+def test_B96_the_whole_chain_runs_when_the_toolchain_is_present():
+    """Compile, execute, attribute, price and cross-check one method end to end. Skipped
+    where arm-none-eabi-gcc or the unicorn engine is absent; the tracer's own gate raises
+    there rather than skipping, which is what B95 pins."""
+    tc = _tc()
+    try:
+        tc.Toolchain.resolve()
+        import unicorn                                            # noqa: F401
+    except Exception as exc:                                      # pragma: no cover
+        pytest.skip(f"no cross-toolchain on this host: {exc}")
+    doc = tc.run(("heun2",))
+    tc.gate(doc)
+    row = doc["methods"][0]
+    assert row["name"] == "heun2"
+    assert row["cycles_analytic"]["m0plus_fast"] == cycle_count(classical()["heun2"],
+                                                               M0PLUS_FAST, 1)
+    assert row["muls_per_step"] == len(classical()["heun2"].b)
+    assert row["muls_in_model_scope"] == 0
+    assert row["crosscheck"]["matched"] == row["crosscheck"]["comparable"]
+    assert row["instructions_per_step"] > 0
+    assert doc["accuracy"]["statement"].count("NOT cycle accurate") == 1

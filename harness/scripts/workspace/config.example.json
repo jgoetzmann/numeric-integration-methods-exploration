@@ -1,0 +1,61 @@
+{
+  "_comment": "Operational settings for the rk run. Edit with configure.py (python configure.py explain). Scientific thresholds (UNSTABLE, overflow margin, cost tables) are NOT here on purpose: changing them invalidates the archive and the verifier hash.",
+  "container": {
+    "cpus": 4,
+    "memory_gb": 6,
+    "pids_limit": 512,
+    "cpu_shares": 256,
+    "scratch_tmpfs_gb": 2
+  },
+  "run": {
+    "llm": "auto",
+    "llm_model": "",
+    "eval_budget": 200,
+    "enum_per_cycle": 500,
+    "auto_stop_minutes": 0,
+    "auto_stop_cycles": 0,
+    "site": true,
+    "git_commit": true,
+    "initial_phase": null,
+    "llm_every_cycles": 5,
+    "codex_usage_cap_percent": 80,
+    "litreview_every_cycles": 50,
+    "interpret_every_cycles": 25,
+    "sidetrack_every_cycles": 0,
+    "sidetrack_max_seconds": 180,
+    "sidetrack_tracks": "both",
+    "search_policy": "empty",
+    "policy_block_cycles": 100
+  },
+  "watchdog": {
+    "poll_seconds": 10,
+    "heartbeat_stale_seconds": 120,
+    "min_free_gb": 5.0,
+    "no_candidate_minutes": 30,
+    "push_minutes": 10,
+    "battery_guard": true,
+    "cpu_pause_high_percent": 50,
+    "cpu_pause_low_percent": 30,
+    "cpu_pause_sustain_seconds": 30,
+    "peer_containers": "rk",
+    "docker_stats_timeout_ms": 4000,
+    "min_free_system_gb": 0,
+    "cpu_pause_high_avg_percent": 60,
+    "cpu_pause_low_avg_percent": 40,
+    "cpu_avg_window_seconds": 300,
+    "saturation_check_seconds": 1800,
+    "auto_freeze": false,
+    "auto_resume": true,
+    "resume_max": 3,
+    "resume_window_hours": 6,
+    "resume_margin_gb": 2.0
+  },
+  "watcher": {
+    "refresh_seconds": 5,
+    "events_tail": 25
+  },
+  "stats": {
+    "interval_seconds": 60,
+    "gpu": false
+  }
+}

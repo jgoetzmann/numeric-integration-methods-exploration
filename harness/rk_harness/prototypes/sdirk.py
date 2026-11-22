@@ -1,0 +1,622 @@
+"""SDIRK prototype for the epoch-3 side track. PRELIMINARY, FLOAT-ONLY, OFF-ARCHIVE.
+
+Nothing here is verifier-pinned and nothing here writes to the archive. This module
+is the working half of docs/EPOCH3-DESIGN.md: a 2-stage, order-2, L-stable SDIRK
+(Alexander 1977, gamma = 1 - sqrt(2)/2) integrated in float64 with a fixed modified
+Newton iteration count, so the per-step work is a compile-time constant exactly as
+the epoch-3 cost model requires.
+
+Tableau (stiffly accurate, b equals the last row of A):
+
+    c = [gamma, 1]
+    A = [[gamma,     0    ],
+         [1 - gamma, gamma]]
+    b = [1 - gamma, gamma]
+
+Stability function R(z) = (1 + (1 - 2*gamma)*z) / (1 - gamma*z)**2; degree 1 over
+degree 2, so R(-inf) = 0 (L-stable).
+
+Per step: one Jacobian evaluation at (t, y) (analytic when the problem supplies
+one, one-sided finite differences otherwise), one LU factorization of
+M = I - h*gamma*J (shared by both stages because the diagonal is constant), then
+per stage NEWTON_ITERS iterations, each one rhs evaluation plus one forward/back
+substitution. rhs evaluations per step are therefore exactly 2 * NEWTON_ITERS,
+plus n_states extra rhs evaluations when the Jacobian is finite-differenced.
+
+``main()`` writes <RK_WORK_DIR>/prototypes/sdirk_curve.json: step count vs error
+for euler, rk4 and sdirk2 on (a) the frozen rc_thermal problem in its float64
+physical form and (b) a two-rate linear system with rate ratio 1000 defined below,
+plus estimated per-step cycle costs from the EPOCH3-DESIGN.md solver terms.
+"""
+from __future__ import annotations
+
+import json
+import math
+from dataclasses import dataclass
+from fractions import Fraction
+from typing import Callable, Sequence
+
+from rk_harness.costmodel import M0PLUS_FAST, cycle_count
+from rk_harness.evaluator import stability_extents
+from rk_harness.paths import work_dir
+from rk_harness.problems import FLOAT_RHS, PROBLEMS, load_fixture
+from rk_harness.simulate import solve_float
+from rk_harness.tableau import classical
+from rk_harness.types import CostModel
+
+# --------------------------------------------------------------------------- method constants
+
+GAMMA: float = 1.0 - math.sqrt(2.0) / 2.0        # 0.2928932188134524; Alexander (1977)
+NEWTON_ITERS: int = 3                             # fixed, for deterministic cycle cost
+STAGES: int = 2
+
+_A = ((GAMMA, 0.0), (1.0 - GAMMA, GAMMA))
+_B = (1.0 - GAMMA, GAMMA)
+_C = (GAMMA, 1.0)
+
+# Estimated cycles for one Q15 pivot-reciprocal (software divide on cores without a
+# divider); a design-doc estimate, not a measured number.
+DIV_CYCLES: int = 32
+
+Rhs = Callable[[float, tuple[float, ...]], tuple[float, ...]]
+Jac = Callable[[float, tuple[float, ...]], list[list[float]]]
+
+
+def stability_function(z: complex) -> complex:
+    """Closed-form R(z) for the tableau above."""
+    return (1.0 + (1.0 - 2.0 * GAMMA) * z) / (1.0 - GAMMA * z) ** 2
+
+
+# --------------------------------------------------------------------------- exact dyadic tableaus
+
+# EPOCH3-DESIGN.md rules that gamma is snapped to a dyadic and the rest of the tableau
+# is then solved exactly over Fractions with that gamma substituted in. Everything in
+# this section does that solve and the stability algebra that goes with it, exactly, so
+# the L-stability gate the epoch-3 verifier needs can be chosen from measurements rather
+# than from the "on the order of 0.05" placeholder the design document carries today.
+#
+# Note what the snap costs. The stiffly accurate form (b equal to the last row of A) and
+# order 2 can only hold together at the irrational gamma = 1 - sqrt(2)/2, so with a dyadic
+# gamma one of them has to go. Order is the one worth keeping, so a21 is fixed at 1 - gamma
+# (which keeps c2 = 1) and b is solved from the two order conditions. At the exact gamma
+# the construction reproduces Alexander's tableau, stiff accuracy and all.
+
+Poly = tuple[Fraction, ...]        # index = degree
+
+
+def _poly_mul(p: Poly, q: Poly) -> Poly:
+    out = [Fraction(0)] * (len(p) + len(q) - 1)
+    for i, a in enumerate(p):
+        if a:
+            for j, b in enumerate(q):
+                out[i + j] += a * b
+    return tuple(out)
+
+
+def _poly_add(p: Poly, q: Poly, sign: int = 1) -> Poly:
+    n = max(len(p), len(q))
+    return tuple((p[i] if i < len(p) else Fraction(0))
+                 + sign * (q[i] if i < len(q) else Fraction(0))
+                 for i in range(n))
+
+
+def _poly_sub(p: Poly, q: Poly) -> Poly:
+    return _poly_add(p, q, sign=-1)
+
+
+def _abs_sq_on_imaginary_axis(p: Poly) -> Poly:
+    """|P(i*y)|**2 as a polynomial in w = y**2.
+
+    P(i*y) splits into Re = sum_m p[2m] (-1)^m w^m and Im = y * sum_m p[2m+1] (-1)^m w^m,
+    so |P|^2 = Re^2 + w * (Im/y)^2.
+    """
+    re = tuple(p[k] * (-1) ** (k // 2) for k in range(0, len(p), 2))
+    im = tuple(p[k] * (-1) ** (k // 2) for k in range(1, len(p), 2))
+    out: Poly = _poly_mul(re, re) if re else (Fraction(0),)
+    if im:
+        out = _poly_add(out, (Fraction(0),) + _poly_mul(im, im))
+    return out
+
+
+def stability_num(gamma: Fraction) -> Poly:
+    """The numerator of R(z) for this construction, as a function of gamma alone.
+
+    With A = [[gamma, 0], [a21, gamma]], c the row sums and b solved from the two
+    order-2 conditions, the a21 terms cancel out of det(I - zA + z 1 b^T) and the
+    numerator is (1, 1 - 2*gamma, 1/2 - 2*gamma + gamma**2) whatever a21 is. The
+    denominator (1 - gamma*z)**2 never had an a21 in it. So |R(inf)|, A-stability
+    and L-stability are functions of gamma alone, and the second free parameter
+    moves the order-3 residuals, stiff accuracy, the exactness of b and the cost,
+    but not the stability picture. order2_tableau_exact_a21 asserts this equality
+    on every call so the claim stays enforced rather than remembered.
+    """
+    return (Fraction(1), 1 - 2 * gamma, Fraction(1, 2) - 2 * gamma + gamma ** 2)
+
+
+def order2_tableau_exact_a21(gamma: Fraction, a21: Fraction) -> dict:
+    """The order-2 SDIRK2 tableau for a given (gamma, a21), solved exactly, with
+    its stability data. Every value returned is a Fraction, a tuple or a bool.
+
+    c = (gamma, a21 + gamma) is the row sum of A, and b comes from the two order
+    conditions b1 + b2 = 1 and b.c = 1/2, which give b2 = (1/2 - gamma) / a21.
+
+    Raises ValueError for a gamma the construction cannot use (0 or 1) or for
+    a21 = 0, where c2 = c1 and the order-2 system is singular.
+    """
+    if gamma <= 0 or gamma >= 1:
+        raise ValueError(f"gamma must lie strictly inside (0, 1), got {gamma}")
+    if a21 == 0:
+        raise ValueError("a21 must be nonzero: c2 would equal c1 and b is then unsolvable")
+    b2 = (Fraction(1, 2) - gamma) / a21                 # from b.c = 1/2
+    b1 = 1 - b2
+    c = (gamma, a21 + gamma)
+    b = (b1, b2)
+
+    # R(z) = det(I - zA + z 1 b^T) / det(I - zA), both exact polynomials in z.
+    num = _poly_sub(
+        _poly_mul((Fraction(1), b1 - gamma), (Fraction(1), b2 - gamma)),
+        _poly_mul((Fraction(0), b2), (Fraction(0), b1 - a21)),
+    )
+    den = _poly_mul((Fraction(1), -gamma), (Fraction(1), -gamma))
+    if num != stability_num(gamma):
+        raise AssertionError(
+            f"numerator {num} depends on a21 = {a21}; stability_num says {stability_num(gamma)}")
+
+    # L-stability margin |R(inf)|: the ratio of leading coefficients, zero when the
+    # numerator degree is the lower one.
+    deg_n = max((i for i, v in enumerate(num) if v), default=0)
+    deg_d = max((i for i, v in enumerate(den) if v), default=0)
+    r_inf = Fraction(0) if deg_n < deg_d else num[deg_n] / den[deg_d]
+
+    # A-stability: |R(iy)| <= 1 for all real y, i.e. E(w) = |D|^2 - |N|^2 >= 0 for w >= 0.
+    # R(0) = 1 always, so E(0) = 0 and E factors as w * F(w). For this tableau shape both
+    # |D|^2 and |N|^2 are quadratic in w, so F is linear and "every coefficient of F is
+    # non-negative" is exactly A-stability rather than merely sufficient for it. The
+    # exactness flag says which of the two a caller is looking at.
+    e_poly = _poly_sub(_abs_sq_on_imaginary_axis(den), _abs_sq_on_imaginary_axis(num))
+    if e_poly and e_poly[0] != 0:
+        raise AssertionError(f"E(0) should vanish, got {e_poly[0]}")
+    f_poly = e_poly[1:] if len(e_poly) > 1 else (Fraction(0),)
+    a_stable = all(v >= 0 for v in f_poly)
+    f_degree = max((i for i, v in enumerate(f_poly) if v), default=0)
+
+    # Order residuals: the two order-3 conditions, to show where order actually stops.
+    res3a = sum(b[i] * c[i] ** 2 for i in range(2)) - Fraction(1, 3)
+    res3b = b[1] * a21 * c[0] - Fraction(1, 6)
+
+    return {
+        "gamma": gamma, "a21": a21, "b": b, "c": c,
+        "num": num, "den": den,
+        "r_at_infinity": r_inf,
+        "l_stable": r_inf == 0,
+        "a_stable": a_stable,
+        "a_stable_exact": f_degree <= 1,
+        "f_poly": f_poly,
+        "order3_residuals": (res3a, res3b),
+        "stiffly_accurate": b == (a21, gamma),
+    }
+
+
+def order2_tableau_exact(gamma: Fraction) -> dict:
+    """The J4 family: a21 fixed at 1 - gamma so that c2 = 1.
+
+    Kept as a one-line delegation so the nine measured gamma_dyadic_scan points
+    reproduce byte for byte under the generalized construction.
+    """
+    return order2_tableau_exact_a21(gamma, 1 - gamma)
+
+
+def spec_from_exact(t: dict, newton_iters: int = NEWTON_ITERS) -> Sdirk2Spec:
+    """Float Sdirk2Spec for a tableau from order2_tableau_exact."""
+    return Sdirk2Spec(gamma=float(t["gamma"]), a21=float(t["a21"]),
+                      b=(float(t["b"][0]), float(t["b"][1])),
+                      c=(float(t["c"][0]), float(t["c"][1])),
+                      newton_iters=newton_iters)
+
+
+def dyadic_neighbours(target: float, s: int, width: int = 8) -> list[Fraction]:
+    """The dyadics m / 2**s nearest `target`, `width` either side, inside (0, 1)."""
+    centre = round(target * (1 << s))
+    out = []
+    for m in range(centre - width, centre + width + 1):
+        if 0 < m < (1 << s):
+            out.append(Fraction(m, 1 << s))
+    return out
+
+
+# The J7 scan widens both axes. `full_below` is the size at which enumerating the
+# whole representable set is cheaper than arguing about which part of it to look
+# at: at s = 4, 5 and 6 there are 15, 31 and 63 gammas in (0, 1) and taking all of
+# them costs less than the window would, while from s = 7 on the window bounds the
+# work at 2*width + 1 candidates.
+
+def dyadic_window(target: float, s: int, width: int, full_below: int = 65) -> list[Fraction]:
+    """Every dyadic m / 2**s in (0, 1) when there are at most `full_below` of them,
+    otherwise `width` of them either side of `target`."""
+    if (1 << s) - 1 <= full_below:
+        return [Fraction(m, 1 << s) for m in range(1, 1 << s)]
+    return dyadic_neighbours(target, s, width)
+
+
+def a21_window(s: int, width: int, full_below: int = 65) -> list[Fraction]:
+    """The a21 axis: dyadics m / 2**s with 0 < m / 2**s <= 2, centred on 1 - GAMMA.
+
+    Same rule as dyadic_window. a21 is not confined to (0, 1) the way gamma is:
+    the construction only needs a21 != 0, and a21 > 1 puts c2 past 1, which is a
+    legitimate 2-stage SDIRK and worth including in a census of what the second
+    parameter does.
+    """
+    top = 2 << s                                        # m runs 1 .. 2 * 2**s
+    if top <= full_below:
+        return [Fraction(m, 1 << s) for m in range(1, top + 1)]
+    centre = round((1.0 - GAMMA) * (1 << s))
+    return [Fraction(m, 1 << s)
+            for m in range(centre - width, centre + width + 1)
+            if 0 < m <= top]
+
+
+# --------------------------------------------------------------------------- small dense LU
+
+def lu_factor(mat: Sequence[Sequence[float]]) -> tuple[list[list[float]], list[int]]:
+    """LU with partial pivoting for the 1..4 state systems this program targets.
+
+    Returns (packed LU, pivot row order). Pure Python on purpose: the loop mirrors
+    the fixed-point routine the epoch-3 cost model prices, so operation counts can
+    be read off the code.
+    """
+    n = len(mat)
+    lu = [list(row) for row in mat]
+    piv = list(range(n))
+    for k in range(n):
+        p = max(range(k, n), key=lambda r: abs(lu[r][k]))
+        if lu[p][k] == 0.0:
+            raise ZeroDivisionError("singular Newton matrix")
+        if p != k:
+            lu[k], lu[p] = lu[p], lu[k]
+            piv[k], piv[p] = piv[p], piv[k]
+        inv = 1.0 / lu[k][k]
+        for r in range(k + 1, n):
+            m = lu[r][k] * inv
+            lu[r][k] = m
+            for ccol in range(k + 1, n):
+                lu[r][ccol] -= m * lu[k][ccol]
+    return lu, piv
+
+
+def lu_solve(lu: list[list[float]], piv: list[int], rhs_vec: Sequence[float]) -> list[float]:
+    """Forward/back substitution against a factorization from lu_factor."""
+    n = len(lu)
+    x = [rhs_vec[piv[i]] for i in range(n)]
+    for i in range(1, n):
+        for j in range(i):
+            x[i] -= lu[i][j] * x[j]
+    for i in range(n - 1, -1, -1):
+        for j in range(i + 1, n):
+            x[i] -= lu[i][j] * x[j]
+        x[i] /= lu[i][i]
+    return x
+
+
+# --------------------------------------------------------------------------- Jacobian
+
+def fd_jacobian(rhs: Rhs, t: float, y: tuple[float, ...], f0: tuple[float, ...] | None = None) -> list[list[float]]:
+    """One-sided difference Jacobian, column j from perturbing y_j.
+
+    Costs n_states extra rhs evaluations (f0 is reused when the caller already
+    has it). Step size sqrt(eps)*max(|y_j|, 1), the standard one-sided choice.
+    """
+    n = len(y)
+    if f0 is None:
+        f0 = rhs(t, y)
+    jac = [[0.0] * n for _ in range(n)]
+    for j in range(n):
+        d = math.sqrt(2.220446049250313e-16) * max(abs(y[j]), 1.0)
+        yp = list(y)
+        yp[j] += d
+        fp = rhs(t, tuple(yp))
+        for i in range(n):
+            jac[i][j] = (fp[i] - f0[i]) / d
+    return jac
+
+
+# --------------------------------------------------------------------------- the integrator
+
+@dataclass(frozen=True)
+class Sdirk2Spec:
+    """A 2-stage SDIRK tableau plus its iteration count, in float.
+
+    The defaults reproduce Alexander's method exactly, so every caller that
+    passes nothing behaves as this module always has. It is a parameter because
+    two side-track jobs sweep it: the dyadic-gamma scan (J4), which has to build
+    a tableau per candidate gamma, and the iteration-count study (J5), where
+    EPOCH3-DESIGN.md says outright that three iterations is "the prototype's
+    setting, not a final ruling".
+    """
+    gamma: float
+    a21: float
+    b: tuple[float, float]
+    c: tuple[float, float]
+    newton_iters: int
+
+
+DEFAULT_SPEC = Sdirk2Spec(gamma=GAMMA, a21=1.0 - GAMMA, b=_B, c=_C,
+                          newton_iters=NEWTON_ITERS)
+
+
+def sdirk2_step(rhs: Rhs, t: float, y: tuple[float, ...], h: float, jac: Jac | None = None,
+                spec: Sdirk2Spec = DEFAULT_SPEC) -> tuple[float, ...]:
+    """One SDIRK2 step with exactly spec.newton_iters modified-Newton iterations per stage.
+
+    The Jacobian is evaluated once at (t, y) and frozen for the whole step; both
+    stages share one factorization of M = I - h*gamma*J. On linear problems the
+    frozen Jacobian is exact, so the stage equations are solved to rounding after
+    the very first iteration and the extra iterations change nothing; the fixed
+    count exists so the cycle cost never depends on the data.
+    """
+    n = len(y)
+    gam = spec.gamma
+    amat = ((gam, 0.0), (spec.a21, gam))
+    jmat = jac(t, y) if jac is not None else fd_jacobian(rhs, t, y)
+    m = [[(1.0 if i == j else 0.0) - h * gam * jmat[i][j] for j in range(n)] for i in range(n)]
+    lu, piv = lu_factor(m)
+
+    ks: list[list[float]] = []
+    k = [0.0] * n                                   # predictor for stage 0
+    for i in range(STAGES):
+        base = list(y)
+        for j in range(i):
+            a = amat[i][j]
+            for st in range(n):
+                base[st] += h * a * ks[j][st]
+        k = list(k)                                 # warm start from the previous stage
+        for _ in range(spec.newton_iters):
+            yi = tuple(base[st] + h * gam * k[st] for st in range(n))
+            f = rhs(t + spec.c[i] * h, yi)
+            resid = [k[st] - f[st] for st in range(n)]
+            delta = lu_solve(lu, piv, resid)
+            for st in range(n):
+                k[st] -= delta[st]
+        ks.append(k)
+
+    return tuple(y[st] + h * (spec.b[0] * ks[0][st] + spec.b[1] * ks[1][st]) for st in range(n))
+
+
+def solve_sdirk2(rhs: Rhs, y0: tuple[float, ...], t_end: float, n: int, jac: Jac | None = None,
+                 spec: Sdirk2Spec = DEFAULT_SPEC,
+                 diverge_at: float | None = None) -> tuple[float, ...]:
+    """n fixed SDIRK2 steps of size h = t_end / n from t = 0, like simulate.solve_float.
+
+    `diverge_at` is a deterministic escape hatch for the side-track sweeps: when
+    any state exceeds it in magnitude the run stops and raises OverflowError
+    immediately, instead of grinding through hundreds of steps of growing floats
+    before Python's own overflow fires. It is a bound on the data, not on the
+    clock, so a run's outcome stays a pure function of its inputs.
+    """
+    h = t_end / n
+    y = tuple(float(v) for v in y0)
+    for kstep in range(n):
+        y = sdirk2_step(rhs, kstep * h, y, h, jac=jac, spec=spec)
+        if diverge_at is not None:
+            for v in y:
+                if not (abs(v) <= diverge_at):        # catches NaN as well
+                    raise OverflowError(f"state {v} past the divergence bound at step {kstep + 1}")
+    return y
+
+
+# --------------------------------------------------------------------------- local stiff test problem
+
+# Two-rate linear system with rate ratio 1000, defined here and only here (the
+# validation suite is owned elsewhere): y1' = -1000 y1, y2' = y1 - y2, y0 = (1, 1).
+# Eigenvalues -1000 and -1. Closed form below.
+STIFF_A = ((-1000.0, 0.0), (1.0, -1.0))
+STIFF_Y0 = (1.0, 1.0)
+STIFF_T_END = 2.0
+STIFF_RATIO = 1000.0
+
+
+def stiff_rhs(t: float, y: tuple[float, ...]) -> tuple[float, ...]:
+    return (
+        STIFF_A[0][0] * y[0] + STIFF_A[0][1] * y[1],
+        STIFF_A[1][0] * y[0] + STIFF_A[1][1] * y[1],
+    )
+
+
+def stiff_jac(t: float, y: tuple[float, ...]) -> list[list[float]]:
+    return [list(row) for row in STIFF_A]
+
+
+def stiff_reference(t: float) -> tuple[float, ...]:
+    """y1 = e^(-1000 t); y2 solves y2' = -y2 + y1 with y2(0) = 1."""
+    e_fast = math.exp(-1000.0 * t)
+    e_slow = math.exp(-t)
+    return (e_fast, e_slow + (e_slow - e_fast) / 999.0)
+
+
+# --------------------------------------------------------------------------- cost estimate
+
+def estimate_sdirk2_cycles(n_states: int, model: CostModel, newton_iters: int = NEWTON_ITERS,
+                           fd: bool = False) -> dict:
+    """Per-step cycle estimate from the EPOCH3-DESIGN.md solver terms.
+
+    Same convention as costmodel.cycle_count: rhs and analytic-Jacobian
+    evaluations are excluded (application-supplied code); everything the solver
+    does with their results is counted. These are design estimates, not an
+    assembly-verified count like the explicit model has.
+    """
+    cyc = model.cycles
+    mul, add, shift = cyc["mul"], cyc["add"], cyc["shift"]
+    load, store = cyc["load"], cyc["store"]
+    n, s, it = n_states, STAGES, newton_iters
+
+    # M = I - h*gamma*J: one coefficient apply plus store per entry, add on the diagonal.
+    form_m = n * n * (mul + shift + load + store) + n * add
+    # LU of the n x n matrix, once per step: Doolittle counts for tiny n, plus one
+    # software reciprocal per pivot.
+    lu = (n * n * n - n) // 3 * (mul + add) + n * n * (load + store) + n * DIV_CYCLES
+    # One forward/back substitution: ~n^2 multiply-adds.
+    solve = n * n * (mul + add) + 2 * n * (load + store)
+    # Stage base y + h*sum(a_ij k_j): stage 0 has no sub-diagonal entries, stage 1
+    # has one, so one combination row total in SDIRK2.
+    stage_base = (s - 1) * n * (load + store + mul + shift + add)
+    # Per stage per iteration: form Y_i (apply h*gamma, add), residual, solve, update k.
+    per_iter = n * (mul + shift + add) + n * add + solve + n * add
+    newton = s * it * per_iter
+    # Final combination over b (two non-trivial coefficients per state).
+    combine_b = n * (load + store + 2 * (mul + shift + add))
+    # One-sided FD Jacobian assembly (the n extra rhs evaluations are excluded like
+    # all rhs evaluations; this is the subtract/scale/store arithmetic only).
+    jac_fd = n * n * (add + shift + load + store) if fd else 0
+
+    total = form_m + lu + stage_base + newton + combine_b + jac_fd
+    return {
+        "model": model.name,
+        "n_states": n,
+        "newton_iters": it,
+        "terms": {
+            "form_m": form_m,
+            "lu_factor": lu,
+            "stage_base": stage_base,
+            "newton_iterations": newton,
+            "combine_b": combine_b,
+            "fd_jacobian_arith": jac_fd,
+        },
+        "total": total,
+        "f_evals_per_step": s * it + (n if fd else 0),
+    }
+
+
+# --------------------------------------------------------------------------- error curves
+
+_L2_DIVERGED = 1.0e3
+
+
+def _l2_error(y: tuple[float, ...], ref: tuple[float, ...], peak: float) -> float:
+    return math.sqrt(sum((a - b) ** 2 for a, b in zip(y, ref))) / peak
+
+
+def _run_point(method: str, rhs: Rhs, jac: Jac | None, y0: tuple[float, ...],
+               t_end: float, n: int, ref: tuple[float, ...], peak: float) -> dict:
+    try:
+        if method == "sdirk2":
+            y = solve_sdirk2(rhs, y0, t_end, n, jac=jac)
+        else:
+            y = solve_float(classical()[method], rhs, y0, t_end, n)
+        err = _l2_error(y, ref, peak)
+    except (OverflowError, ZeroDivisionError):
+        return {"n": n, "h": t_end / n, "error": None, "status": "diverged"}
+    if not math.isfinite(err) or err > _L2_DIVERGED:
+        return {"n": n, "h": t_end / n, "error": None, "status": "diverged"}
+    return {"n": n, "h": t_end / n, "error": err, "status": "ok"}
+
+
+def _curve(rhs: Rhs, jac: Jac | None, y0: tuple[float, ...], t_end: float,
+           ref: tuple[float, ...], peak: float, ladder: Sequence[int], n_states: int) -> dict:
+    cl = classical()
+    methods: dict[str, dict] = {}
+    for name in ("euler", "rk4", "sdirk2"):
+        points = [_run_point(name, rhs, jac, y0, t_end, n, ref, peak) for n in ladder]
+        if name == "sdirk2":
+            cost = estimate_sdirk2_cycles(n_states, M0PLUS_FAST)
+            cycles, f_evals = cost["total"], cost["f_evals_per_step"]
+        else:
+            cycles = cycle_count(cl[name], M0PLUS_FAST, n_states)
+            f_evals = len(cl[name].b)
+        stable = [p["n"] for p in points if p["status"] == "ok"]
+        methods[name] = {
+            "est_cycles_per_step": cycles,
+            "f_evals_per_step": f_evals,
+            "min_stable_n": min(stable) if stable else None,
+            "points": points,
+        }
+    return methods
+
+
+def build_curve() -> dict:
+    """The sdirk_curve.json payload, as a dict. Pure function of this module."""
+    fix = load_fixture()["rc_thermal"]
+    rc = PROBLEMS["rc_thermal"]
+    rc_a = [[float(v) for v in row] for row in fix["params"]["A"]]
+
+    def rc_jac(t: float, y: tuple[float, ...]) -> list[list[float]]:
+        return [list(row) for row in rc_a]
+
+    rc_ref = rc.reference(rc.t_end)
+    rc_y0 = (1.0, 0.0, 0.0)
+    rc_ladder = (4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256)
+    stiff_ladder = (5, 10, 20, 50, 100, 200, 500, 720, 1000, 2000, 5000)
+
+    rc_methods = _curve(FLOAT_RHS["rc_thermal"], rc_jac, rc_y0, rc.t_end,
+                        rc_ref, 1.0, rc_ladder, rc.n_states)
+    st_methods = _curve(stiff_rhs, stiff_jac, STIFF_Y0, STIFF_T_END,
+                        stiff_reference(STIFF_T_END), 1.0, stiff_ladder, 2)
+
+    # Quantitative crossover note on the two-rate problem.
+    rk4_real = abs(stability_extents(classical()["rk4"])[0])
+    rk4_floor_n = math.ceil(STIFF_RATIO * STIFF_T_END / rk4_real)
+    rk4_floor_cycles = rk4_floor_n * st_methods["rk4"]["est_cycles_per_step"]
+    sd_tol_n = None
+    for p in st_methods["sdirk2"]["points"]:
+        if p["status"] == "ok" and p["error"] is not None and p["error"] <= 1.0e-3:
+            sd_tol_n = p["n"]
+            break
+    sd_tol_cycles = (sd_tol_n or 0) * st_methods["sdirk2"]["est_cycles_per_step"]
+    cost_note = (
+        "Cycle estimates exclude rhs and analytic-Jacobian evaluations, matching "
+        "costmodel.cycle_count. On stiff_two_rate (2 states, m0plus_fast): rk4 costs "
+        f"{st_methods['rk4']['est_cycles_per_step']} cycles/step but its real-axis stability "
+        f"interval of about {rk4_real:.3f} forces n >= {rk4_floor_n} before any step is stable, "
+        f"a floor of about {rk4_floor_cycles} cycles at any accuracy. sdirk2 costs "
+        f"{st_methods['sdirk2']['est_cycles_per_step']} cycles/step (estimate) and reaches "
+        f"error 1e-3 at n = {sd_tol_n} (about {sd_tol_cycles} cycles). The implicit method "
+        "pays several times more per step and still lands well under the explicit stability "
+        "floor at loose and moderate tolerances; explicit methods only recover once the "
+        "tolerance demands more steps than their stability floor already forces."
+    )
+
+    return {
+        "label": "preliminary, float-only prototype (epoch 3 side track, off-archive)",
+        "generated_by": "rk_harness.prototypes.sdirk.main; not verifier-pinned, no Q15 arithmetic",
+        "method": {
+            "name": "sdirk2",
+            "gamma": GAMMA,
+            "newton_iters": NEWTON_ITERS,
+            "stages": STAGES,
+            "properties": "order 2, stiffly accurate, L-stable (Alexander 1977)",
+        },
+        "cost_model": M0PLUS_FAST.name,
+        "cost_note": cost_note,
+        "error_metric": "final-state L2 distance from the reference, over peak 1.0; "
+                        "'diverged' = non-finite or > 1e3",
+        "problems": {
+            "rc_thermal": {
+                "source": "frozen scored problem (fixtures/problems.json), float64 physical form",
+                "n_states": rc.n_states,
+                "t_end": rc.t_end,
+                "stiffness_ratio": float(fix["stiffness_ratio"]),
+                "methods": rc_methods,
+            },
+            "stiff_two_rate": {
+                "source": "defined locally in rk_harness/prototypes/sdirk.py",
+                "definition": "y1' = -1000 y1; y2' = y1 - y2; y0 = (1, 1); eigenvalues -1000, -1",
+                "n_states": 2,
+                "t_end": STIFF_T_END,
+                "stiffness_ratio": STIFF_RATIO,
+                "methods": st_methods,
+            },
+        },
+    }
+
+
+def main() -> None:
+    out_dir = work_dir() / "prototypes"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    payload = build_curve()
+    path = out_dir / "sdirk_curve.json"
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(payload, fh, indent=2, sort_keys=False)
+        fh.write("\n")
+    print(f"wrote {path}")
+
+
+if __name__ == "__main__":
+    main()

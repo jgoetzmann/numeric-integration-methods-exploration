@@ -1,0 +1,1637 @@
+"""Cycle loop — SPEC §Surface/runner.py.
+
+The only module allowed to contain the string ``openai`` or to open a socket.
+The LLM call is one plain ``urllib.request`` POST, made only when the env var
+``RK_LLM == "on"`` and the monthly spend is below the cap. No retries.
+"""
+from __future__ import annotations
+
+import argparse
+import dataclasses
+import datetime
+import json
+import os
+import shutil
+import subprocess
+import sys
+import threading
+import time
+import urllib.request
+from pathlib import Path
+
+from rk_harness import archive
+from rk_harness import credentials
+from rk_harness import directive as directive_mod
+from rk_harness import encourager
+from rk_harness import enumeration
+from rk_harness import evaluator
+from rk_harness import lanes
+from rk_harness import ledger
+from rk_harness import lanesearch
+from rk_harness import literature
+from rk_harness import orderconditions
+from rk_harness import outcomes
+from rk_harness import prompts
+from rk_harness import search
+from rk_harness import sidetrack
+from rk_harness import sitegen
+from rk_harness import tableau as tableau_mod
+from rk_harness import verifier
+from rk_harness import verifier_hash
+from rk_harness.paths import (
+    FIXTURES_DIR, HARNESS_DIR, archive_dir, findings_dir, work_dir,
+)
+from rk_harness.types import Record, RunState, Tableau
+
+HEARTBEAT_INTERVAL_S = 10
+
+_LLM_URL = "https://api.openai.com/v1/chat/completions"
+_LLM_IN_USD_PER_M = 0.4
+_LLM_OUT_USD_PER_M = 1.6
+_ENUM_PER_CYCLE_DEFAULT = 500  # enumeration candidates processed per cycle (Phase 0 has 16)
+
+
+def _enum_per_cycle() -> int:
+    """RK_ENUM_PER_CYCLE (config.json run.enum_per_cycle) or the default."""
+    try:
+        n = int(os.environ.get("RK_ENUM_PER_CYCLE", _ENUM_PER_CYCLE_DEFAULT))
+    except ValueError:
+        n = _ENUM_PER_CYCLE_DEFAULT
+    return max(1, n)
+
+
+# Exploration policy (P05). "empty" is the behaviour every cycle up to now had: aim the
+# deterministic fallback at the emptiest reachable cell and start CMA-ES from the default
+# point in search.py. "revisit" aims at the occupied cell whose elite has the worst held-out
+# error; "warm" starts CMA-ES from the incumbent of the cell being aimed at; "revisit+warm"
+# does both. "rotate" runs blocks of cycles under each policy in turn, which is the only way
+# this run can compare them on its own archive instead of arguing about them. Shipped
+# disarmed: RK_SEARCH_POLICY unset means "empty", so nothing changes until someone arms it.
+POLICIES: tuple[str, ...] = ("empty", "revisit", "warm", "revisit+warm")
+_POLICY_ROTATION: tuple[str, ...] = ("empty", "revisit", "revisit+warm")
+_POLICY_BLOCK_DEFAULT = 100
+
+
+def _policy_block() -> int:
+    """RK_POLICY_BLOCK_CYCLES (config.json run.policy_block_cycles) or the default."""
+    try:
+        n = int(os.environ.get("RK_POLICY_BLOCK_CYCLES", _POLICY_BLOCK_DEFAULT)
+                or _POLICY_BLOCK_DEFAULT)
+    except ValueError:
+        n = _POLICY_BLOCK_DEFAULT
+    return max(1, n)
+
+
+def _search_policy(cycle_id: int) -> str:
+    """The policy for one cycle: a pure function of RK_SEARCH_POLICY and the cycle id.
+
+    Unset, "off", and any name this build does not know all mean "empty". An unknown name
+    must not invent behaviour: a typo in the container environment would otherwise arm an
+    experiment nobody asked for, and the whole point of the rotation is that arming it is a
+    deliberate act.
+    """
+    raw = (os.environ.get("RK_SEARCH_POLICY") or "").strip().lower()
+    if raw == "rotate":
+        block = _policy_block()
+        return _POLICY_ROTATION[(int(cycle_id) // block) % len(_POLICY_ROTATION)]
+    return raw if raw in POLICIES else "empty"
+
+
+def _warm_start_enabled(policy: str) -> bool:
+    return str(policy) in ("warm", "revisit+warm")
+
+_heartbeat_thread: threading.Thread | None = None
+
+
+# ----------------------------------------------------------------------------
+# clock
+# ----------------------------------------------------------------------------
+
+def now() -> datetime.datetime:
+    """UTC now; env RK_CLOCK (ISO 8601) overrides, read on every call."""
+    raw = os.environ.get("RK_CLOCK")
+    if raw:
+        s = raw.strip()
+        if s.endswith("Z") or s.endswith("z"):
+            s = s[:-1] + "+00:00"
+        dt = datetime.datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=datetime.timezone.utc)
+        return dt.astimezone(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
+def iso_now() -> str:
+    return now().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# ----------------------------------------------------------------------------
+# atomic file helpers
+# ----------------------------------------------------------------------------
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.parent / f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(text)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+
+
+def _write_heartbeat_once() -> None:
+    _atomic_write_text(work_dir() / "HEARTBEAT", iso_now())
+
+
+def _heartbeat_loop() -> None:
+    while True:
+        time.sleep(HEARTBEAT_INTERVAL_S)
+        try:
+            _write_heartbeat_once()
+        except Exception as e:  # never let the daemon die
+            print(f"heartbeat: {e!r}", file=sys.stderr)
+
+
+def heartbeat() -> None:
+    """Write HEARTBEAT immediately, then every 10 s from a daemon thread."""
+    global _heartbeat_thread
+    try:
+        _write_heartbeat_once()
+    except Exception as e:
+        print(f"heartbeat: {e!r}", file=sys.stderr)
+    if _heartbeat_thread is not None and _heartbeat_thread.is_alive():
+        return
+    t = threading.Thread(target=_heartbeat_loop, name="rk-heartbeat", daemon=True)
+    t.start()
+    _heartbeat_thread = t
+
+
+# ----------------------------------------------------------------------------
+# state
+# ----------------------------------------------------------------------------
+
+def _state_path() -> Path:
+    return work_dir() / "RUNSTATE.json"
+
+
+def _state_to_json(st: RunState) -> dict:
+    return {
+        "cycle_id": st.cycle_id,
+        "phase": st.phase,
+        "started_at": st.started_at,
+        "last_heartbeat": st.last_heartbeat,
+        "spend_usd": st.spend_usd,
+        "stall_counter": st.stall_counter,
+        "current_cell": list(st.current_cell) if st.current_cell is not None else None,
+    }
+
+
+def _state_from_json(d: dict) -> RunState:
+    if not isinstance(d, dict):
+        raise ValueError("RUNSTATE.json is not an object")
+    cell = d.get("current_cell")
+    if cell is not None:
+        cell = (int(cell[0]), int(cell[1]))
+    phase = int(d["phase"])
+    if phase not in (0, 1, 2, 3):
+        raise ValueError(f"bad phase {phase}")
+    return RunState(
+        cycle_id=int(d["cycle_id"]),
+        phase=phase,
+        started_at=str(d["started_at"]),
+        last_heartbeat=str(d.get("last_heartbeat", "")),
+        spend_usd=float(d.get("spend_usd", 0.0)),
+        stall_counter=int(d.get("stall_counter", 0)),
+        current_cell=cell,
+    )
+
+
+def _rebuild_state() -> RunState:
+    arch = archive.replay()
+    raw_phase = os.environ.get("RK_PHASE", "0")
+    try:
+        phase = int(raw_phase)
+    except ValueError:
+        phase = 0
+    if phase not in (0, 1, 2, 3):
+        phase = 0
+    ts = iso_now()
+    return RunState(
+        cycle_id=arch.last_cycle_id,
+        phase=phase,
+        started_at=ts,
+        last_heartbeat=ts,
+        spend_usd=0.0,
+        stall_counter=0,
+        current_cell=None,
+    )
+
+
+def load_state() -> RunState:
+    path = _state_path()
+    if not path.exists():
+        return _rebuild_state()
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            return _state_from_json(json.load(fh))
+    except Exception as e:
+        print(f"warning: RUNSTATE.json corrupt ({e!r}); rebuilding from archive", file=sys.stderr)
+        return _rebuild_state()
+
+
+def save_state(st: RunState) -> None:
+    _atomic_write_text(_state_path(), json.dumps(_state_to_json(st), indent=1))
+
+
+# ----------------------------------------------------------------------------
+# events
+# ----------------------------------------------------------------------------
+
+def _events_path() -> Path:
+    return work_dir() / "events.jsonl"
+
+
+def log_event(kind: str, **detail) -> None:
+    ev = {"ts": iso_now(), "kind": kind}
+    ev.update(detail)
+    path = _events_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(ev, default=str) + "\n")
+        fh.flush()
+
+
+def _rejected_hashes(current_vh: str | None = None) -> set[str]:
+    """tableau_hash of every 'rejected' event so far (skipped on later cycles).
+
+    A rejection is only binding under the verifier that produced it: events carrying a different
+    verifier_hash (or none — older event format) are re-verified rather than skipped."""
+    out: set[str] = set()
+    path = _events_path()
+    if not path.exists():
+        return out
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(ev, dict) and ev.get("kind") == "rejected":
+                h = ev.get("tableau_hash")
+                if current_vh is not None and ev.get("verifier_hash") != current_vh:
+                    continue
+                if isinstance(h, str):
+                    out.add(h)
+    return out
+
+
+# ----------------------------------------------------------------------------
+# epoch backstop
+# ----------------------------------------------------------------------------
+
+def _last_parsable_verifier_hash(path: Path) -> str | None:
+    """The verifier_hash of the last parsable record in one archive file.
+
+    Lines are walked from the bottom, so a crash-torn trailing line cannot hide
+    the record before it. None when the file holds no parsable record at all:
+    an empty file is not a foreign epoch.
+    """
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    for raw in reversed(text.split("\n")):
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            rec = archive.record_from_json(json.loads(line))
+        except (ValueError, archive.RecordSchemaError):
+            continue
+        return rec.verifier_hash
+    return None
+
+
+def archive_epoch_mismatches() -> list[tuple[str, str]]:
+    """(filename, verifier_hash) pairs that refuse this archive under the live pin.
+
+    The fail-closed epoch backstop (D45): epoch separation is by relocation, so an
+    archive file whose last parsable record carries any other hash is a forgotten
+    relocation (the newest file still holds epoch 1 under the new pin) or a botched
+    restore (the oldest file sits beside the new epoch) mixing two epochs' scores.
+    Only the boundary files are read: the newest supersedes everything between
+    them, and a restored epoch-1 tree would sit at the oldest name. An empty
+    archive passes, which is exactly the state the runner is built to start from:
+    seed_baselines writes the eight anchors under the new hash.
+    """
+    try:
+        files = sorted((p for p in archive_dir().iterdir()
+                        if p.is_file() and p.name.endswith(".jsonl")),
+                       key=lambda p: p.name)
+    except OSError:
+        return []
+    if not files:
+        return []
+    current = verifier_hash.compute_verifier_hash()
+    boundary = (files[0], files[-1]) if len(files) > 1 else (files[0],)
+    return [(p.name, h) for p in boundary
+            if (h := _last_parsable_verifier_hash(p)) is not None and h != current]
+
+
+def refuse_on_epoch_mismatch() -> bool:
+    """Log epoch_mismatch_refused when the archive mixes hashes. True means refuse."""
+    bad = archive_epoch_mismatches()
+    if not bad:
+        return False
+    log_event("epoch_mismatch_refused",
+              expected=verifier_hash.compute_verifier_hash(),
+              mismatches=[{"file": name, "verifier_hash": h} for name, h in bad])
+    print("archive verifier hash differs from the live pin; "
+          "refusing to run (epoch_mismatch_refused)", file=sys.stderr)
+    return True
+
+
+# ----------------------------------------------------------------------------
+# LLM
+# ----------------------------------------------------------------------------
+
+# Reasoning efforts `codex exec` accepts through -c model_reasoning_effort. Anything else in
+# RK_LLM_EFFORT is ignored rather than passed on, so a typo cannot fail every call.
+_LLM_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+
+
+def _llm_effort() -> str:
+    """RK_LLM_EFFORT when it names a known effort, else "" (the model's own default)."""
+    e = os.environ.get("RK_LLM_EFFORT", "").strip().lower()
+    return e if e in _LLM_EFFORTS else ""
+
+
+def _call_codex(system: str, user: str, extra_args: list[str] | None = None, timeout: int = 600,
+                effort: str = "") -> tuple[str, float]:
+    """RK_LLM=codex: one `codex exec` call using the host-authenticated ~/.codex/auth.json mounted
+    read-only into the container (HANDOFF §2.2). Plan-billed, so the metered cost is 0.0; the
+    monthly cap still governs the API-key path. Raises on any failure. No retries.
+
+    `effort` sets the reasoning effort for this call; empty leaves the model's default. The
+    calls that decide what to search (directives, hypotheses) and the published interpretation
+    pass RK_LLM_EFFORT; the literature digest does not, because it spends its tokens on web
+    results rather than on reasoning and was already half of all usage at the default."""
+    exe = os.environ.get("RK_CODEX_BIN") or shutil.which("codex") or "codex"   # npm shim is codex.cmd on Windows
+    model = os.environ.get("RK_LLM_MODEL", "")
+    with_model = ["-m", model] if model else []
+    if effort:
+        with_model += ["-c", f'model_reasoning_effort="{effort}"']
+    # Codex 0.156 searches the web by default, which quadrupled a directive's input tokens in a
+    # test on 2026-09-24. Only the literature digest asks for it; every other call reads our
+    # own data. (tools.web_search=false no longer turns it off; web_search="disabled" does.)
+    if not any("web_search" in a for a in (extra_args or [])):
+        with_model += ["-c", 'web_search="disabled"']
+    out_dir = work_dir() / ".codex-exec"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    last = out_dir / "last_message.txt"
+    if last.exists():
+        last.unlink()
+    cmd = [exe, "exec", "--json", "--skip-git-repo-check", "--sandbox", "read-only", "-C", str(out_dir),
+           "--output-last-message", str(last)] + with_model + (extra_args or []) + [system]
+    proc = subprocess.run(cmd, input=user, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
+    if proc.returncode != 0:
+        raise RuntimeError(f"codex exec exit {proc.returncode}: {proc.stderr.strip()[-300:]}")
+    if not last.exists():
+        raise RuntimeError("codex exec produced no final message")
+    content = last.read_text(encoding="utf-8").strip()
+    if not content:
+        raise RuntimeError("codex exec final message is empty")
+    # Usage: per-call tokens come from the --json event stream; the plan's rate limits (the
+    # Codex "/usage" numbers) are in the rollout Codex writes for every session.
+    tokens: dict = {}
+    for line in proc.stdout.splitlines():
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(ev, dict) and ev.get("type") == "turn.completed" and isinstance(ev.get("usage"), dict):
+            tokens = {k: int(v) for k, v in ev["usage"].items() if isinstance(v, (int, float))}
+    log_event("codex_usage", tokens=tokens, model=model or "default", effort=effort or "default",
+              **_codex_rate_limits())
+    return content, 0.0
+
+
+def _codex_rate_limits() -> dict:
+    """Latest rate-limit snapshot Codex wrote under ~/.codex/sessions (weekly window used_percent,
+    resets_at epoch, plan_type). Empty dict if none is found."""
+    root = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "sessions"
+    try:
+        files = sorted(root.rglob("rollout-*.jsonl"), key=lambda p: p.stat().st_mtime)
+    except OSError:
+        return {}
+    for path in reversed(files[-5:]):
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for line in reversed(text.splitlines()):
+            if '"rate_limits"' not in line:
+                continue
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            payload = ev.get("payload", ev) if isinstance(ev, dict) else {}
+            rl = payload.get("rate_limits") if isinstance(payload, dict) else None
+            if not isinstance(rl, dict):
+                continue
+            primary = rl.get("primary") or {}
+            try:
+                age_s = max(0.0, time.time() - path.stat().st_mtime)
+            except OSError:
+                age_s = None
+            return {
+                "used_percent": primary.get("used_percent"),
+                "window_minutes": primary.get("window_minutes"),
+                "resets_at": primary.get("resets_at"),
+                "plan_type": rl.get("plan_type"),
+                # How old the reading is. Only a codex call refreshes it, so an
+                # unbounded age is the signature of a gate that has latched shut.
+                "snapshot_age_s": age_s,
+            }
+    return {}
+
+
+def call_llm(system: str, user: str) -> tuple[str, float]:
+    """One urllib POST to the chat completions endpoint, or one `codex exec` when RK_LLM=codex.
+    Raises on any failure."""
+    if os.environ.get("RK_LLM") == "codex":
+        return _call_codex(system, user, effort=_llm_effort())
+    key = credentials.openai_key()
+    if not key:
+        raise RuntimeError("no API key available")
+    model = os.environ.get("RK_LLM_MODEL", "gpt-4.1-mini")
+    body = json.dumps({
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "temperature": 0,
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        _LLM_URL,
+        data=body,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {key}",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=180) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+    content = payload["choices"][0]["message"]["content"]
+    if not isinstance(content, str):
+        raise RuntimeError("LLM response content is not a string")
+    usage = payload.get("usage") or {}
+    p_tok = int(usage.get("prompt_tokens", 0) or 0)
+    c_tok = int(usage.get("completion_tokens", 0) or 0)
+    cost = p_tok * _LLM_IN_USD_PER_M / 1e6 + c_tok * _LLM_OUT_USD_PER_M / 1e6
+    return content, float(cost)
+
+
+# ----------------------------------------------------------------------------
+# baselines
+# ----------------------------------------------------------------------------
+
+def _classical_orders() -> dict[str, int]:
+    with open(FIXTURES_DIR / "classical.json", "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    out: dict[str, int] = {}
+    for name, entry in data.items():
+        if name.startswith("_") or not isinstance(entry, dict):
+            continue
+        out[name] = int(entry.get("order", 1))
+    return out
+
+
+def seed_baselines(verifier_hash_value: str, known: frozenset[str] | None = None) -> int:
+    """Append the 8 classical tableaus (cycle 0, seed 0, no_incumbent) if absent.
+
+    Each one opens its cell, before any search has run, so it carries the tier assign_tier
+    gives a candidate with no incumbent to compare against. These eight are the only
+    records the runner tiers without calling assign_tier.
+
+    `known` is the set of archived hashes the caller already has (ArchiveState.record_hashes).
+    Passing it avoids a full re-read of the archive; omitting it re-reads, which is what any
+    caller outside the cycle loop wants.
+    """
+    existing = set(known) if known is not None else {r.tableau_hash for r in archive.read_all()}
+    orders = _classical_orders()
+    added = 0
+    for name, t in tableau_mod.classical().items():
+        h = tableau_mod.content_hash(t)
+        if h in existing:
+            continue
+        order = orders.get(name, 1)
+        verdict, sv = verifier.verify_with_score(t, order)
+        if verdict is not None:
+            log_event("baseline_rejected", name=name, code=verdict.code, detail=verdict.detail)
+        if sv is None:
+            sv = evaluator.evaluate(t, evaluator.DEFAULT_BUDGET_CYCLES)
+        rec = Record(
+            tableau_hash=h,
+            tableau=t,
+            score=sv,
+            tier="no_incumbent",
+            cycle_id=0,
+            seed=0,
+            verifier_hash=verifier_hash_value,
+            directive_id=None,
+            hypothesis_id=None,
+            timestamp=iso_now(),
+        )
+        archive.append(rec)
+        existing.add(h)
+        added += 1
+        log_event("baseline_seeded", name=name, tableau_hash=h)
+    return added
+
+
+# ----------------------------------------------------------------------------
+# cycle
+# ----------------------------------------------------------------------------
+
+@dataclasses.dataclass(frozen=True)
+class _Candidate:
+    tableau: Tableau
+    order: int
+    seed: int
+    directive_id: str | None
+    hypothesis_id: str | None
+
+
+def _eval_budget() -> int:
+    try:
+        return int(os.environ.get("RK_EVAL_BUDGET", "200"))
+    except ValueError:
+        return 200
+
+
+def _warm_start_record(arch, order: int, stages: int, policy: str):
+    """The archived method a warm-started island starts from, or None.
+
+    The targeted cell's elite when that cell has the stage count this island is searching;
+    otherwise the lowest held-out error elite at that stage count in the same order's grid.
+    Deterministic: the grid is walked in sorted key order and a tie keeps the earlier cell.
+    """
+    grid = (arch.grids.get(int(order), {}) if arch is not None and arch.grids else {}) or {}
+    if not grid:
+        return None
+    cell = encourager.target_cell(arch, int(order), policy)
+    rec = grid.get((int(cell[0]), int(cell[1])))
+    if rec is not None and int(cell[0]) == int(stages):
+        return rec
+    best = None
+    best_val = float("inf")
+    for key in sorted(grid):
+        if int(key[0]) != int(stages):
+            continue
+        try:
+            v = float(grid[key].score.heldout_error)
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if v == v and v < best_val:      # NaN loses every comparison, so it never wins
+            best_val = v
+            best = grid[key]
+    return best
+
+
+def _cmaes_candidates(d: dict, base_cycle_id: int, arch=None, policy: str = "empty") -> list[_Candidate]:
+    order = int(d["target_order"])
+    constraints = dict(search.default_constraints())
+    constraints.update(d.get("constraints") or {})
+    islands = int(d.get("islands", 4))
+    budget = _eval_budget()
+    warm = _warm_start_enabled(policy)
+    out: list[_Candidate] = []
+    for stg in d["stages"]:
+        # x0 is added per stage count and never to the directive: the constraints dict built
+        # here is a plain dict that validate_directive never sees, and a start point is only
+        # meaningful for a vector of the right length, so an incumbent of another size is
+        # dropped rather than padded. A warm start makes the candidate stream depend on the
+        # archive as well as on the seed, so the start point is logged with the island.
+        stage_constraints = dict(constraints)
+        incumbent = _warm_start_record(arch, order, int(stg), policy) if warm else None
+        if incumbent is not None:
+            x0 = search.x0_from_tableau(incumbent.tableau)
+            if len(x0) == search.free_parameters(int(stg)):
+                stage_constraints["x0"] = x0
+            else:
+                incumbent = None
+        warm_start = "x0" in stage_constraints
+        for k in range(islands):
+            seed = base_cycle_id * 100 + k
+            log_event("island_start", order=order, stages=int(stg), seed=seed, budget=budget,
+                      directive_id=d.get("directive_id"), policy=policy, warm_start=warm_start,
+                      warm_start_hash=(incumbent.tableau_hash if incumbent is not None else None))
+            n_yield = 0
+            achieved: dict[int, int] = {}
+            for t in search.cmaes_island(order, int(stg), seed, stage_constraints, budget):
+                # search.project may fall back to a lower order when the requested one is not
+                # exactly solvable; verify each candidate at the order it actually achieves.
+                p = min(orderconditions.achieved_order_symbolic(t, max_order=4), 4)
+                if p < 1:
+                    continue
+                achieved[p] = achieved.get(p, 0) + 1
+                out.append(_Candidate(t, p, seed, d.get("directive_id"), d.get("hypothesis_id")))
+                n_yield += 1
+            log_event("island_done", order=order, stages=int(stg), seed=seed, yielded=n_yield,
+                      achieved_orders=achieved, policy=policy)
+    return out
+
+
+def _llm_every_cycles() -> int:
+    try:
+        return max(1, int(os.environ.get("RK_LLM_EVERY_CYCLES", "5") or 5))
+    except ValueError:
+        return 5
+
+
+def _codex_usage_cap() -> float:
+    try:
+        return float(os.environ.get("RK_CODEX_USAGE_CAP", "80") or 80)
+    except ValueError:
+        return 80.0
+
+
+def _last_directive_path() -> Path:
+    return work_dir() / "LAST_DIRECTIVE.json"
+
+
+def llm_due(new_cycle_id: int, action_kind: str, every: int) -> bool:
+    """A fresh directive is requested every `every` cycles or whenever the encourager escalates.
+    Between those, the last accepted directive is reused (HANDOFF section 5: a directive only
+    narrows the search, so reusing one is always safe)."""
+    return every <= 1 or new_cycle_id % every == 0 or action_kind in ("HYPOTHESIZE", "WIDEN", "ADVANCE_PHASE", "ROTATE_PROBLEMS")
+
+
+def _llm_directive(state: RunState, arch, phase: int, new_cycle_id: int, action_kind: str = "",
+                   policy: str = "empty") -> tuple[dict, float]:
+    """Directive for phases 2/3: LLM when enabled (throttled), else the last directive or the
+    deterministic fallback."""
+    spent = 0.0
+    mode = os.environ.get("RK_LLM")
+    want = mode in ("on", "codex") and state.spend_usd < credentials.monthly_cap_usd()
+    if want and mode == "codex" and _codex_capped("directive"):
+        want = False
+    if want and not llm_due(new_cycle_id, action_kind, _llm_every_cycles()):
+        try:
+            last = json.loads(_last_directive_path().read_text(encoding="utf-8"))
+            d = directive_mod.validate_directive(last)
+            every = _llm_every_cycles()
+            log_event("directive_reused", directive_id=d.get("directive_id"),
+                      next_llm_cycle=(new_cycle_id // every + 1) * every)
+            return d, 0.0
+        except Exception:  # noqa: BLE001 - no reusable directive yet: fall back
+            want = False
+    if want:
+        hyps = ledger.load_hypotheses()
+        refuted = [h for h in hyps if h.get("verdict") == "refuted"]
+        open_h = [h for h in hyps if h.get("verdict") is None]
+        user = prompts.build_user_prompt(arch, state, refuted, open_h,
+                                         literature=literature.digest_for_prompt(),
+                                         history=outcomes.history_for_prompt())
+        # The other three gates wrap their call for this reason and say so; this one did not,
+        # so a codex failure (non-zero exit, auth, network, the 600 s timeout) propagated out
+        # of the directive path and _abandon discarded the whole cycle. A directive is a
+        # narrowing, so falling back to the deterministic one is always safe.
+        try:
+            content, cost = call_llm(prompts.SYSTEM_PROMPT, user)
+        except Exception as e:  # noqa: BLE001 - a directive call must never fail the cycle
+            log_event("llm_call_failed", error=repr(e)[:300], gate="directive")
+            return directive_mod.fallback_directive(arch, phase, new_cycle_id, policy), spent
+        spent = cost
+        # Under codex an unset RK_LLM_MODEL means the CLI's default; this event used to name
+        # the API path's default, gpt-4.1-mini, on every codex call.
+        if os.environ.get("RK_LLM") == "codex":
+            model_used = os.environ.get("RK_LLM_MODEL") or "codex default"
+        else:
+            model_used = os.environ.get("RK_LLM_MODEL", "gpt-4.1-mini")
+        log_event("llm_call", cost_usd=cost, model=model_used, effort=_llm_effort() or "default",
+                  chars=len(content))
+        try:
+            d = directive_mod.parse_directive(content)
+            _atomic_write_text(_last_directive_path(), json.dumps(d, indent=1))
+            log_event("directive_accepted", directive_id=d.get("directive_id"),
+                      hypothesis_id=d.get("hypothesis_id"), target_order=d.get("target_order"),
+                      stages=d.get("stages"), constraints=d.get("constraints"),
+                      rationale=d.get("rationale"), source="llm")
+            return d, spent
+        except directive_mod.DirectiveError as e:
+            log_event("directive_rejected", error=str(e), text=content[:500])
+    elif mode in ("on", "codex") and state.spend_usd >= credentials.monthly_cap_usd():
+        log_event("llm_skipped", reason="spend cap reached", spend_usd=state.spend_usd)
+    d = directive_mod.fallback_directive(arch, phase, new_cycle_id, policy)
+    log_event("directive_fallback", directive_id=d.get("directive_id"), target_order=d.get("target_order"),
+              stages=d.get("stages"), rationale=d.get("rationale"), source="fallback", policy=policy)
+    return d, spent
+
+
+def _git(args: list[str]) -> int | None:
+    """Run git. Its exit code, or None when it could not be run at all."""
+    try:
+        return subprocess.run(["git"] + args, check=False, capture_output=True,
+                              timeout=120).returncode
+    except Exception as e:
+        log_event("git_failed", args=args, error=repr(e))
+        return None
+
+
+# A lock this old cannot belong to a live git process. Inside the container the runner is the
+# only git user of these checkouts, and a host git status holds its lock for milliseconds.
+_STALE_LOCK_SECONDS = 600
+
+
+def _clear_stale_git_locks() -> None:
+    """Remove the lock files a killed git left in the work and findings checkouts.
+
+    The runner ignores SIGTERM, so every docker stop and every watchdog kill ends in SIGKILL,
+    and one that lands during a git add or commit leaves index.lock or a ref lock behind.
+    Every later add and commit then fails, _git does not raise, and the site stops publishing
+    with nothing to say so. The watchdog now starts the container again after its own kills
+    (DECISIONS D46), so that start is unattended, and the runner clears such locks itself.
+    """
+    now = time.time()
+    for repo in (work_dir(), findings_dir()):
+        git_dir = repo / ".git"
+        if not git_dir.is_dir():
+            continue
+        locks = sorted(git_dir.glob("*.lock")) + sorted((git_dir / "refs").rglob("*.lock"))
+        for lock in locks:
+            try:
+                age = now - lock.stat().st_mtime
+                if age < _STALE_LOCK_SECONDS:
+                    continue
+                lock.unlink()
+            except OSError as e:
+                log_event("git_lock_clear_failed", path=str(lock), error=repr(e)[:200])
+                continue
+            log_event("git_lock_cleared", path=str(lock), age_s=round(age))
+
+
+_HEX = set("0123456789abcdef")
+
+
+def _repo_shas() -> dict[str, str]:
+    """The commit each mounted repository sits at, for the findings-site footer.
+
+    Read here and handed to sitegen.build as data. The generator never reads git
+    itself: its determinism tests build into a directory with no repository, and a
+    generator that shelled out would make its own bytes depend on its environment.
+
+    The findings commit is the one the build started from, since _commit_outputs runs
+    after the build. rk-overview is not mounted into the container, so it is absent
+    here and the footer lists what it can see. A repository that does not answer is
+    left out rather than guessed at.
+    """
+    out: dict[str, str] = {}
+    for name, path in (("rk-harness", HARNESS_DIR), ("rk-work", work_dir()),
+                       ("rk-findings", findings_dir())):
+        try:
+            proc = subprocess.run(
+                ["git", "-C", str(path), "rev-parse", "--short=12", "HEAD"],
+                check=False, capture_output=True, timeout=30, text=True,
+                encoding="utf-8", errors="replace")
+        except Exception as e:  # noqa: BLE001 - provenance must not end a cycle
+            log_event("repo_sha_failed", repo=name, error=repr(e)[:200])
+            continue
+        sha = (proc.stdout or "").strip()
+        if proc.returncode == 0 and 7 <= len(sha) <= 40 and set(sha) <= _HEX:
+            out[name] = sha
+    return out
+
+
+# Small, slow-moving state that the container writes into /work. Without these the
+# files only reached git when a human committed them by hand: the runner staged
+# completed archive files and nothing else, and the host watchdog pushes commits but
+# never makes them, so the hypothesis ledger, the literature digests and the model
+# interpretations sat dirty in the checkout indefinitely. Today's archive file stays
+# out on purpose (tens of MB, appended every cycle); it is committed once the day
+# rolls over, exactly as before. Paths that are absent, or that .gitignore covers,
+# stage nothing and cost nothing.
+_WORK_EXTRA_PATHS: tuple[str, ...] = (
+    "LAST_DIRECTIVE.json",
+    "hypotheses.jsonl",
+    "falsification.json",
+    "EPOCH_STATUS.json",
+    "saturation_state.json",
+    "literature",
+    "interpretation",
+    "prototypes",
+    "sidetrack",
+    "validation",
+    "benchmark",
+    "secondpass",
+    "stiffscreen",
+    # The lane documents and the cycle log, which reached git only when a host session
+    # committed them. elites.json is a published traceability source (DECISIONS D40), so it
+    # goes in the cycle whose site build published it. The per-day lane records stay out
+    # through .gitignore, as before.
+    "adaptive_archive/elites.json",
+    "implicit_archive/elites.json",
+    "schedule",
+)
+
+# GitHub refuses any push that carries a file of 100 MiB or more, and once such a blob is in
+# a commit every later push of the branch fails on it, whatever else the push carries. So no
+# file at or over this size is staged. The file stays on disk, and the skip is logged once
+# per path per process.
+_COMMIT_MAX_BYTES = 95 * 1024 * 1024
+_oversize_logged: set[str] = set()
+
+
+def _stage(wd: Path, paths: list[Path]) -> bool:
+    """git add these files of the work tree in one call, leaving out any too large to push.
+
+    True when git took at least one file. One call rather than one per file, because the
+    closed archive and ledger days are offered again every cycle and their number only grows.
+    """
+    rels: list[str] = []
+    for path in paths:
+        try:
+            size = path.stat().st_size
+        except OSError:
+            continue
+        # Relative to the work tree, because git -C resolves a relative path from there.
+        rel = path.relative_to(wd).as_posix() if path.is_relative_to(wd) else str(path)
+        if size >= _COMMIT_MAX_BYTES:
+            if rel not in _oversize_logged:
+                _oversize_logged.add(rel)
+                log_event("commit_skipped_oversize", path=rel, bytes=size,
+                          limit_bytes=_COMMIT_MAX_BYTES)
+            continue
+        rels.append(rel)
+    return bool(rels) and _git(["-C", str(wd), "add", "--"] + rels) == 0
+
+
+def _closed_days(paths, today_stem: str) -> list[Path]:
+    """The per-day files whose UTC day has ended. Today's file is still being appended to."""
+    return [p for p in sorted(paths) if p.stem != today_stem]
+
+
+def _commit_outputs(new_cycle_id: int) -> None:
+    fd = findings_dir()
+    _git(["-C", str(fd), "add", "-A"])
+    _git(["-C", str(fd), "commit", "-qm", f"cycle {new_cycle_id}"])
+    wd = work_dir()
+    today = archive.today_path()
+    # Closed days only, for the archive and for the lane ledgers alike: a closed day's file
+    # never changes again, so it is committed once and costs nothing after. The ledgers are
+    # split by day for this (DECISIONS D47); the one file written before the split is no
+    # longer appended to and rides along.
+    files = _closed_days(archive_dir().glob("*.jsonl"), today.stem)
+    files += _closed_days(lanesearch.every_ledger_path(), today.stem)
+    files += [wd / rel for rel in _WORK_EXTRA_PATHS if (wd / rel).is_file()]
+    staged = _stage(wd, files)
+    dirs = [rel for rel in _WORK_EXTRA_PATHS if (wd / rel).is_dir()]
+    if dirs:
+        # Directories are staged whole. Nothing under them has come near the limit.
+        _git(["-C", str(wd), "add", "--"] + dirs)
+        staged = True
+    if staged:
+        # A commit with nothing actually staged fails harmlessly and makes no empty
+        # commit, so this can run every cycle without producing one.
+        _git(["-C", str(wd), "commit", "-qm", f"cycle {new_cycle_id}"])
+
+
+def _abandon(state: RunState, e: BaseException) -> RunState:
+    try:
+        log_event("cycle_abandoned", error=repr(e), cycle_id=state.cycle_id)
+    except Exception as e2:
+        print(f"log_event failed: {e2!r}", file=sys.stderr)
+    return dataclasses.replace(state, stall_counter=state.stall_counter + 1)
+
+
+def _first_json_object(content: str) -> dict:
+    """The first balanced {...} in `content`, parsed. Raises on none."""
+    start = content.index("{")
+    depth = 0
+    end = start
+    for i in range(start, len(content)):
+        if content[i] == "{":
+            depth += 1
+        elif content[i] == "}":
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+    return json.loads(content[start:end + 1])
+
+
+def _lit_every() -> int:
+    try:
+        return max(0, int(os.environ.get("RK_LIT_EVERY", "50") or 50))
+    except ValueError:
+        return 50
+
+
+def _interpret_every() -> int:
+    try:
+        return max(0, int(os.environ.get("RK_INTERPRET_EVERY", "25") or 25))
+    except ValueError:
+        return 25
+
+
+def _sidetrack_every() -> int:
+    try:
+        return max(0, int(os.environ.get("RK_SIDETRACK_EVERY", "0") or 0))
+    except ValueError:
+        return 0
+
+
+def _sidetrack_max_seconds() -> float:
+    try:
+        return max(30.0, min(600.0, float(os.environ.get("RK_SIDETRACK_MAX_SECONDS", "180") or 180)))
+    except ValueError:
+        return 180.0
+
+
+def _sidetrack_tracks() -> tuple[str, ...]:
+    return sidetrack.parse_tracks(os.environ.get("RK_SIDETRACK_TRACKS", "both"))
+
+
+def _maybe_sidetrack(new_cycle_id: int) -> None:
+    """Every RK_SIDETRACK_EVERY cycles: measure side-track points until the budget
+    is spent (docs/SIDETRACK-AUTOMATION.md).
+
+    Off by default, so a container that has not been reconfigured behaves exactly
+    as it did before this existed. Runs after the archive work of the cycle is
+    finished and before the site build, so a job can neither cost the cycle its
+    results nor delay their publication by a cycle. Failures are logged and
+    swallowed, like the literature and interpretation hooks above.
+    """
+    every = _sidetrack_every()
+    tracks = _sidetrack_tracks()
+    if every <= 0 or not tracks or new_cycle_id % every != 0:
+        return
+    if (work_dir() / "STOP").exists():
+        log_event("sidetrack_skipped", reason="STOP present", cycle_id=new_cycle_id)
+        return
+    try:
+        summary = sidetrack.run_until(
+            _sidetrack_max_seconds(), tracks=tracks, cycle=new_cycle_id, log=log_event,
+            stop=lambda: (work_dir() / "STOP").exists())
+    except Exception as e:  # noqa: BLE001 - a side track must never fail the cycle
+        log_event("sidetrack_failed", error=repr(e), cycle_id=new_cycle_id)
+        return
+    log_event("sidetrack_firing", cycle_id=new_cycle_id, points=len(summary.get("points", [])),
+              elapsed_s=summary.get("elapsed_s"), exhausted=summary.get("exhausted"))
+
+
+def _codex_cap_state() -> tuple[bool, str, dict]:
+    """Whether the Codex plan cap is binding right now, and why.
+
+    Only a codex call writes a rate-limit snapshot, so a reading that closes the gate is
+    also the last reading that will ever be taken: without an expiry the gate latches shut
+    for good, which is what happened between 2026-09-06 and 2026-09-08. The same payload
+    already carries resets_at, the end of the window the reading was taken in. Once that
+    has passed the reading describes a window that no longer exists, so it must not gate.
+    A snapshot older than its own window is treated the same way, for the case where
+    resets_at is missing.
+    """
+    rl = _codex_rate_limits()
+    used = rl.get("used_percent")
+    if not isinstance(used, (int, float)):
+        return False, "no snapshot", rl
+    resets_at = rl.get("resets_at")
+    if isinstance(resets_at, (int, float)) and time.time() >= float(resets_at):
+        return False, "window reset passed", rl
+    age_s = rl.get("snapshot_age_s")
+    window_s = rl.get("window_minutes")
+    if (isinstance(age_s, (int, float)) and isinstance(window_s, (int, float))
+            and age_s > float(window_s) * 60.0):
+        return False, "snapshot older than its window", rl
+    if used >= _codex_usage_cap():
+        return True, "plan usage cap", rl
+    return False, "under cap", rl
+
+
+def _codex_capped(gate: str = "") -> bool:
+    """One gate decision, logged. Three of the four call sites used to suppress silently,
+    which is why a thousand-cycle outage left almost no trace in events.jsonl."""
+    capped, reason, rl = _codex_cap_state()
+    if capped:
+        log_event("llm_skipped", reason=reason, gate=gate,
+                  used_percent=rl.get("used_percent"), cap_percent=_codex_usage_cap(),
+                  resets_at=rl.get("resets_at"))
+    return capped
+
+
+def _maybe_literature_review(state: RunState, arch, new_cycle_id: int) -> float:
+    """Every RK_LIT_EVERY cycles: one web-searched literature digest (codex only - the web
+    search tool runs server-side on the plan). Digests feed the directive, hypothesis and
+    interpretation prompts and are published on the findings site (softened)."""
+    every = _lit_every()
+    if every <= 0 or new_cycle_id % every != 0 or os.environ.get("RK_LLM") != "codex":
+        return 0.0
+    if state.spend_usd >= credentials.monthly_cap_usd() or _codex_capped("literature"):
+        return 0.0
+    digests = literature.load_digests()
+    topic = literature.next_topic(len(digests))
+    hyps = ledger.load_hypotheses()
+    open_h = [h for h in hyps if h.get("verdict") is None]
+    try:
+        content, cost = _call_codex(
+            prompts.LITERATURE_SYSTEM_PROMPT,
+            prompts.build_literature_prompt(topic, state, open_h, digests),
+            extra_args=["-c", 'web_search="live"'], timeout=900)
+    except Exception as e:  # noqa: BLE001 - research must never fail the cycle
+        log_event("literature_failed", error=repr(e), topic=topic)
+        return 0.0
+    try:
+        raw = _first_json_object(content)
+        entry = {"ts": iso_now(), "cycle": new_cycle_id, "topic": raw.get("topic", topic),
+                 "summary": raw.get("summary", ""), "key_points": raw.get("key_points"),
+                 "sources": raw.get("sources")}
+        if not str(entry["summary"]).strip():
+            raise ValueError("empty summary")
+        literature.append_digest(entry)
+        log_event("literature_digest", topic=str(entry["topic"])[:200],
+                  sources=len(raw.get("sources") or []), cost_usd=cost)
+    except Exception as e:  # noqa: BLE001
+        log_event("literature_failed", error=repr(e), topic=topic, text=str(content)[:300])
+    return cost
+
+
+def _maybe_interpret(state: RunState, arch, new_cycle_id: int) -> float:
+    """Every RK_INTERPRET_EVERY cycles: model-written prose interpretation of the archive,
+    published on the findings site as clearly labelled analysis (softened at write time so
+    the banned-words guard still holds)."""
+    every = _interpret_every()
+    if every <= 0 or new_cycle_id % every != 0 or os.environ.get("RK_LLM") not in ("on", "codex"):
+        return 0.0
+    if state.spend_usd >= credentials.monthly_cap_usd():
+        return 0.0
+    if os.environ.get("RK_LLM") == "codex" and _codex_capped("interpret"):
+        return 0.0
+    hyps = ledger.load_hypotheses()
+    refuted = [h for h in hyps if h.get("verdict") == "refuted"]
+    open_h = [h for h in hyps if h.get("verdict") is None]
+    extra_lines = []
+    f = work_dir() / "falsification.json"
+    if f.exists():
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            rk4 = data.get("methods", {}).get("rk4", {})
+            extra_lines.append(
+                f"falsification: verdict {data.get('verdict')}; rk4 coefficient fraction "
+                f"{rk4.get('coefficient_fraction')}; crossover h {rk4.get('crossover_h')}")
+        except ValueError:
+            pass
+    try:
+        content, cost = _call_codex(  # plain call: no web needed to read our own data
+            prompts.INTERPRET_SYSTEM_PROMPT,
+            prompts.build_interpretation_prompt(arch, state, refuted, open_h,
+                                                literature.digest_for_prompt(),
+                                                "\n".join(extra_lines)),
+            effort=_llm_effort()) if os.environ.get("RK_LLM") == "codex" else call_llm(
+            prompts.INTERPRET_SYSTEM_PROMPT,
+            prompts.build_interpretation_prompt(arch, state, refuted, open_h,
+                                                literature.digest_for_prompt(),
+                                                "\n".join(extra_lines)))
+    except Exception as e:  # noqa: BLE001
+        log_event("interpretation_failed", error=repr(e))
+        return 0.0
+    text = str(content).strip()
+    if len(text) < 200:
+        log_event("interpretation_failed", error="too short", text=text[:200])
+        return cost
+    literature.append_interpretation({"ts": iso_now(), "cycle": new_cycle_id, "text": text})
+    log_event("interpretation_published", cycle=new_cycle_id, chars=len(text), cost_usd=cost)
+    return cost
+
+
+def _next_hypothesis_id() -> str:
+    nums = [0]
+    for h in ledger.load_hypotheses():
+        hid = str(h.get("id", ""))
+        if hid.startswith("H-") and hid[2:].isdigit():
+            nums.append(int(hid[2:]))
+    return f"H-{max(nums) + 1:03d}"
+
+
+def _same_predicate(predicate: str, hyps: list[dict]) -> str | None:
+    """The id of a hypothesis already in the ledger with this predicate, compared without case
+    or spacing, else None."""
+    key = " ".join(str(predicate).split()).lower()
+    for h in hyps:
+        if " ".join(str(h.get("predicate", "")).split()).lower() == key:
+            return str(h.get("id"))
+    return None
+
+
+def _maybe_propose_hypothesis(state: RunState, arch, action_kind: str, new_cycle_id: int) -> float:
+    """On a HYPOTHESIZE escalation, ask the LLM for one hypothesis (HANDOFF section 6). The id and
+    cycle are assigned here, the predicate must parse under the hand-written grammar, and the
+    verdict is never model-written (ledger validation enforces all of it). Returns the cost."""
+    if action_kind != "HYPOTHESIZE" or os.environ.get("RK_LLM") not in ("on", "codex"):
+        return 0.0
+    if state.spend_usd >= credentials.monthly_cap_usd():
+        return 0.0
+    if os.environ.get("RK_LLM") == "codex" and _codex_capped("hypothesis"):
+        return 0.0
+    hyps = ledger.load_hypotheses()
+    refuted = [h for h in hyps if h.get("verdict") == "refuted"]
+    open_h = [h for h in hyps if h.get("verdict") is None]
+    resolved = [h for h in hyps if h.get("verdict") in ("supported", "inconclusive")]
+    try:
+        content, cost = call_llm(prompts.HYPOTHESIS_SYSTEM_PROMPT,
+                                 prompts.build_hypothesis_prompt(arch, state, refuted, open_h,
+                                                                 literature=literature.digest_for_prompt(),
+                                                                 resolved=resolved))
+    except Exception as e:  # noqa: BLE001 - a failed proposal never fails the cycle
+        log_event("hypothesis_call_failed", error=repr(e))
+        return 0.0
+    try:
+        start = content.index("{")
+        depth = 0
+        for i in range(start, len(content)):
+            if content[i] == "{":
+                depth += 1
+            elif content[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+        raw = json.loads(content[start:i + 1])
+        h = {
+            "id": _next_hypothesis_id(),
+            "cycle_proposed": new_cycle_id,
+            # prose is softened (banned priority-claim words replaced) because the ledger is
+            # rendered on the findings site, whose build refuses banned words (E4/H2)
+            "statement": literature.soften(str(raw["statement"]))[:500],
+            "mechanism": literature.soften(str(raw["mechanism"]))[:500],
+            "control": literature.soften(str(raw["control"]))[:500],
+            "predicate": str(raw["predicate"]),
+            "min_samples": max(20, min(int(raw.get("min_samples", 200)), 100000)),
+        }
+        # The same predicate again, whatever its wording, tests nothing new: drop it rather
+        # than spend min_samples of search on a question the ledger has already asked.
+        same = _same_predicate(h["predicate"], hyps)
+        if same is not None:
+            log_event("hypothesis_duplicate", predicate=h["predicate"], same_as=same, cost_usd=cost)
+            return cost
+        ledger.append_hypothesis(h)
+        log_event("hypothesis_proposed", id=h["id"], statement=h["statement"],
+                  predicate=h["predicate"], min_samples=h["min_samples"], cost_usd=cost)
+    except Exception as e:  # noqa: BLE001 - malformed proposal: log and move on
+        log_event("hypothesis_rejected", error=repr(e), text=str(content)[:300])
+    return cost
+
+
+def run_cycle(state: RunState) -> RunState:
+    try:
+        return _run_cycle(state)
+    except Exception as e:      # the cycle boundary must never raise
+        return _abandon(state, e)
+
+
+def _fallback_like(directive_id: str, order: int, stages: list[int], rationale: str) -> dict:
+    return {
+        "directive_id": directive_id,
+        "hypothesis_id": None,
+        "target_order": order,
+        "stages": list(stages),
+        "constraints": search.default_constraints(),
+        "islands": 4,
+        "budget_minutes": 5,
+        "rationale": rationale,
+    }
+
+
+def _lane_budget_seconds() -> float:
+    """Wall seconds a lane cycle may spend STARTING candidates.
+
+    lanes.lane_max_seconds() clamps rather than rejects, for the reason stated there: a
+    budget cannot arm anything on its own. The schedule is the thing that arms.
+    """
+    return lanes.lane_max_seconds()
+
+
+# What "no cap" hands lanesearch.step. Not the argument dropped and not an infinity: the
+# loop should always be counting something, so a candidate that somehow costs no time
+# still cannot spin. The most a bounded cycle can start is the ceiling budget over the
+# cheapest measured candidate, 420 s (lanes.LANE_MAX_SECONDS_CEILING) over about 0.49 s
+# for an adaptive one, which is under 900. This sits two orders above that, so it cannot
+# bind, and a runaway is still impossible.
+LANE_UNCAPPED_CANDIDATES = 100_000
+
+
+def _lane_max_candidates() -> int:
+    """How many candidates a lane cycle may START.
+
+    RK_LANE_MAX_CANDIDATES (config.json run.lane_max_candidates). 0, the default, means
+    the time budget is the only bound and LANE_UNCAPPED_CANDIDATES goes into the call. A
+    positive value binds ahead of the budget, which is what lanesearch's own default of
+    32 did: the adaptive lane spent 15.6 s of a 180 s budget and handed the rest back.
+
+    A value that is not a positive integer falls back rather than raising, following
+    lanes.lane_max_seconds and for the same reason: a cap cannot arm anything on its
+    own, so the nearest useful answer beats ending a cycle over it.
+    """
+    raw = os.environ.get("RK_LANE_MAX_CANDIDATES")
+    try:
+        v = int(raw) if raw not in (None, "") else 0
+    except (TypeError, ValueError):
+        return LANE_UNCAPPED_CANDIDATES
+    return v if v > 0 else LANE_UNCAPPED_CANDIDATES
+
+
+def _record_cycle(new_cycle_id: int, lane: str, schedule: str, seconds: float,
+                  productive: float | None, *, records_appended: int = 0,
+                  lane_records: int = 0, points: int = 0) -> None:
+    """Append one row to the cycle log and refresh the shares document.
+
+    EVERY cycle writes a row, explicit included. A log that only recorded the lanes
+    would make the explicit share unmeasurable, and an unmeasurable share is how the
+    intended split and the real one drifted to 0.0005 percent with nothing in a
+    position to notice. Failures here are logged and swallowed: the rotation is
+    reporting, and reporting must not be able to end a cycle that did its work.
+    """
+    try:
+        row = lanes.cycle_row(new_cycle_id, lane, iso_now(), seconds,
+                              productive_seconds=productive,
+                              records_appended=records_appended,
+                              points_measured=points,
+                              lane_records_appended=lane_records,
+                              schedule=schedule,
+                              code_hash=lanesearch.code_hash() if lane != "explicit" else None)
+        lanes.append_cycle(row)
+    except Exception as e:  # noqa: BLE001
+        log_event("lane_log_failed", error=repr(e)[:200], cycle_id=new_cycle_id, lane=lane)
+        return
+    try:
+        lanes.update_shares(schedule=schedule)
+    except Exception as e:  # noqa: BLE001
+        log_event("lane_shares_failed", error=repr(e)[:200], cycle_id=new_cycle_id)
+
+
+def _run_lane_cycle(state: RunState, new_cycle_id: int, arch, lane: str,
+                    schedule: str, started: float) -> RunState:
+    """One cycle of open-ended search for the adaptive or implicit lane.
+
+    WHAT THIS DOES NOT DO, and each omission is the point rather than a shortcut. It
+    does not call the encourager, because the encourager's whole domain is the archive
+    grid and a lane record does not live in a cell. It does not call the LLM, because a
+    directive names a target order and a stage count and this lane is not choosing one.
+    It does not enumerate, evaluate or verify, because nothing here goes through the
+    pinned checker and nothing here is scored. It appends to the lane's own unpinned
+    archive and to nothing else.
+
+    What it DOES share with an explicit cycle is the replay it was handed and the site
+    build below, so a lane cycle publishes its own class page in the same cycle it
+    measured, exactly as an explicit cycle publishes the archive.
+
+    The time budget is what bounds this cycle. max_candidates is passed on every call
+    rather than left to lanesearch.step's own default, because that default is 32 and
+    32 bound long before the budget did: over 200 measured cycles the adaptive lane
+    spent 15.6 s of the 180 s it was given and handed the rest back.
+
+    stall_counter is passed through untouched. It counts cycles since the explicit
+    search last improved a cell, so a lane cycle neither advances it (the explicit
+    search did not fail, it did not run) nor clears it (nothing improved).
+    """
+    log_event("lane_cycle_start", cycle_id=new_cycle_id, lane=lane, schedule=schedule)
+    budget = _lane_budget_seconds()
+    max_candidates = _lane_max_candidates()
+    lane_started = time.monotonic()
+    records: list = []
+    try:
+        records = lanesearch.step(lane, seed=new_cycle_id, budget_seconds=budget,
+                                  cycle=new_cycle_id, log=log_event,
+                                  max_candidates=max_candidates)
+    except Exception as e:  # noqa: BLE001 - a lane must not be able to end the run
+        log_event("lane_cycle_failed", cycle_id=new_cycle_id, lane=lane,
+                  error=repr(e)[:300])
+    productive = time.monotonic() - lane_started
+
+    if os.environ.get("RK_SITE") != "off":
+        try:
+            sitegen.build(arch, findings_dir() / "docs", commit_shas=_repo_shas())
+        except sitegen.BannedWordError as e:
+            log_event("site_build_failed", error=repr(e))
+    if os.environ.get("RK_GIT_COMMIT") == "on":
+        _commit_outputs(new_cycle_id)
+
+    new_state = RunState(
+        cycle_id=new_cycle_id,
+        phase=state.phase,
+        started_at=state.started_at,
+        last_heartbeat=iso_now(),
+        spend_usd=state.spend_usd,
+        stall_counter=state.stall_counter,
+        current_cell=state.current_cell,
+    )
+    save_state(new_state)
+    _record_cycle(new_cycle_id, lane, schedule, time.monotonic() - started, productive,
+                  lane_records=len(records))
+    log_event("cycle_done", cycle_id=new_cycle_id, phase=new_state.phase, improved=False,
+              stall_counter=new_state.stall_counter, accepted=0, rejected=0,
+              spend_usd=new_state.spend_usd, cap_usd=credentials.monthly_cap_usd(),
+              policy="lane", lane=lane, lane_records=len(records))
+    return new_state
+
+
+def _run_cycle(state: RunState) -> RunState:
+    # Fail-closed epoch backstop (D45): a foreign-hash archive never reaches the
+    # replay below. SystemExit, not _abandon, so the run stops with exit 0 instead
+    # of abandoning one cycle and starting the next against the same mixed archive.
+    if refuse_on_epoch_mismatch():
+        raise SystemExit(0)
+    new_cycle_id = state.cycle_id + 1
+    phase = state.phase
+    cycle_started = time.monotonic()
+    # One policy for the whole cycle, decided before anything is chosen, so every event this
+    # cycle writes can be attributed to it afterwards (rk_harness.policyab).
+    policy = _search_policy(new_cycle_id)
+    # And one lane, for the same reason: resolved once from the environment and passed
+    # down, so the event line and the work it describes cannot disagree because the
+    # variable changed between two reads. Under the shipped schedule 'E' this is
+    # "explicit" on every cycle and the branch below is never taken.
+    schedule = lanes.lane_schedule()
+    lane = lanes.lane_for(new_cycle_id, schedule)
+
+    # 1. replay, verifier hash, baselines
+    # This is the only full pass over the archive in a cycle. It used to be five (a replay
+    # here, a read_all in seed_baselines, a read_all for the seen-set, then a replay each
+    # for the hypothesis resolution and the site build), which at 71k records cost about
+    # 240 s against roughly 250 s of actual searching. The rest of the cycle works from
+    # this state and folds in what it appends; archive.fold is exact, not approximate.
+    arch = archive.replay()
+    vh = verifier_hash.compute_verifier_hash()
+    # Seed on every cycle, not only when the archive is empty: seed_baselines skips hashes already
+    # archived, and a crash mid-seeding (review E2 / R1) must not leave the baselines half-written.
+    n = seed_baselines(vh, known=arch.record_hashes)
+    if n:
+        log_event("baselines_seeded", count=n, verifier_hash=vh)
+        arch = archive.replay()
+    # The replay above reads a checkpoint over the closed daily files when one matches them
+    # exactly. A rejection is logged because it means the cycle paid for a full pass, and a
+    # checkpoint that keeps being rejected is a fault rather than a slow day.
+    rep = archive.last_checkpoint_report()
+    if not rep.get("used") and rep.get("reason") != "absent":
+        log_event("archive_checkpoint_rejected", **rep)
+    # Written here, at the start of a cycle, because a checkpoint may only summarise files
+    # that are closed: nothing has been appended yet, so today's file is still empty.
+    if archive.maybe_write_checkpoint(arch, vh) is None:
+        log_event("archive_checkpoint_written",
+                  covered_files=archive.last_checkpoint_write().get("covered_files"),
+                  n_records=arch.n_records)
+
+    # 1b. A lane cycle takes the replay it was handed and goes no further down this path.
+    # Placed after the replay and before the encourager because the site build needs the
+    # archive state and nothing below this line does anything a lane wants.
+    if lane != "explicit":
+        return _run_lane_cycle(state, new_cycle_id, arch, lane, schedule, cycle_started)
+
+    # 2. encourager
+    action = encourager.next_action(state, arch, now())
+    log_event("action", action=action.kind, payload=action.payload, cycle_id=new_cycle_id, phase=phase)
+    spent_hyp = _maybe_propose_hypothesis(state, arch, action.kind, new_cycle_id)
+    spent_hyp += _maybe_literature_review(state, arch, new_cycle_id)
+    spent_hyp += _maybe_interpret(state, arch, new_cycle_id)
+    if action.kind == "FREEZE":
+        log_event("frozen", cycle_id=state.cycle_id)
+        return state
+    if action.kind == "PACKAGE":
+        failed = 0
+        for r in archive.read_all():
+            v = verifier.verify(r.tableau, archive.record_order(r))
+            if v is not None:
+                failed += 1
+                log_event("reverify_failed", tableau_hash=r.tableau_hash, code=v.code, detail=v.detail)
+        log_event("package_reverified", failed=failed)
+        return state
+
+    # 3. candidates
+    seen = set(arch.record_hashes) | _rejected_hashes(vh)
+    cands: list[_Candidate] = []
+    enumeration_phase = False
+    enumeration_exhausted = False
+    spent = 0.0
+
+    if phase == 0:
+        enumeration_phase = True
+        did = f"D-E0{new_cycle_id:05d}"
+        all_pts = enumeration.enumerate_phase0()
+        fresh = [t for t in all_pts if tableau_mod.content_hash(t) not in seen]
+        enumeration_exhausted = len(fresh) == 0
+        cands = [_Candidate(t, 2, 0, did, None) for t in fresh[:_enum_per_cycle()]]
+        log_event("enumeration", phase=0, total=len(all_pts), remaining=len(fresh),
+                  taken=len(cands), directive_id=did)
+    elif phase == 1:
+        did = f"D-E1{new_cycle_id:05d}"
+        all_pts, cap_exceeded = enumeration.enumerate_phase1()
+        if cap_exceeded:
+            log_event("phase1_cap_exceeded", cap=enumeration.PHASE1_CAP)
+            d = _fallback_like(f"D-F{new_cycle_id:05d}", 3, [3, 4], "phase 1 cap exceeded; CMA-ES fallback")
+            log_event("directive_fallback", directive_id=d["directive_id"], target_order=d.get("target_order"),
+                      stages=d.get("stages"), rationale=d.get("rationale"), source="fallback", policy=policy)
+            cands = _cmaes_candidates(d, state.cycle_id, arch, policy)
+        else:
+            enumeration_phase = True
+            fresh = [t for t in all_pts if tableau_mod.content_hash(t) not in seen]
+            enumeration_exhausted = len(fresh) == 0
+            cands = [_Candidate(t, 3, 0, did, None) for t in fresh[:_enum_per_cycle()]]
+            log_event("enumeration", phase=1, total=len(all_pts), remaining=len(fresh),
+                      taken=len(cands), directive_id=did)
+            if enumeration_exhausted:
+                # the 4-stage part of Phase 1 is treated as cap-exceeded -> CMA-ES fallback
+                log_event("phase1_cap_exceeded", cap=enumeration.PHASE1_CAP, part="4-stage")
+                d = _fallback_like(f"D-F{new_cycle_id:05d}", 3, [4], "phase 1 4-stage part: CMA-ES fallback")
+                log_event("directive_fallback", directive_id=d["directive_id"], target_order=d.get("target_order"),
+                      stages=d.get("stages"), rationale=d.get("rationale"), source="fallback", policy=policy)
+                cands = _cmaes_candidates(d, state.cycle_id, arch, policy)
+    else:
+        d, spent = _llm_directive(state, arch, phase, new_cycle_id, action.kind, policy)
+        cands = _cmaes_candidates(d, state.cycle_id, arch, policy)
+
+    # 4. verify / tier / append, with an in-memory elite map kept current
+    elite_map: dict[tuple[int, int, int], Record] = {}
+    for order, grid in arch.grids.items():
+        for (stg, bucket), rec in grid.items():
+            elite_map[(int(order), int(stg), int(bucket))] = rec
+
+    improved = False
+    appended: list[Record] = []
+    last_cell: tuple[int, int] | None = None
+    n_accepted = 0
+    n_rejected = 0
+    n_skipped = 0
+    for cand in cands:
+        t = cand.tableau
+        h = tableau_mod.content_hash(t)
+        if h in seen:
+            n_skipped += 1
+            continue
+        seen.add(h)
+        verdict, sv = verifier.verify_with_score(t, cand.order)
+        if verdict is not None or sv is None:
+            n_rejected += 1
+            code = verdict.code if verdict is not None else "NAN_OR_INF"
+            detail = verdict.detail if verdict is not None else "no score"
+            log_event("rejected", code=code, detail=detail, tableau_hash=h,
+                      claimed_order=cand.order, directive_id=cand.directive_id, verifier_hash=vh)
+            continue
+        stg = tableau_mod.stages(t)
+        bucket = archive.cycle_bucket(int(sv.cycles["m0plus_fast"]))
+        # The tier here is a placeholder. The record is built this early so record_order
+        # can read its tableau, and assign_tier replaces the tier a few lines down.
+        prelim = Record(
+            tableau_hash=h,
+            tableau=t,
+            score=sv,
+            tier="no_improvement",
+            cycle_id=new_cycle_id,
+            seed=cand.seed,
+            verifier_hash=vh,
+            directive_id=cand.directive_id,
+            hypothesis_id=cand.hypothesis_id,
+            timestamp=iso_now(),
+        )
+        grid_order = archive.record_order(prelim)
+        key = (grid_order, stg, bucket)
+        inc = elite_map.get(key)
+        tier = archive.assign_tier(sv, inc.score if inc is not None else None)
+        rec = dataclasses.replace(prelim, tier=tier)
+        archive.append(rec)
+        appended.append(rec)
+        n_accepted += 1
+        last_cell = (stg, bucket)
+        new_elite = inc is None or sv.heldout_error < inc.score.heldout_error
+        if new_elite:
+            elite_map[key] = rec
+            improved = True
+        log_event("accepted", tableau_hash=h, tier=tier, order=grid_order, stages=stg,
+                  bucket=bucket, heldout_error=sv.heldout_error, search_error=sv.search_error,
+                  cycles_fast=int(sv.cycles["m0plus_fast"]), new_elite=new_elite,
+                  directive_id=cand.directive_id)
+    log_event("candidates_processed", accepted=n_accepted, rejected=n_rejected,
+              skipped=n_skipped, total=len(cands), policy=policy)
+
+    # 5. hypotheses
+    # The post-append state, derived from the delta instead of a second full read.
+    arch_after = archive.fold(arch, appended)
+    resolved = ledger.resolve_open(arch_after, new_cycle_id)
+    if resolved:
+        log_event("hypotheses_resolved", ids=list(resolved))
+        # resolve_open rewrote the ledger, and the site below has to show the new verdicts
+        arch_after = archive.refresh_hypotheses(arch_after)
+
+    # 5b. side tracks: off-archive adaptive and implicit measurements. Placed here so
+    # the cycle's scored work is already appended (a job cannot cost it) and the site
+    # build below still publishes whatever the job produced in this same cycle.
+    _maybe_sidetrack(new_cycle_id)
+
+    # 6. site + commits
+    if os.environ.get("RK_SITE") != "off":
+        try:
+            sitegen.build(arch_after, findings_dir() / "docs",
+                          commit_shas=_repo_shas())
+        except sitegen.BannedWordError as e:
+            log_event("site_build_failed", error=repr(e))
+    if os.environ.get("RK_GIT_COMMIT") == "on":
+        _commit_outputs(new_cycle_id)
+
+    # 7. phase advance + new state
+    new_phase = phase
+    if enumeration_phase and enumeration_exhausted and phase < 3:
+        new_phase = phase + 1
+        log_event("phase_advanced", **{"from": phase, "to": new_phase, "reason": "enumeration complete"})
+    if action.kind == "ADVANCE_PHASE":
+        target = int(action.payload.get("to", min(phase + 1, 3)))
+        if target > new_phase:
+            new_phase = target
+            log_event("phase_advanced", **{"from": phase, "to": new_phase, "reason": "encourager"})
+    if last_cell is None:
+        cell = action.payload.get("cell") if isinstance(action.payload, dict) else None
+        if cell is not None:
+            last_cell = (int(cell[0]), int(cell[1]))
+        else:
+            last_cell = state.current_cell
+    new_state = RunState(
+        cycle_id=new_cycle_id,
+        phase=new_phase,
+        started_at=state.started_at,
+        last_heartbeat=iso_now(),
+        spend_usd=state.spend_usd + spent + spent_hyp,
+        stall_counter=0 if improved else state.stall_counter + 1,
+        current_cell=last_cell,
+    )
+    save_state(new_state)
+    _record_cycle(new_cycle_id, lane, schedule, time.monotonic() - cycle_started, None,
+                  records_appended=n_accepted)
+    log_event("cycle_done", cycle_id=new_cycle_id, phase=new_phase, improved=improved,
+              stall_counter=new_state.stall_counter, accepted=n_accepted, rejected=n_rejected,
+              spend_usd=new_state.spend_usd, cap_usd=credentials.monthly_cap_usd(),
+              policy=policy, lane=lane)
+    return new_state
+
+
+# ----------------------------------------------------------------------------
+# main
+# ----------------------------------------------------------------------------
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="rk_harness.runner")
+    parser.add_argument("--cycles", type=int, default=None, help="stop after N cycles")
+    parser.add_argument("--once", action="store_true", help="run exactly one cycle")
+    args = parser.parse_args(argv)
+    heartbeat()
+    state = load_state()
+    if refuse_on_epoch_mismatch():
+        return 0
+    if os.environ.get("RK_GIT_COMMIT") == "on":
+        _clear_stale_git_locks()
+    done = 0
+    limit = 1 if args.once else args.cycles
+    # Auto-stop limits (config.json run.auto_stop_cycles / run.auto_stop_minutes -> env).
+    env_cycles = int(os.environ.get("RK_MAX_CYCLES", "0") or 0)
+    env_minutes = int(os.environ.get("RK_MAX_MINUTES", "0") or 0)
+    if limit is None and env_cycles > 0:
+        limit = env_cycles
+    t_start = time.monotonic()
+    log_event("runner_started", max_cycles=limit, max_minutes=env_minutes,
+              enum_per_cycle=_enum_per_cycle(), llm=os.environ.get("RK_LLM", "off"),
+              eval_budget=os.environ.get("RK_EVAL_BUDGET", "200"), llm_every_cycles=_llm_every_cycles(),
+              codex_usage_cap=_codex_usage_cap())
+    while True:
+        # Killfile (HANDOFF §13.4): graceful stop at the cycle boundary.
+        if (work_dir() / "STOP").exists():
+            log_event("stopped_by_killfile", cycle_id=state.cycle_id)
+            print("STOP present; stopping at cycle boundary", file=sys.stderr)
+            return 0
+        # Spend cap (HANDOFF §13.4, review G2): local hard stop, independent of the host watchdog.
+        cap = credentials.monthly_cap_usd()
+        if state.spend_usd > cap:
+            log_event("spend_cap_exceeded", spend_usd=state.spend_usd, cap_usd=cap, cycle_id=state.cycle_id)
+            print(f"spend {state.spend_usd:.4f} USD exceeds cap {cap:.4f}; hard stop", file=sys.stderr)
+            return 3
+        if limit is not None and done >= limit:
+            if env_cycles > 0 and done >= env_cycles:
+                log_event("stopped_by_cycle_limit", cycles=done, cycle_id=state.cycle_id)
+                print(f"auto-stop: {done} cycles done", file=sys.stderr)
+            return 0
+        if env_minutes > 0 and (time.monotonic() - t_start) >= env_minutes * 60:
+            log_event("stopped_by_time_limit", minutes=env_minutes, cycles=done, cycle_id=state.cycle_id)
+            print(f"auto-stop: {env_minutes} minutes elapsed", file=sys.stderr)
+            return 0
+        # Each cycle start re-checks the backstop: the archive is a shared checkout
+        # and a relocation or restore can land between two cycles. The check inside
+        # _run_cycle is the same one; this one stops before a cycle starts.
+        if refuse_on_epoch_mismatch():
+            return 0
+        state = run_cycle(state)
+        done += 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

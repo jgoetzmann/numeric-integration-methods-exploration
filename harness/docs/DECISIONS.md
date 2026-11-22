@@ -1,0 +1,2318 @@
+# Decision register
+
+Append-only. One level-2 entry per ruling, newest at the bottom. Each entry states the ruling in
+its heading, then Decision, Why (naming the alternative it rejects), Evidence as file:line,
+Consequence, what it Closes, and an epoch-impact line. The epoch-impact line is required: a change
+that would move `VERIFIER_HASH` cannot be filed here as an ordinary edit.
+
+Numbering starts at D13. D1 to D12 are taken in this directory by `SIDETRACK-AUTOMATION.md`
+section 3 and are not restated here. Other number spaces in use: J1 to J6 for side-track jobs
+(`SIDETRACK-AUTOMATION.md` section 4), R1 to R18 for the jobs-harness rulings
+(`docs/handoffs/jobs-design.md`), and the letter-prefixed test ids.
+
+The fourteen pre-build decisions published on the overview
+(`rk-overview/tools/pages_text.py` `DECISIONS`) are a separate, closed list. Nothing here is added
+to it; its lead paragraph says nothing in it was written after the fact, and its count is
+hand-typed in three places.
+
+Rulings D13 to D25 were made 2026-09-07/08 alongside `UNBLOCK-2026-09-07.md`, which carries the
+measurements they rest on. D26 and D29 onward came out of implementing `docs/proposals/`.
+The numbering is dense: D26 through D31 all came from that work, and the file is kept in numeric
+order even though entries were written in batch order.
+
+---
+
+## D13 - The plan, the register and the proposals each get one home, and the overview's decisions list stays closed (2026-09-07)
+
+**Decision.** The plan is `rk-harness/docs/UNBLOCK-2026-09-07.md`, shaped like
+`SIDETRACK-AUTOMATION.md`: numbered sections, a design-decisions section, a change set, phases,
+acceptance, invariants, risks, and what the owner still decides. Rulings are this file, numbered
+from D13. Proposals are one file each under `rk-harness/docs/proposals/`.
+
+**Why.** Three precedents agree on shape: `SIDETRACK-AUTOMATION.md:100-191` numbers design
+decisions with a bold ruling sentence and a `Rejected:` line; `docs/handoffs/jobs-design.md:78`
+names the same register format outright; `REVIEW-NOTES.md` is the working example of an
+append-only dated ledger. Rejected: appending to `REVIEW-NOTES.md`, because
+`docs/DEVELOPMENT.md:50-57` defines that file as the record of rulings that depart from the
+handoff, which most of these are not. Rejected: starting at D1, because D1 to D12 are taken in the
+same directory and a reader greps `D4` across `rk-harness/docs/`. Rejected: `docs/proposals/` at
+the workspace root, because `docs/README.md:3` organises that folder as two folders split by
+audience, and a third that is neither a frozen record nor a giveaway spec breaks the claim;
+`rk-harness/docs/proposals/` needs no change to that file.
+
+**Evidence.** `rk-harness/docs/SIDETRACK-AUTOMATION.md:100-191`; `docs/handoffs/jobs-design.md:76-78`;
+`rk-harness/docs/REVIEW-NOTES.md:1,8`; `docs/DEVELOPMENT.md:50-57`; `docs/README.md:1-8`;
+`rk-overview/tools/pages_text.py:106,730,734,741-866`.
+
+**Consequence.** `docs/DEVELOPMENT.md` gains one bullet naming the register and the plan, or its
+routing table is wrong from the moment the files exist. `REVIEW-NOTES.md` gains one dated section
+pointing here so the two ledgers do not fork silently. Nothing published changes.
+
+**Closes.** Nothing. Housekeeping for the rest of the register.
+
+**Epoch impact.** None. Markdown only.
+
+---
+
+## D14 - The PI controller gains stay provisional until a J2 artifact exists (2026-09-07)
+
+**Decision.** Do not freeze the epoch-2 gains at either value. Keep `alpha = 1/4, beta = 1/8,
+safety = 7/8` as the prototype defaults, mark `EPOCH2-DESIGN.md` section 4's gains provisional,
+and record that the 2026-09-04 rejection-rate comparison has no artifact and is not citable. Close
+the question after J2 has run under version control.
+
+**Why.** The number that would change the ruling, the 0.80 to 1.02 percent band at `alpha = 3/8`,
+exists only as prose in `SIDETRACK-AUTOMATION.md:374-379`. The run that produced it went to a
+scratch `RK_WORK_DIR` that is not in the repository. Rejected: switching to 3/8 on that evidence,
+because the gains are frozen into a pinned Q15 controller table at the epoch-2 boundary and cannot
+be revised inside an epoch. Rejected: freezing 1/4 as designed, because `EPOCH2-DESIGN.md`'s own
+support for it is one measurement and the classical alpha for a 3(2) pair is 1/3, so the design
+value is not the conservative choice either. One correction while the section is open: J2's stated
+prerequisite is already done. `SIDETRACK-AUTOMATION.md:216-221` asks for `alpha`, `beta` and
+`safety` to be threaded through `solve_adaptive`; `prototypes/adaptive.py:196-197` already has
+them as keyword arguments defaulting to the module constants.
+
+**Evidence.** `rk-harness/docs/SIDETRACK-AUTOMATION.md:210-221,374-379`;
+`rk-harness/rk_harness/prototypes/adaptive.py:163-165,196-197,213,221-222,275-276`;
+`rk-harness/rk_harness/sidetrack.py:367-368,495-501,533-534`;
+`rk-harness/docs/EPOCH2-DESIGN.md` section 4.
+
+**Consequence.** The epoch-2 change set cannot be declared complete until J2 has an artifact.
+`prototypes/adaptive.py:163-165` is left untouched, so the frozen `adaptive_curve.json` stays
+byte-identical. One thing the J2 artifact must say about itself: status `underflow` is the float
+step floor at `adaptive.py:213`, not the Q15 minimum step described at `adaptive.py:47-49`. A float
+sweep cannot separate the two failures, and a reader who assumes it can will draw a Q15 conclusion
+from a float measurement.
+
+**Closes.** `EPOCH2-DESIGN.md` section 4's open gains slot, provisionally; and
+`SIDETRACK-AUTOMATION.md:692-694`, owner decision 2, answered as "not yet, and not on that
+evidence".
+
+**Epoch impact.** Unpinned. `adaptive.py`, `sidetrack.py` and both design documents are outside
+`VERIFIER_FILES` (`verifier_hash.py:14-25`). Freezing the gains into the pinned controller table
+is an epoch-2 act that this record only prepares.
+
+---
+
+## D15 - The epoch-3 L-stability gate is a magnitude bound of 1/64, kept separate from the A-stability verdict (2026-09-07)
+
+**Decision.** Replace `EPOCH3-DESIGN.md`'s placeholder with a concrete gate: reject a candidate
+unless the magnitude of `R(inf)` is at most `1/64 = 0.015625`, computed exactly over Fractions from
+the verified tableau, with the measured value recorded on the record next to the verdict. Keep
+A-stability as its own verdict rather than folding it into the L-margin. Do not pair the gate with
+a minimum denominator exponent.
+
+**Why.** A recomputation of the J4 scan from the shipped code gives the distribution the
+placeholder was guessing at: 149 candidates over exponents 4 to 12 in the plus-or-minus-8-ulp
+window, 131 A-stable, 18 not. Best A-stable magnitudes per exponent are 0.28 (gamma 5/16), 0.209877
+(9/32), 0.0637119 (19/64, at both 6 and 7), and 0.00124444 (75/256) from 8 onward. A dyadic
+threshold suits a project that snaps every other constant; 0.05 is not dyadic, so a Q15 compare
+against it is a rounded constant of its own. Rejected: keeping 0.05, which admits 41 of the scanned
+window and leaves the gate a guess. Rejected: pairing the gate with a minimum exponent, which
+encodes the scan window into the verifier; the window is `GAMMA_WIDTH = 8` at
+`sidetrack.py:374` and nothing pins it, so a wider scan could change which exponents qualify
+without changing the physics. Rejected: folding A-stability into the L-margin, because a small
+L-margin does not imply A-stability outside the two-stage family.
+
+**Evidence.** `rk-harness/docs/EPOCH3-DESIGN.md:186-194`; `rk-harness/rk_harness/verifier.py:19-24`
+(`REJECT_CODES` has no L-stability code; the only numeric gate is `STABILITY_THRESHOLD = -0.5`);
+`rk-harness/rk_harness/verifier_hash.py:17`; `rk-harness/rk_harness/prototypes/sdirk.py:185-195`;
+`rk-harness/rk_harness/sidetrack.py:373-374`.
+
+**Consequence.** The threshold is four times stricter than the placeholder, which cuts admitted
+candidates in the scanned window from 41 to 16, so the epoch-3 gamma search is narrower than
+`EPOCH3-DESIGN.md` currently implies and its search-space section should say so. Recording the
+measured magnitude on the record lets the threshold be re-tuned later from the archive, which
+matters because a pinned threshold cannot be revised inside an epoch. Two verdicts means the
+epoch-3 verifier gains an A-stability code as well, and both need golden fixtures.
+
+**Not taken.** Extending `GAMMA_EXPONENTS` at `sidetrack.py:373` beyond its shipped 4 to 12. It
+would take J4 from 9 points to 13 and the catalogue from 40 to 44, breaking the plan-size assertion
+at `tests/test_t13_sidetrack.py:51`, and it moves `sidetrack.code_hash()`, which re-opens every
+measured point. Run J4 once at the shipped width, then widen deliberately.
+
+**Confirmed 2026-09-08 by the artifact.** J4 has now run in the container and the nine artifacts
+under `rk-work/sidetrack/sdirk.gamma_dyadic_scan/` reproduce the recomputation above exactly:
+149 candidates, 131 A-stable and 18 not (3 of 13 at exponent 4, then 7, 5, 3 and none from 8
+on), `l_stable` zero throughout, best magnitudes 0.280000, 0.209877, 0.063712 at both 6 and 7,
+and 0.001244 at 8 and finer with gamma 75/256. Measured order is 2.0062, 2.0066 and 2.0069,
+confirming that the design document's "all at measured order 2.007" was wrong at exponent 4.
+The recommended 1/64 gate admits exponent 8 (0.001244) and rejects 7 (0.063712) as intended.
+`EPOCH3-DESIGN.md` can now cite the artifact rather than a recomputation.
+
+**Closes.** `EPOCH3-DESIGN.md`'s L-stability threshold slot, now on a committed artifact rather
+than a recommendation.
+
+**Epoch impact.** Epoch boundary to implement. `verifier.py` is pinned (`verifier_hash.py:17`), so
+writing the verdict or the constant moves `VERIFIER_HASH` and invalidates every epoch-1 score.
+Fixing the number in the design document is documentation and may land now.
+
+---
+
+## D16 - The Newton iteration count stays at three until J5 reports error at a matched cycle budget (2026-09-07)
+
+**Decision.** Do not rule on the modified-Newton iteration count now. Keep three as the prototype
+setting. Close the question by running J5 after one unpinned change to the job: report error at a
+matched analytic cycle budget, not only at matched step counts.
+
+**Why.** There is nothing to rule from, and the job as written compares iteration counts at unequal
+cost. It runs the same step ladder for every count while recording estimated cycles per step
+separately, and per-step cost is linear in the count. At two states with a finite-difference
+Jacobian the estimate gives 236, 304, 372 and 440 cycles for one through four iterations, so one
+iteration affords 1.58 times the steps of three at equal budget. For an order-2 method that is
+roughly 2.5 times lower error from the step count alone, which a fixed-step-count table cannot
+show. Epoch 3 scores on a cycle budget, so the comparison belongs in the metric that will select.
+Rejected: ruling from dahlquist, which `EPOCH3-DESIGN.md` already explains cannot separate the
+counts, because on a linear problem the frozen Jacobian is exact.
+
+**Evidence.** `rk-harness/rk_harness/sidetrack.py:663-699,675`;
+`rk-harness/rk_harness/prototypes/sdirk.py`; `rk-harness/docs/EPOCH3-DESIGN.md:63-84,142-150`.
+
+**Consequence.** `EPOCH3-DESIGN.md`'s Newton section gains an acceptance criterion instead of an
+open question. If the artifact shows two iterations winning at matched budget, the epoch-3 cost
+table and the crossover argument both move. One documentation mismatch is worth fixing in the same
+pass: the cycles table in `EPOCH3-DESIGN.md` is the analytic-Jacobian column, while the side-track
+job prices with a finite-difference Jacobian.
+
+**Closes.** Nothing yet. It sets the acceptance criterion for `EPOCH3-DESIGN.md`'s Newton slot.
+
+**Epoch impact.** Unpinned. `sdirk.py` and `sidetrack.py` are outside `VERIFIER_FILES`. The count
+enters the pinned evaluator config at the epoch-3 boundary, so the ruling itself is an epoch-3 act.
+
+---
+
+## D17 - Write the Q15 estimate prototype before the boundary, sweep it after, and price the time register now (2026-09-07)
+
+**Decision.** Take neither option the owner posed. Do not schedule J6 as a side-track job in its
+present shape, and do not hold it for the epoch-2 change set. Write the Q15 error estimate and the
+table-driven controller as unpinned prototype code, then add J6 to the catalogue as an ordinary
+sweep once there is something to sweep. Separately, record the consequence that follows.
+
+**Why.** The catalogue's own rule disqualifies J6 as written: a job declares a deterministic finite
+ordered list of parameter points, and `SIDETRACK-AUTOMATION.md:254-263` says J6 needs new prototype
+code rather than a parameter sweep. A job with no points is a piece of work wearing a job's name.
+Holding it for the change set inverts the dependency: `EPOCH2-DESIGN.md` requires the scored
+tolerance ladder to sit above the LSB floor, names measuring where the flattening sits as the last
+open input to that choice, and the ladder lives in the pinned evaluator. Measuring inside the
+change set means writing the pinned constant and discovering its correct value in the same act,
+with no revision available until the next epoch.
+
+**The consequence nobody had written down.** `prototypes/adaptive.py`'s module docstring records
+that elapsed time needs a Q31 accumulator, because a sum of many Q15 steps leaves int16 at once.
+The harness sidesteps it today because `make_q15_rhs` takes a float `t`. Hardware and an eventual
+adaptive Q15 solver need the int32 time register, and it has to be priced. `costmodel.cycle_count`
+sums per-state costs and returns a per-state figure multiplied by the state count
+(`costmodel.py:73-86`), so it has nowhere to put a cost that does not scale with the state count.
+The function signature changes at the epoch-2 boundary, and `EPOCH2-DESIGN.md`'s cost-model list
+does not mention it.
+
+**Evidence.** `rk-harness/rk_harness/prototypes/adaptive.py:23-53`;
+`rk-harness/rk_harness/costmodel.py:73-86`; `rk-harness/rk_harness/verifier_hash.py:18`;
+`rk-harness/docs/SIDETRACK-AUTOMATION.md:254-263,695`; `rk-harness/docs/EPOCH2-DESIGN.md:116,139-158`.
+
+**Consequence.** The epoch-2 change set cannot be declared complete until J6 has run, because the
+ladder is contingent on a measurement that does not exist. The prototype build is specified in
+`docs/proposals/P2` rather than here; this record decides the timing and names the cost-model gap.
+
+**Closes.** `SIDETRACK-AUTOMATION.md:695`, owner decision 3, answered as "neither: build first,
+sweep second, and price the time register before the boundary".
+
+**Epoch impact.** Unpinned for what this record authorizes. The consequence it surfaces does need a
+boundary: adding a per-step term to `costmodel.cycle_count` changes a pinned file.
+
+---
+
+## D18 - A Codex rate-limit snapshot expires once its own window has passed (2026-09-07)
+
+**Decision.** Treat a snapshot whose `resets_at` has already passed, or that is older than its own
+`window_minutes`, as absent rather than as a cap hit. Make every gate that suppresses a call write
+one line to `events.jsonl` naming which gate it was. Clear the current latch by restarting the
+container, not by hand.
+
+**Why.** The gate is self-sustaining: the only writer of a fresh snapshot is a Codex call, and the
+gate blocks Codex calls. The same dict already carries `resets_at`, and nothing reads it. The
+window that closed the gate reset at 2026-09-07T02:39:24Z, so the reading that is still gating
+describes a window that no longer exists. Rejected: deleting the rollout files inside the running
+container. It works, but it reopens the gate against the old `directive.py`, which is the one
+combination to avoid, because D19 is what stops the reopened directives from being spent on an
+impossible cell; and the harness is a read-only bind mount running one long-lived process, so a
+D19 edit cannot be in force before a restart. Rejected: raising `run.codex_usage_cap_percent` to
+100, because the cap is read from the environment at container start and so needs the same restart,
+and it disables a real protection permanently to discard one stale reading.
+
+**Evidence.** `rk_harness/runner.py`: `_codex_rate_limits`, `_codex_usage_cap`, and the four
+gates in `_llm_directive`, `_codex_capped`, `_maybe_literature_review`, `_maybe_interpret` and
+`_maybe_propose_hypothesis` (symbols rather than line numbers: this change set moves the lines);
+`rk-harness/scripts/run.ps1:56,62,67,79`; `rk-harness/entrypoint.sh:35`;
+`rk-work/events.jsonl` (last `codex_usage` 2026-09-06T10:40:45Z, `used_percent` 80.0,
+`window_minutes` 10080, `resets_at` 1788748764; 1,108 `llm_skipped`).
+
+**Consequence.** The run gets model directives again after more than a thousand cycles without one.
+That is also the risk. The encourager sits on the escalation rung at a stall counter above 300, and
+escalations bypass the `run.llm_every_cycles` throttle, so `llm_due` is true on nearly every cycle.
+At the measured cycle time that is roughly 250 directive calls a day plus a hypothesis call each
+cycle plus a literature digest every eight. The cap still binds, correctly, against a fresh
+reading. Whether the cadence should change before the window fills again is the owner's call and is
+listed in the plan's section 10.
+
+**Closes.** The largest live problem in the run.
+
+**Epoch impact.** Unpinned. `runner.py`, `watch.py` and `tests/` are absent from `VERIFIER_FILES`,
+so the hash does not move and no archived score changes.
+
+---
+
+## D19 - The emptiest-cell scan gets a stage domain that can hold the order it is searching for (2026-09-07)
+
+**Decision.** Restrict the emptiest-cell scan to stage counts that can support the requested order:
+for explicit Runge-Kutta, stages at or above the order, clamped into the searchable stage set.
+Apply it to both loops in `directive._emptiest_cell` and to the duplicate in
+`encourager.emptiest_cell`, from one shared helper. Fix the two sibling occurrences of the same
+domain error in `prompts.py` and `sitegen.py` in the same pass.
+
+**Why.** An explicit two-stage method cannot exceed order 2, so the order-4 grid can never hold a
+two-stage cell, and the scan returns `(2, 0)` on every call forever. The archive keeps accepting
+order-2 records into a stage-2 grid that is already saturated, so the search re-proposes hashes it
+has archived and never sets a new elite. Rejected: capping the scan by what the grid already holds,
+which is circular, because an empty reachable cell is exactly what the scan is looking for.
+Rejected: leaving the encourager its own copy, since the two functions differ only in loop style
+and carry the same defect. Rejected: leaving the second loop on the wide domain, which would raise
+a KeyError the moment the restricted domain fills. Rejected: fixing it in
+`search.project_or_lower`, which is behaving correctly; it lowers the order to what is exactly
+solvable, and the bug is upstream of it.
+
+**Evidence.** `rk_harness/directive.py`: `_TARGET_ORDER_BY_PHASE`, `_emptiest_cell`,
+`fallback_directive`;
+`rk_harness/encourager.py`: `_STAGES`, `_BUCKETS`, `emptiest_cell`, and the `stage_domain` /
+`min_stages_for_order` pair this record adds; `rk_harness/archive.py`: `record_order`,
+`_grids_from`;
+`rk_harness/prompts.py`: `_grid_section`; `rk_harness/sitegen.py`: `_stat_cards`;
+live `directive_fallback` events D-F02304 to D-F02306, all `target_order 4, stages [2]`.
+
+**Consequence, including a published number that moves.** `_emptiest_cell(arch, 4)` starts
+returning a four-stage cell, which is the space RK4 lives in. `project_or_lower` will still drop to
+order 3 or 2 when the exact order-4 conditions are unsolvable for a snapped A, but those drops land
+at stage 4 in grids that are far less exhausted than stage 2.
+
+The findings site's coverage card currently reads 18 of 160. Both halves are wrong in the same way
+and for the same reason. The denominator is `40 * len(arch.grids)`, which assumes every order can
+use all five searchable stage counts; the numerator counts every occupied cell, including the
+order-1 single-stage cell that holds a seeded classical baseline outside the searchable stage set
+(`encourager._STAGES` is 2 through 6). After the fix the card reads **17 of 136** over one domain:
+40 cells each at orders 1 and 2, 32 at order 3, 24 at order 4. The seeded single-stage cell is
+stated separately rather than counted into a coverage fraction it was never part of. The same
+correction applies to the model-facing text in `prompts.py`, which prints "of 40 cells filled" for
+every order while enumerating only stages 2 through 6.
+
+**Closes.** The mechanism behind the throughput collapse recorded in `UNBLOCK-2026-09-07.md`
+section 2. It does not guarantee new elites; it removes the reason there could not be any.
+
+**Epoch impact.** Unpinned. `directive.py`, `encourager.py`, `prompts.py` and `sitegen.py` are all
+absent from `VERIFIER_FILES`. No archived record changes: every record keeps its held-out error,
+its tier and its verifier hash. Only the choice of which cell to search next changes.
+
+---
+
+## D20 - The CPU pause guard returns to its shipped thresholds, on a measured baseline (2026-09-07, resolved 2026-09-08)
+
+**Decision.** Do not restore the shipped 70/30/60/40 thresholds. Measure the non-container idle
+baseline once the host is quiet, then choose thresholds from that measurement. Also replace the
+per-poll `docker stats` call in the watchdog before tuning anything, because it sets the sampling
+cadence the thresholds are judged against.
+
+**Why.** Restoring the defaults on the machine as it stands would pause the run and never release
+it. The guard measures non-container host CPU. With an idle baseline near 64 percent the rolling
+average trips the 60 percent pause threshold; resuming needs the average below 40 or a spike below
+30 sustained for 30 seconds, neither of which a 64 percent baseline can reach. A container paused
+indefinitely is worse than a near-inert guard. Rejected: picking an intermediate set today, such as
+84/54/76/68, because it would be derived from a baseline measured on a machine in a known-bad
+state. Rejected: removing the guard, which throws away real protection for the owner's foreground
+work.
+
+**The host, diagnosed.** Three supabase containers are in a restart loop at 2553, 2621 and 2564
+restarts over roughly 44 hours. The cause is not load: their database container
+`supabase_db_admin` exited 127 nine days ago, so the three fail DNS resolution for it at boot and
+their restart policy restarts them forever. `supabase_kong_admin` exited 127 at the same time. The
+stack cannot work in that state, so the loop is pure background load. Stopping or repairing it is
+an owner action on the owner's other software; this plan does not take it.
+
+**Evidence.** `config.json:35-40`; `configure.py:58-62,205-209,216-219,229-234`;
+`rk-harness/scripts/watchdog.ps1:224,227`; `start.ps1:76-80`; `docker logs` for the three
+containers, all reporting an unresolvable `supabase_db_admin`; `docker inspect` restart counts.
+
+**Consequence.** The run keeps a near-inert guard, which is now a stated risk rather than an
+oversight. When the guard is restored, use the keyed form of `reset`, never a bare one: a bare
+`reset` rewrites every key and would flip `run.litreview_every_cycles` from 8 back to its shipped
+50. Prefer `set` over `reset` for tuned values, because `cmd_set` enforces low below high and
+`cmd_reset` does not. Either way `--apply` bounces the container, so it is a deployment under D25.
+
+**Amended 2026-09-08, with a measurement.** The description this record inherited from commit
+`0ad6348`, that the guard is "close to disabled in both directions", is too strong and is
+withdrawn. The guard fired on its own during this session: a host-side overview build pushed
+non-container CPU to a flat 100 percent, the watchdog paused the container, and it stayed paused
+for about 35 minutes while the machine remained saturated. Once the load was cleared, host CPU
+fell to a median of 80.6 percent and the watchdog resumed the container **within 80 seconds**,
+with no restart and no lost cycle. Note what that 80.6 percent is and is not: it is total host CPU
+including the container's own four cores, sampled over 16 seconds with `Get-Counter`. The guard
+compares a different quantity, host CPU minus the container's share, which is what the "roughly 64
+percent idle baseline" above refers to. The two are not comparable and neither is a substitute for
+the other. Deriving thresholds needs the guard's own metric sampled over its own 300-second window
+on a quiet host, which is still not measured; P07's durable watchdog log is what would record it. The accurate statement is that the guard rarely fires and
+releases quickly once load drops, which is a different claim from the one this record made.
+
+Two things follow. The pause is real protection rather than a formality, so restoring the shipped
+thresholds on a saturated host would strand the run exactly as this record predicted. And the
+resume path works unattended, which the record could not previously assert, because the watchdog
+logs pause and resume to its own console rather than to `events.jsonl` and no artifact recorded
+one. Closing that gap is `docs/proposals/P07`.
+
+**The host, as found on 2026-09-08.** The saturation was neither the run nor the container. It was
+24 stale pytest and coverage processes from unrelated projects holding 1.27 GB, the dead supabase
+stack (716 MB, its analytics container burning about 78 percent of a core against a database that
+exited 127 nine days earlier), and a vite dev server left running from a temporary directory since
+2026-09-01. With those stopped, by owner decision, the host went from 1.13 GB free at 100 percent
+CPU to roughly 3 GB free at a median of 80.6 percent. That is the baseline a future threshold
+choice should be derived from, once it is sampled in the guard's own metric rather than in total
+host CPU.
+
+**Resolved 2026-09-08. The thresholds are back to 70/30/60/40.** Both conditions this record set
+have now been met, and the measurement reverses its own decision.
+
+*The prerequisite, cleared.* This record said to replace the per-poll `docker stats` call before
+tuning anything, because it sets the sampling cadence the thresholds are judged against, and
+`CLAUDE.md` records that call at 47 s on this host. Measured over five consecutive calls on the
+cleaned machine: **1.41 s min, 2.01 s median**. With `Get-Counter` at 1.63 s and a 10 s poll sleep,
+the watchdog's real period is about 13 s, so `CpuSustainSeconds = 30` is roughly three consecutive
+samples and the 300 s window holds about 22. That is the cadence the thresholds assume, so nothing
+needs replacing. The 47 s figure is not withdrawn, because it was plausibly real: this host was
+observed at 100 percent CPU with 1 GB free earlier the same day, and a saturated Docker Desktop is
+exactly where a 47 s `docker stats` comes from. It is a saturated-host number being used as a
+quiet-host constant, which is the same error as the one below.
+
+*The baseline, measured in the guard's own metric.* Thirty samples over 5.9 minutes at the
+watchdog's own cadence, computing what `watchdog.ps1` computes: total processor time minus the
+container's share, both normalised to whole-machine percent.
+
+| min | p10 | p25 | median | p75 | p90 | max | mean |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 9.1 | 10.9 | 14.2 | **25.0** | 31.5 | 39.2 | 54.2 | 24.7 |
+
+Total CPU ran a median of 30.6 with the container taking 6.2 of it.
+
+*What that overturns.* The "roughly 64 percent idle baseline" this record argued from was not a
+property of the machine. It was the crash-looping supabase stack, 24 orphaned pytest processes and
+an abandoned vite dev server, all since stopped. The real baseline is a median of 25. So the
+premise for raising the thresholds is gone, and every objection this record raised against
+restoring them fails against the distribution: a 70 percent spike gate sits 16 points above the
+observed maximum, so it will not fire on ambient load; a 30 percent resume gate sits above the
+median, so more than half of samples clear it and three consecutive are ordinary; and the 40
+percent average resume sits 15 points above the mean, which makes the average path a reliable
+backstop even when spikes do not line up. The run cannot strand.
+
+*Applied without touching the container.* `configure.py set` rather than `reset`, because `cmd_set`
+enforces low below high and `cmd_reset` does not, and because a bare `reset` would also have
+flipped `run.litreview_every_cycles` from 8 back to 50. Thresholds are watchdog launch parameters,
+so only the watchdog needed restarting, not the run: `--apply` would have bounced a container that
+had no reason to stop. The watchdog is built for this, adopting an existing pause rather than
+stranding or killing it. Verified: six minutes under the restored thresholds with no pause, the
+container still at zero restarts and never touched.
+
+**Closes.** Itself. The guard is back to the protection it was designed to give, on a number
+measured in the metric it actually uses rather than inherited from a machine full of dead
+processes.
+
+**Epoch impact.** None. Config and host state only.
+
+---
+
+## D21 - The overview stays a deliberate act, and its staleness becomes visible from data (2026-09-07)
+
+**Decision.** Regenerating the overview stays a deliberate act, not a cadence. Three things change
+so that staleness is visible rather than discovered: derive the snapshot date from the newest
+archive record instead of hand-pinning it, report the snapshot's lag in `stats.txt` through
+`rk_harness.status`, and put the three documented commands behind one workspace-root script.
+
+**Why.** The whole nine-page snapshot goes stale together, so a per-page answer has nothing to
+attach to: one `build()` writes all nine and every file carries the same mtime. Automation is the
+wrong shape for a different reason: the overview carries human-edited prose that has to be re-read
+whenever the numbers move, so an automatic build would publish current numbers under stale
+sentences. Rejected: a watchdog cadence, because the build is a heavy host-side job, the watchdog's
+push covers only the work and findings repositories so the result would never be pushed, and the
+build's own host CPU is exactly the foreground load the guard exists to notice. Rejected: building
+it in the container, which would need the container to run node and to hold a checkout of a
+repository it does not otherwise touch.
+
+**Evidence.** `rk-overview/tools/generate.py:44,276,405,409,1367-1371,2282,2293,2295-2322`;
+`rk-overview/tools/key_findings.json` `_meta` (`archive_records` 80748, `archive_last_cycle_id`
+1146, against a live cycle above 2350); `rk-harness/scripts/watchdog.ps1:44-53`;
+`rk_harness/status.py`.
+
+**Consequence.** The footer, the two SVG labels and the results description stop being able to
+disagree with the data on the page, because they read one derived value. `stats.txt` gains a line
+saying how far behind the snapshot is, and past a stated threshold that line lands in PROBLEMS like
+any other failed probe.
+
+**Not taken.** Turning the missing-node warning into a hard failure. It would make the overview
+unbuildable on any machine without node in order to settle a mismatch between the code and a
+sentence in `CLAUDE.md`, and `build()` writes every page before it would raise. Correct `CLAUDE.md`
+instead: it is cheaper and equally honest.
+
+**Closes.** `SIDETRACK-AUTOMATION.md:696-699`, owner decision 4, answered as "a deliberate act, with
+the staleness made visible and the three commands behind one script".
+
+**Epoch impact.** Unpinned. The overview tools never run in the container and `status.py` is
+host-only. Regenerating republishes numbers that have moved, which is the point.
+
+---
+
+## D22 - Pin the Q15 arithmetic at the next epoch boundary, and gate it behaviourally now (2026-09-07)
+
+**Decision.** (a) `tableau.py`, `simulate.py` and `fixedpoint.py` join `VERIFIER_FILES`, scheduled
+as the opening act of the next epoch boundary rather than made today. (b) Extend the container
+start-up filter in `entrypoint.sh` with the Q15 fixture tests now, and add a coverage test so the
+filter cannot drift again.
+
+**Why.** The pin exists for one stated reason: a change to a listed file silently changes every
+score in the archive. All three unlisted files meet that test. `fixedpoint`'s Q15 primitives are
+every arithmetic operation the object of study performs; `simulate.solve_q15` produces every error
+number in the archive; `tableau.canonical` and `content_hash` produce the archive key. `tableau.py`
+is the most dangerous of the three, because a change there does not silently rescore the archive,
+it silently empties it: the record reader recomputes the hash on every read and the archive reader
+discards a line whose hash no longer matches. Separately, the start-up gate exercises none of this:
+its filter selects only G and K prefixes, and no G or K test calls `solve_q15`; the F series, the
+only tests that read the pinned Q15 fixture, is outside the gate. Rejected: pinning the three
+today, because adding files to the tuple re-pins the hash and splits the archive into two
+generations, which is the definition of an epoch boundary. Rejected: leaving the gate alone,
+because widening the filter costs nothing and closes the larger of the two holes immediately.
+
+`EPOCH3-DESIGN.md` already lists `simulate.py` among the pinned files touched at the epoch-3
+boundary even though it is not in `VERIFIER_FILES` today, so this is a correction of an existing
+inconsistency rather than a new proposal.
+
+**Evidence.** `rk-harness/rk_harness/verifier_hash.py:3-5,14-25,30-35`;
+`rk-harness/rk_harness/fixedpoint.py:38-60`; `rk-harness/rk_harness/simulate.py:85-131`;
+`rk-harness/rk_harness/tableau.py:101-107`; `rk-harness/rk_harness/archive.py:60-72,146-152,249-255`;
+`rk-harness/entrypoint.sh:32`; `rk-harness/tests/test_t1_fixedpoint_coeff_cost.py`;
+`rk-harness/docs/EPOCH3-DESIGN.md:202-213`.
+
+**Consequence.** Part (b) adds the F tokens to a 170-character filter line, well inside any limit
+that applies, and lengthens container start-up by whatever the F series costs, which is measured
+once before the change lands. `entrypoint.sh` must stay LF, so the patch normalizes line endings
+before matching. The coverage test asserts only that every prefix the gate is meant to select is
+present, and says so in its assertion message: G21 onward and K7 onward exist and are deliberately
+not in the gate, so a test that demanded total coverage would fail the moment it landed.
+
+**Closes.** A gap in the integrity story that no document had stated.
+
+**Epoch impact.** (a) epoch boundary. (b) none: `entrypoint.sh` is not in `VERIFIER_FILES`, though
+it is a rule-1 file that needs a stated reason, which this record is.
+
+**D22 amendment (dated 2026-09-15, R3).** (a) was executed under D45:
+`tableau.py`, `simulate.py` and `fixedpoint.py` joined the pin;
+`simulate.py` and `fixedpoint.py` left `SIDETRACK_FILES`; `code_hash`
+folds the pinned string, and ST12 passes unchanged. (b), the F tokens, is
+still open.
+
+---
+
+## D23 - Tier stays an insertion-time label, and the elite grid keeps ranking on held-out error alone (2026-09-07)
+
+**Decision.** Do not make `archive._better` tier-aware. Keep publishing the top-tier count, and add
+the sentence that explains why it can fall, on the findings-site card and in the glossary.
+
+**Why.** `assign_tier` compares a candidate against whatever record occupied its cell at the moment
+of insertion. It is a statement about one comparison at one time, not a grade on the method, and
+the overview already says exactly that in prose the project wrote deliberately. `_better`
+implements the archive's stated fitness: lower held-out error wins. Making it tier-aware would mean
+the grid stops ranking on the objective and a higher-error record holds a cell. Worse, it closes a
+loop: incumbents feed `assign_tier`, so refusing a lower-error record the cell would leave later
+candidates tiered against a weaker incumbent. Rejected: dropping the published count, which hides a
+real property rather than explaining it.
+
+**Evidence.** `rk-harness/rk_harness/archive.py:1-7,261-263,424-434,436-446`;
+`rk-overview/tools/pages_text.py`, the tiers paragraph; `rk_harness/sitegen.py`: `_stat_cards`
+and the `tiers` entry in the glossary table.
+
+**Consequence.** No archived score changes, and none would have changed under the alternative
+either; the archive is append-only. What a tier-aware `_better` would change is which record
+occupies each cell, and that is what makes it expensive: elite pages, cell URLs, `demo_data.json`
+and `key_findings.json` would all move under a replay of the same unchanged files, so a reader who
+cited a cell page last week would find a different tableau there. The card gains a short label,
+"top tier at insertion", and the explanation goes in the glossary entry where there is room for it.
+
+**Closes.** The unexplained fall in the published top-tier count. Note that the two figures in
+circulation, 6 on the overview and 4 on the findings site, are over different denominators: the
+overview counts discovered elites only, the findings card counts all elites including seeded
+classical cells. They are comparable only if no seeded elite carries the label, which should be
+stated wherever both appear.
+
+**Epoch impact.** None. `_better` is not changed and the edits are site prose.
+
+---
+
+## D24 - Section 6a becomes a labelled unreproduced appendix, corrected now and deleted when artifacts exist (2026-09-07)
+
+**Decision.** Relabel `SIDETRACK-AUTOMATION.md` section 6a as an unreproduced appendix with its
+scratch-directory provenance stated, correct the two wrong statements in it now, and delete it when
+the container's own side-track run writes the same points under `rk-work/sidetrack/`. Nothing in it
+reaches a public site or the paper before then. Replace the stiff-wall claim everywhere with the
+traceable form, and adopt a comparability rule.
+
+**Why.** Section 6a records a run made into a scratch `RK_WORK_DIR` that is not in the repository,
+so every number in it is prose with no artifact. House rule 10 settles the site question but not
+the document question, and the document feeds the paper. Two of its statements are wrong against
+the shipped code, so leaving them while waiting for a real run would carry the errors forward.
+Rejected: deleting the section outright, because the J4 construction ruling in the same section is
+design content with no other home, and the corrected numbers are the reason to run the scan again.
+
+**The two corrections.** "All at measured order 2.007" is wrong at the coarsest exponent: the
+measured values are 2.0062, 2.0066 and 2.0069 across the range. "Every candidate scanned is
+A-stable" is wrong: 18 of the 149 scanned candidates are not, being 3 of 13, 7 of 17, 5 of 17 and 3
+of 17 at exponents 4 through 7, and none above. "None is L-stable" stands. The conclusion that a
+0.05 gate implies exponent 8 stands, and gains the scan-window caveat.
+
+**The wording rule.** "The explicit wall is total on the stiff suite" is too strong.
+`rk-work/validation/results.json` shows euler, heun2 and midpoint all finishing `robertson_scaled`
+in Q15 at the 65,536-cycle budget, at 4369, 1680 and 1985 steps, with midpoint winning outright.
+The traceable statement is that no discovered method finishes it. The SDIRK2 result is float64 with
+a finite-difference Jacobian on a ladder capped at 256 steps, and the job stamps it as float64 only
+with no Q15 effects. A side-track number and a Q15 number may not appear in one claim without their
+arithmetic labels.
+
+**Evidence.** `rk-harness/docs/SIDETRACK-AUTOMATION.md:349-352,359,363-365,367-370,383-391`;
+`rk-harness/rk_harness/sidetrack.py:373-374,577`;
+`rk-work/validation/results.json` `verdicts.per_problem.robertson_scaled`;
+recomputation from `rk-harness/rk_harness/prototypes/sdirk.py` over Fractions.
+
+**Consequence.** The design document stops carrying two false statements, and the appendix carries
+a deletion condition so it does not become permanent. The comparability rule joins the prose rules.
+
+**Confirmed and superseded 2026-09-08.** The deletion condition this record set has been met, and
+faster than it anticipated. The container measured all 40 catalogue points at cycle 2380 under code
+hash `a98acb39fb4f31ca`, and the artifacts are committed under `rk-work/sidetrack/`. Both
+corrections above are confirmed by that data rather than by the recomputation that found them: the
+nine `sdirk.gamma_dyadic_scan` artifacts give 18 of 149 candidates not A-stable and measured orders
+2.0062, 2.0066 and 2.0069, and `sdirk.stiff_suite/servo_load_step.json` reproduces the prose figure
+exactly at `min_stable_n` 8 and error 8.637e-07.
+
+Section 6a is therefore no longer the source for any of it. Its provenance paragraph is rewritten
+to say so and to point at the artifacts, and the sentence claiming house rule 10 forbids publishing
+the numbers is removed, because the artifacts are data files and both sites now publish from them.
+What is kept is the J4 construction ruling, which has no other home, and the corrected figures
+beside it as a record that correction and measurement agree.
+
+The comparability rule stands unchanged and is now enforced in code rather than by convention: each
+job's own `arithmetic` string is rendered next to its numbers on both sites, because four jobs are
+float64 and the stability scan is exact over Fractions, so a page-level claim would be false.
+
+**Closes.** The traceability problem in `SIDETRACK-AUTOMATION.md` section 6a, now by replacement
+rather than by correction.
+
+**Epoch impact.** None. Documentation and prose only.
+
+---
+
+## D25 - A restart is a code deployment, and the running-versus-on-disk gap becomes visible (2026-09-07)
+
+**Decision.** Log a harness code hash at `runner_started`, carry the same value in `RUNSTATE.json`
+as a derived key, and have `status.py` recompute it on the host and report the comparison as one
+row in `stats.txt`. Adopt the operational rule that a restart deploys whatever is on disk, so the
+harness diff since the last `runner_started` is reviewed before any restart.
+
+**Why.** The running interpreter holds a `runner.py` written 21 minutes after the process started,
+and nothing in the system can report that. The harness is a read-only bind mount and the entrypoint
+execs one long-lived process, so an edit on disk changes nothing until a restart and then changes
+everything at once. That is fine as a design; what is missing is a way to see it. The project
+already has the right shape for the hash in `sidetrack.code_hash()`, a sha256 over a fixed ordered
+file list truncated to 16 hex, which is stable across a checkout and does not depend on mtimes.
+Rejected: comparing mtimes, which is what this session had to do by hand and which a fresh checkout
+breaks.
+
+**The review this record calls for, done.** The only change to `runner.py` since the running
+process started is one line adding `saturation_state.json` to the list of work paths the container
+commits, plus a whole-file conversion from CRLF to LF. Nothing behavioural. The restart in the
+plan's phase 4 is therefore safe on this count, and the general rule stands for next time.
+
+**Evidence.** `rk_harness/runner.py`: `_WORK_EXTRA_PATHS` and the `runner_started` event in
+`main`; `rk-harness/scripts/run.ps1:62`;
+`rk-harness/entrypoint.sh:35`; `rk-harness/rk_harness/sidetrack.py:54-69`;
+`rk_harness/status.py`; commit `7396f4b`.
+
+**Consequence.** `status.py` gains one row, and it must keep the three properties that file already
+keeps: no value carried forward, so the row is computed from fresh reads every time and prints
+"unknown" into PROBLEMS if either read fails; nothing claimed about the container unless Docker
+answered, so the row is gated on a Docker answer and a running state; and the staleness deadline
+stays in the host's own timezone. `RUNSTATE.json` gains one derived key that no reader requires.
+
+**Closes.** A blind spot that four other decisions in this register were deferring to.
+
+**Epoch impact.** Unpinned. The hash is advisory: it gates nothing, enters no score and appears in
+no archive record. Copying the harness into the image so the running code is immutable is a
+Dockerfile change and an image rebuild, not an epoch boundary; the Dockerfile is not in
+`VERIFIER_FILES` and does not move the hash.
+
+---
+
+## D26 - The exploration policy ships as machinery, disarmed, and two questions stay with the owner (2026-09-08)
+
+**Decision.** Build the P05 machinery and leave it off. `run.search_policy` defaults to `empty`,
+which is the behaviour every cycle up to now had, and the rotation is not armed. A policy chooses
+two things and nothing else: which cell the deterministic fallback aims at (`empty` or `revisit`),
+and whether CMA-ES starts from that cell's incumbent (`warm`). Both are additions to a directive,
+never contradictions of one. The only levers are `d['stages']` on the fallback directive, which the
+harness writes itself, and an `x0` entry in the constraints dict the runner builds, which
+`validate_directive` never sees.
+
+**Why the proposal is reshaped.** Two live facts, read out of the event log on 2026-09-08.
+(1) The fallback path no longer fires. Over the recent window there were 48 `directive_accepted`
+events, every one with `source: llm`, and zero `directive_fallback`. A policy attached only to the
+fallback directive, which is what P05 specifies, is inert in the live configuration, so shipping the
+rotation armed would produce blocks of identical behaviour and a null result that means nothing.
+(2) The chosen cell never reached the generator. `fallback_directive` discarded the bucket half of
+the cell it picked, and the encourager's SEARCH_CELL payload is logged and read nowhere else, so
+"target a cell" can only be implemented as "target a stage count, and start from that cell's
+incumbent". A bucket cannot be targeted at all: `archive.cycle_bucket` is a function of the finished
+tableau.
+
+**Rejected.** Arming the rotation in the change that builds it, which would spend cycles measuring a
+difference the live configuration cannot express. Rejected: moving sigma and adding warm starts
+together, which would make the A/B uninterpretable; sigma is now a parameter and its default stays
+exactly 0.3. Rejected: re-opening `archive._better` so that revisiting reads as progress, which D23
+settled.
+
+**Two questions that stay with the owner. The rotation must not start before both are answered.**
+(a) May a policy override an accepted LLM directive's `target_order` and `stages`? Today it may not:
+under an LLM directive a policy can only add `x0`. (b) Does the saturation freeze rule follow the
+policy? The rule counts a record in a previously empty cell as progress (DEVELOPMENT.md 246-250), so
+a revisit policy reads as less progress by the run's own definition, and deciding that after the
+rotation runs would be choosing the answer from the result.
+
+**Evidence.** `rk_harness/search.py`: `x0_from_tableau`, the `sigma` parameter on `cmaes_island`;
+`rk_harness/encourager.py`: `revisit_cell`, `target_cell`, `cell_policy`, `POLICIES`;
+`rk_harness/directive.py`: `_cell`, `_POLICY_LETTER`, `fallback_directive`;
+`rk_harness/runner.py`: `_search_policy`, `_policy_block`, `_warm_start_enabled`,
+`_warm_start_record`, `_cmaes_candidates`; `rk_harness/policyab.py`; tests B81-B83 in
+`tests/test_t3_archive_search_directive.py` and B84-B85 in `tests/test_t4_ledger_runner_site.py`.
+
+**Consequence.** The fallback directive id gains a policy letter: `D-F00007` becomes `D-FE00007`,
+and a revisit-targeted fallback is `D-FR00007`. The id still matches `^D-[A-Za-z0-9]+$` and still
+starts with `D-F`, so `sitegen._phase_label` keeps labelling those records as search records. Four
+`log_event` calls gain a `policy` field, and `island_start` also records `warm_start` and the
+incumbent's `warm_start_hash`, because a warm start makes the candidate stream depend on the archive
+as well as on the seed and the start point has to be recoverable.
+
+**A reproducibility limit, to be stated wherever this comparison is published.**
+`rk-work/.gitignore` ignores `events.jsonl`, so the event log is host-local and is never pushed.
+Attribution for records produced under an LLM directive rests entirely on that file. The part that
+survives in the published archive is the `D-FE` / `D-FR` letter on fallback-sourced records.
+
+**Epoch impact.** Unpinned. Nothing edited appears in `verifier_hash.VERIFIER_FILES`, and the pinned
+hash is byte-identical before and after
+(`de5bec229ffa404a85b9172fdc808ef6035716c3df8b308c816e90ffb54fd6e9`). No archived record changes.
+
+---
+
+---
+
+## D27 - Every row of the review report names the evidence it rests on, and the two dates are allowed to differ (2026-09-08)
+
+**Decision.** `Report.items` carries an origin per row, `host` or `suite`, and
+`docs/REVIEW-REPORT.md` gains three things that follow from it: an Evidence column on the item
+table, a Provenance table that gives each source its own UTC timestamp, and a sign-off that prints
+`Report generated (UTC)` and `Suite evidence (UTC)` as separate lines with the suite commit, the run
+URL and the local checkout's sha and clean/dirty state beside them. Per-section dates come from the
+newest evidence that contributed to the section, not from the calendar. `date.today()` is gone from
+the report entirely.
+
+**Why.** The report used to print one date, taken from the clock at the moment it was written, over
+every row on the page. That was true while preflight ran the suite itself. It stopped being true
+the moment `--reuse-suite` existed, because the suite rows can now come out of a CI artifact built
+on another machine, on another commit, days earlier, while the host rows are measured in the same
+second the file is written. One date over mixed evidence is a claim about the whole page that is
+true of only part of it, and the part it is false about is the part a reader is most likely to
+trust. So the origin column and the provenance table land before the first HOST row, not after.
+
+`scripts/merge_junit.py` is what makes the suite half answerable. It merges the five shards into one
+`<testsuites>` document, which preflight's existing `root.iter('testcase')` walk reads without a
+parser change, and writes `preflight-evidence.json` beside it carrying the commit, the ref, the run
+URL, the shards actually merged, the totals and `merged_at_utc`. The field is named for what it is:
+the moment of the merge step, not the moment the suite started. A shard that did not upload fails
+the merge by name, because a partial merge parses cleanly, counts cleanly, and reports a green suite
+for tests that never ran.
+
+**Rejected.** Dating the whole report by the suite artifact, which would make the host rows lie
+instead of the suite rows. Rejected: refusing to reuse an artifact from a different commit, because
+the useful case is exactly a report generated from a working tree that has moved on, and the honest
+answer is to say so rather than to forbid it; the provenance table prints `NOT the commit the suite
+artifact was built from` and lets the reader decide. Rejected: making the HOST rows gate. Preflight's
+exit code answers whether the code is fit to run, not whether this machine happens to be running it,
+and a dead watchdog is a loud FAIL and exit 0.
+
+**Evidence.** `scripts/preflight.py`: `Report.add(..., origin=)`, `run_suite` returning
+`(results, evidence)`, `--suite-evidence`, `_checkout_provenance`, `section_HOST` with HOST1 to
+HOST6, and the rewritten `write_report`. `scripts/merge_junit.py`. `.github/workflows/ci.yml`: the
+`suite` job's `--junitxml` and artifact upload, and the `suite-evidence` job. Tests C37, C37b, C37c,
+C38 and C38b in `tests/test_t5_hygiene.py`.
+
+**Consequence.** `Report.items` widened from four fields to five and is unpacked in five places; all
+five moved together. The host procedure is now `gh run download <run-id> -n preflight-suite -D
+.fullsend/` followed by `scripts/preflight.py --reuse-suite --docker`, which is the docker and HOST
+checks only rather than half an hour of contended CPU. HOST5 keeps its own copy of the
+config-to-`RK_*` mapping honest by asserting the table names every `-e RK_...` line in
+`scripts/run.ps1`; without that assertion the check would pass forever on a mapping nobody
+maintains. HOST1 derives the expected watchdog arguments by reading them out of `start.ps1` rather
+than retyping them, for the same reason.
+
+**Still open.** `docs/REVIEW-REPORT.md` has not been regenerated. Doing so changes the PASS/FAIL/
+MANUAL counts that `rk-overview` publishes as prose, and those counts trace to none of the four
+sources rule 10 allows. The report and the routing of its counts through `key_findings.json` have to
+land together or the public page states a number that is both stale and untraceable.
+
+**Epoch impact.** None. `scripts/`, `tests/`, `.github/` and `docs/`; no verifier-pinned file, no
+`VERIFIER_HASH`, no `Dockerfile`, no `entrypoint.sh`, no score.
+
+---
+
+---
+
+## D28 - The golden gate and the restorable workspace copies are recorded as they are, and recording is kept apart from widening (2026-09-08)
+
+**Decision.** `scripts/hygiene.py` machine-checks the rules this repository states about itself, and
+two of its checks are tripwires. `tests/golden_gate.txt` pins the 55 node ids the container's `-k`
+expression collects today, and `check_workspace_copies` byte-compares
+`scripts/workspace/{start,stop,watcher,stats}.ps1` and `configure.py` against the workspace root.
+Both go red the moment anything moves. `VERIFIER_FILES.txt` joins them as a plain manifest of the
+ten pinned paths: a second copy whose only job is to make changing the pinned set loud.
+
+**Why these are tripwires and not targets.** The gate currently selects G1 through G20 and K1, K2.
+G21 to G27 and K7 to K16 exist in the suite and are outside the gate deliberately, because every
+test the gate selects is time the container spends before the runner starts. A coverage check
+invites the reflex of widening the gate until it covers everything, which would buy nothing and cost
+container start time on every restart. So the check records the gate rather than arguing for it, and
+the failure message says as much in the same breath as it names what entered and what left. A node
+id that disappears is either a rename or a test that stopped running before the container starts;
+those want different responses, and only a person reading the diff can tell them apart.
+`--gate-coverage --write` makes the intended update one command.
+
+The workspace copies are the same shape of problem. The root copies are the ones that run; the repo
+copies exist so the workspace can be rebuilt from a clone, which they can only do while they are
+identical. That check cannot run in CI, because the root scripts live in the parent repository and
+CI sees one checkout, so it is HOST6 in preflight, where both trees are present.
+
+**Rejected.** Asserting that every test prefix under `tests/` is covered by the gate filter. It is
+the obvious form of the check and it is wrong: it fails immediately on G21 to G27 and K7 to K16, and
+the only ways to make it pass are to widen the gate or to delete tests. C33 asserts coverage of the
+prefixes the gate is *meant* to select, and says so in the assertion message. Rejected: folding the
+ASCII scan into the PowerShell parse step. `pwsh` on a runner is PowerShell 7, which parses a smart
+quote and an em dash that Windows PowerShell 5.1 on the host will not, so the parse step would go
+green on exactly the file that stops `start.ps1` from running. Rejected: checking the workspace
+copies from CI by fetching them out of the parent repository, which would need either that repo to
+be public, which is not stated anywhere in the workspace, or a read-only credential, in a system
+whose rule is that the only push-capable token stays on the host.
+
+**Evidence.** `scripts/hygiene.py` with `check_ps1_ascii`, `check_entrypoint_lf`,
+`check_verifier_manifest`, `check_gate_expression`, `check_gate_coverage`, `check_workspace_copies`
+and `check_suite_desc`. `VERIFIER_FILES.txt`, `tests/golden_gate.txt` (55 ids, generated). Tests C30
+to C36 in `tests/test_t5_hygiene.py`. The `hygiene` job and the `gate` job's gate-coverage step in
+`.github/workflows/ci.yml`. Negative controls run by hand on 2026-09-08: an em dash planted in a
+scratch `.ps1` is reported as `scripts/b.ps1:1:16 U+2014`; a CRLF copy of `entrypoint.sh` is refused
+by line number; a line removed from `tests/golden_gate.txt` is named in the failure.
+
+**Consequence.** Three copies of the golden-gate `-k` expression, in `entrypoint.sh` and twice in
+`ci.yml`, are now asserted identical, so CI can no longer go green on a set the container never
+runs. Renaming a test inside the gate churns `tests/golden_gate.txt`, which is intended. Changing
+the pinned verifier set now requires editing two files, one of which exists only to make that edit
+loud; the manifest is not read by `verifier_hash.compute_verifier_hash` and does not move the hash,
+which C34 asserts three ways rather than assuming. The `hygiene` job installs nothing and has no
+`needs`, so it does not wait on the gate.
+
+**Epoch impact.** None. The pinned hash is byte-identical before and after
+(`de5bec229ffa404a85b9172fdc808ef6035716c3df8b308c816e90ffb54fd6e9`); `VERIFIER_FILES.txt` sits
+beside `VERIFIER_HASH` and is read by nothing that computes it.
+
+---
+
+## D32 - A paused container may not be killed for the silence the pause caused (2026-09-09)
+
+**Decision.** Stamp `$resumedAt` on every unpause, and suppress the heartbeat-stale kill for one
+staleness window afterwards. Both resume paths, the CPU guard and the battery guard, stamp it.
+
+**What happened, from the watchdog's own log.** 08:11:25Z host CPU 71.99 percent above 70 for
+30 s, docker pause. 08:35:50Z host CPU 16.11 percent below 30 for 30 s, docker unpause.
+08:36:00Z heartbeat stale 1474.8 s, docker kill. Exit 137, not an OOM. The run was down for
+about thirty minutes.
+
+**Why the existing guard did not cover it.** The stale check already skipped while `$isPaused`,
+and there is a startup grace for a container younger than the threshold. Neither covers the ten
+seconds after a resume, when `$isPaused` is correctly false, container uptime is twelve hours,
+and the heartbeat age still carries the whole pause. A paused process is frozen, so it cannot
+have written one. The guard paused the container and then killed it for the silence it had
+itself caused.
+
+**This was reachable because of D20.** The defect is as old as the two guards, but it needs a
+pause longer than `heartbeat_stale_seconds`, and the guard sat near-inert at 97/85/90/88 until
+D20 restored the shipped 70/30/60/40 the day before. D20's measurement was sound as far as it
+went: the baseline really is a median of 25 percent and the guard really does not fire on
+ambient load. What it did not ask was what happens after the guard fires legitimately.
+
+**Why it was diagnosed in one read.** P07 gave the watchdog a log file and `status.py` the
+ability to read it back, landed the previous day. Before that this sequence existed only in a
+minimised console window that `start.ps1` had already replaced, and the evidence would have
+been an exit code and a guess.
+
+**Evidence.** `rk-harness/scripts/watchdog.ps1`: `$resumedAt`, the `$resumeGrace` term in the
+stale check, and the two unpause sites. `watchdog.log` lines 144, 147, 148.
+
+**Consequence.** A resume is followed by one quiet window in which a genuinely dead container
+is not killed. That is the right trade: the stale kill exists for a hung runner, and a hung
+runner stays hung for the next window too.
+
+**Epoch impact.** None. A host script.
+
+---
+
+## D33 - The lane-search inertness gate exempts read-only viewers, by name and by function (2026-09-09)
+
+**Decision.** `test_nothing_in_the_package_runs_the_lane_search` now allows a named viewer to
+call a named read-only surface of `lanesearch`, and fails on anything else. `_LANE_VIEWERS` is
+`{watch.py}`; `_LANE_READERS` is the eight functions that answer a question about a lane archive
+without being able to create one. A second test asserts every name in that surface is a real
+function and that none of them opens a file for writing, so the exemption cannot widen by typo
+or by a reader quietly becoming a writer.
+
+**Why, and the alternative it rejects.** The gate exists so no cycle runs a lane before batch 9
+wires the rotation. A viewer that renders one row per existing lane archive cannot start a
+search, so it does not arm anything. The alternative was to drop `_lanesearch_rows` from
+`watch.py` until the lanes are wired, and that defeats the point of doing the viewers first:
+the whole reason batch 7 precedes batch 10 is so that no cycle spent on a lane ever reads as a
+stalled explicit cycle. Removing the row would guarantee exactly one release where it does.
+
+**Evidence.** `rk_harness/watch.py:478-506` calls `lanesearch.lane_dir` and `lanesearch.status`
+and nothing else; verified by injecting `lanesearch.step` into `watch.py` (gate fails) and a
+bare mention into `runner.py` (gate fails), both restored.
+
+**Consequence.** `runner.py`, `islands.py` and every other module in the package remain unable to
+mention the module at all. When batch 9 wires the loop, the change is to add `runner.py` to
+`_LANE_VIEWERS` with the driver functions it needs, deliberately, and the second test will then
+refuse to call those functions readers.
+
+**Closes.** The one red test blocking batches 6 and 7.
+
+**Epoch impact.** None. A test file and an unpinned viewer.
+
+---
+
+## D34 - An off-archive count is points, not ledger lines, and the code-hash card is the latest measurement (2026-09-09)
+
+**Decision.** Two one-line rules applied in three places. `_distinct_points` counts distinct
+`(job, key)` pairs, so a point re-measured under a later code hash is one point.
+`_newest_code_hash` picks the hash of the entry with the greatest timestamp rather than the
+alphabetically last. `rk-overview/tools/key_findings.py` stops recomputing both and takes its
+totals from `rk_harness.sidetrack.status()`, which already drew the distinction correctly.
+
+**What was published.** The measurement ledger holds 143 ok lines and 103 distinct points: 40 were
+re-measured after the executor changed. Every card captioned "one per parameter point in the plan"
+showed the line count. The findings site said adaptive 80 (56), implicit 63 (47), ledger 143 (103);
+the overview said `143/40`, a hand-typed plan size of 40 against a line count of 143, which reads
+as more work done than the plan holds. Both sites showed code hash `a98acb39fb4f`, the superseded
+digest, while the executor had been on `305c692a1b5c085a` since cycle 2540. It sorted higher, and
+these are digests, so their lexicographic order carries no information at all.
+
+**Why it mattered more today.** Both defects predate this work and both were live. The split into
+three class pages lifts the adaptive figure onto the hub as one of three headline class numbers,
+where a reader sets it beside the archive record count, and puts the code-hash card on two more
+pages. Promoting a wrong number is a reason to fix it, not a reason to call it pre-existing.
+
+**Consequence.** A caption now says so when the two differ: "24 of them were measured again after
+the executor changed". `points_planned` comes from the catalogue and is absent rather than wrong
+when the catalogue cannot be read. `ledger_lines` and `points_remeasured` are new keys in
+`key_findings.json`, so the raw count is still available to anything that wants it.
+
+**Evidence.** `rk_harness/sitegen.py` `_distinct_points`, `_newest_code_hash`, `_points_caption`;
+`rk-overview/tools/key_findings.py` side-tracks block; `rk-overview/tools/generate.py`
+`sidetrack_section`. Confirmed against the live ledger: 56 / 47 / 103 and `305c692a1b5c`.
+
+**Epoch impact.** None. Nothing scored is read or written; these are off-archive counts.
+
+---
+
+## D35 - The saturation window is measured in the lane the rule is about (2026-09-09)
+
+**Decision.** `saturation.search_hours_since` sums the recorded seconds of explicit-lane cycles
+since the last progress event, read from `rk-work/schedule/cycles.jsonl`, and `assess` compares
+that to the 48-hour window instead of wall clock. With no lane log it returns None and the caller
+falls back to wall clock, stating which measure ran in `window_basis`.
+
+**Why.** The rule was written when every cycle was an explicit search, so wall clock and search
+time were one quantity and nobody had to say which one the window meant. Under a rotation they
+part company: at a third of the cycles the explicit lane accumulates 48 hours of searching in
+about 144 hours of wall clock. A window still counted in wall clock would reach FREEZE on a third
+of the evidence the rule was designed to require, and would do it while the machine was doing
+exactly what it had been told. `auto_freeze` is false so the verdict is advisory, but a wrong
+advisory is worse than none: it is the thing a reader checks instead of thinking.
+
+**Why not scale the threshold by the scheduled share.** The scheduled share is what was asked for;
+the recorded seconds are what happened. Substituting the first for the second is the failure mode
+`lanes._MEASURED_NOT_INTENDED` exists to name, and the survey behind this rotation found a run
+whose intended split had in fact been 0.0005 percent.
+
+**Direction of error.** The tail is bounded at `LANE_WINDOW_CYCLES = 6000`, about 293 hours at
+the 176 s cadence measured 2026-09-09. When it does not reach back to the progress event the sum
+is a floor and `window_basis_complete` is False. An undercount can only delay a freeze, never
+trigger one early, which is the safe direction for a rule whose action is to stop the run.
+
+**Consequence.** Today, with no lane log, the assessment is the old one unchanged: CONTINUE,
+17.52 hours since progress, basis "wall clock; no lane log, so every cycle is an explicit search".
+This lands before the rotation is armed, which is the point.
+
+**Evidence.** `rk_harness/saturation.py` `search_hours_since`; `tests/test_t9_saturation.py`
+S9 to S16.
+
+**Epoch impact.** None. The orchestrator is operational, unpinned, and advisory.
+
+---
+
+## D36 - The system drive gets a guard, because the run cannot outlive the daemon (2026-09-09)
+
+**Decision.** `watchdog.min_free_system_gb = 2.0`, up from 0, which was report-only.
+
+**Why now.** The watchdog has been logging "system drive C: free 4.4 GB and unguarded" every
+thirty minutes. C: is at 100 percent with about 4.3 GB free and falling; Docker's VHDX is 43.7 GB
+and lives there, and `docker system df` reports 23 GB of build cache with 14.16 GB reclaimable
+plus 7 GB of reclaimable images. None of that is the run's doing: `rk-work` is on D:, which has
+200 GB free.
+
+**What the guard buys.** At 2 GB the watchdog stops the container. A stopped run resumes with
+start.ps1. A Docker daemon that hits a full VHDX does not necessarily, and takes the archive's
+writer with it mid-append. Stopping deliberately at a threshold is the recoverable failure.
+
+**What it does not fix.** The disk still fills. Reclaiming the build cache is a machine-wide action
+that touches other projects' caches and is the owner's call, not a side effect of this work; it is
+recorded here as the recommendation rather than taken.
+
+**Evidence.** `rk-harness/scripts/watchdog.ps1:346-364`; `watchdog.log` 2026-09-09T20:18:07Z and
+20:48:10Z; `docker system df`.
+
+**Epoch impact.** None. A host config value.
+
+---
+
+## D37 - The cycle loop asks which lane it is on, and every cycle records the answer (2026-09-09)
+
+**Decision.** `_run_cycle` resolves the schedule once at the top, `lanes.lane_for` names the lane,
+and a lane that is not explicit branches to `_run_lane_cycle` immediately after the archive
+replay. Every cycle, explicit included, appends a row to `rk-work/schedule/cycles.jsonl` and
+refreshes `shares.json`. `cycle_done` gains a `lane` field. Shipped with
+`run.lane_schedule = 'E'`, which is one explicit search per cycle: the behaviour the run has
+always had, now taking the same code path an armed schedule takes.
+
+**Where the branch sits, and why there.** After the replay, before the encourager. The site build
+needs the archive state, so the replay is shared; nothing below that line does anything a lane
+wants. A lane cycle does not call the encourager, because the encourager's domain is the archive
+grid and a lane record does not live in a cell. It does not call the model, because a directive
+names a target order and a stage count and this lane is not choosing one. It does not enumerate,
+evaluate or verify, because nothing here goes through the pinned checker. It appends to the
+lane's own unpinned archive and to nothing else.
+
+**`stall_counter` is passed through untouched, and this is the edit that matters most.** It counts
+cycles since the explicit search last improved a cell. A lane cycle neither advances it (the
+explicit search did not fail, it did not run) nor clears it (nothing improved). Advancing it is
+how a rotation manufactures a false stall, and the stall counter feeds the encourager's
+escalation.
+
+**Every cycle writes a row, not just the lanes.** A log that recorded only the lanes would leave
+the explicit share unmeasurable, and an unmeasurable share is exactly how an intended 70/15/15
+and a real 0.0005 percent drifted apart with nothing in the system in a position to notice. The
+row separates `records_appended` (scored) from `lane_records_appended` (the lane's own archive),
+because a lane cycle appending nothing scored is a fact to read rather than a gap.
+
+**Reporting may not end a cycle.** Both writes are wrapped: a failure logs `lane_log_failed` or
+`lane_shares_failed` and the cycle completes. The work is upstream of the record of it.
+
+**The gate changed deliberately, which is what D33 said this moment would look like.** The
+allowlist now has two roles. A VIEWER (`watch.py`) may call the read-only surface and nothing
+else. A DRIVER (`runner.py`) may also call `step`, and exactly one module is allowed to be one,
+because deciding how the machine spends its time belongs in the cycle loop. A second test asserts
+the distinction survives: no viewer may call `step` even now that the runner can, since a live
+view that could start a measurement would make the act of looking at the run change it.
+
+**Measured end to end, off in a scratch directory, with the real search rather than a stub.** One
+adaptive cycle: 59.3 s, one record. One implicit cycle: 45.9 s, fifteen records. `stall_counter`
+41 before and 41 after both. No scored archive directory was created. Both rows validated,
+`shares.json` written and schema-checked, no failure event.
+
+**Evidence.** `rk_harness/runner.py` `_run_lane_cycle`, `_record_cycle`, `_lane_budget_seconds`;
+`tests/test_t16_lane_cycle.py`; `tests/test_t16_lanesearch.py` `_LANE_VIEWERS` / `_LANE_DRIVERS`.
+
+**Epoch impact.** None while disarmed, and none when armed: no pinned file is read or written by a
+lane, nothing a lane produces is scored, and `VERIFIER_HASH` is not involved.
+
+---
+
+## D38 - The rotation is armed, and the three classes get equal turns (2026-09-09)
+
+**Decision.** `run.lane_schedule = 'EAI'`. One cycle in three searches the explicit archive, one
+measures the adaptive lane, one measures the implicit lane. `run.lane_max_seconds = 180`, matching
+the side-track budget it replaces.
+
+**Why now and not earlier.** The blocker was never the schedule, it was that the two side classes
+had no open-ended work. `sidetrack.JOBS` is a finite catalogue of 103 points, complete since cycle
+2540, and every firing since has logged `sidetrack_exhausted` in about five hundredths of a
+second. Arming before B5 would have handed two thirds of the machine an empty queue.
+`lanesearch.py` is that queue: a deterministic unbounded enumeration per lane. The end-to-end run
+above measured 1 adaptive and 15 implicit candidates in two cycles, so the queue produces work.
+
+**What the run gives up.** Two thirds of its cycles. The explicit archive will grow at about a
+third of its previous rate. That is the request, stated plainly: equal time is not equal time if
+one class keeps 97 percent of it.
+
+**What protects the explicit half from being misread as broken.** All of it landed first, on
+purpose. `saturation` measures its 48-hour window in explicit-lane seconds (D35), so it will not
+reach FREEZE on a third of the evidence. `stall_counter` advances only on explicit cycles (D37).
+The viewers name the lane a cycle belonged to, and `accept_rate` counts the explicit lane once a
+cycle carries the field. `watchdog.no_candidate_minutes` stays 30: the longest run of non-explicit
+letters in 'EAI' is two, so the worst gap between verified candidates is three cycles, 8.8 minutes
+at the measured 176 s cadence and 15 at 300 s.
+
+**Rule 10 is not relaxed, and the measured split does not go on a page.** The obvious way to make
+the sites "reflect" the rotation would be to publish the realised share. That is exactly the
+attention split CLAUDE.md rule 10 keeps internal, and B6 added a build gate that fails on a
+percentage triple. The sites reflect the three classes by giving them a page, a nav entry and a
+hub card each, with explicit leading, which is the structural claim. The time budget stays in
+`rk-work/schedule/shares.json` and in the host viewers, where the people running it can see it.
+
+**What the lane archives may say on a page, which is still only that they exist.**
+`lanesearch`'s own records carry `NOT_A_PAGE_SOURCE`, and the traceability list in CLAUDE.md
+the traceability list in CLAUDE.md does not name them. Arming does not change that: the class pages will flip their presence
+line from "not written yet" to written, and will quote no number out of either archive. Whether
+`rk-work/validation/axes.json` joins the list is a separate question and still the owner's,
+because it is the one that would let a lane's PERFORMANCE be published.
+
+**Side tracks are left switched on at every 20 cycles.** They now fire only on explicit cycles,
+since `_maybe_sidetrack` sits below the branch. The catalogue is exhausted so each firing costs
+about 0.05 s, and leaving the cadence set means a refilled catalogue (B8) resumes without a config
+change.
+
+**Reversal is one value.** `python configure.py set run.lane_schedule=E`, then a restart. Nothing
+a lane wrote is in the scored archive, so reverting loses no scored work and invalidates no score.
+
+**Epoch impact.** None. This is where the run spends its time, not what it considers correct.
+`VERIFIER_HASH` is untouched and every archived score keeps its meaning.
+
+---
+
+## D39 - rk-work/validation/axes.json stays off the traceability list (2026-09-10)
+
+**Decision.** `rk-work/validation/axes.json` is not a permitted source for a number on a public
+page and stays off. This answers the question `docs/THIRDS-2026-09-09.md` section 5 left with the
+owner rather than deferring it again.
+
+**Why.** `rk-work/benchmark/results.json` already carries a matched-ACCURACY comparison across all
+three classes on the same eight application problems. It fixes the achieved error and reports the
+work each side spent to reach it, stating per row what it controls for and what it does not. That
+document is on the list already and its numbers are published already. Axis T asks the same
+question in a different shape, cycles to reach a tolerance rather than work at a fixed achieved
+error. Admitting a second source for a claim the site can already make lengthens a list whose
+value is its shortness: a reader checking a published number has to hold the whole list in their
+head, and every entry costs everyone who reads one.
+
+**The alternative this rejects.** "Admit it, the machinery is written." The loader, the presence
+panel and the glossary entries for axis T are in place, so admission looks free. It is not.
+Admitting the document means writing it, and its writer, `validation_axes.py`, sits inside
+`LANESEARCH_FILES`. Editing that file moves `lanesearch.code_hash()` and re-opens every measured
+lane candidate, which is a real bill for a document that has no rows in the work directory today.
+
+**Evidence.** `rk_harness/benchmark.py:45-58`, the three-class sections and their shared
+condition; `rk-work/benchmark/results.json`, key `matched_accuracy`;
+`rk_harness/lanesearch.py:141`, `validation_axes.py` inside `LANESEARCH_FILES`;
+`docs/THIRDS-2026-09-09.md:104-110`, the question as it was left; `rk-work/validation/` holds
+`results.json` and no `axes.json`.
+
+**Consequence.** The adaptive and implicit class pages carry ledger readings, the class definition
+and, under D40, ranked elites. No page states an axis-T number sourced from `axes.json`.
+`validation_axes.py` stays what it is, the cost model and the implicit probe that `lanesearch`
+measures through, rather than the writer of a published document.
+
+**What would reopen this.** A claim matched accuracy cannot support. Matched accuracy compares at
+an error every side reached, so a tolerance that one class reaches and another cannot has no
+matched row, and a question about that tolerance needs axis T. If such a claim is worth
+publishing, this entry is revisited and `axes.json` is where the number comes from.
+
+**Closes.** `docs/THIRDS-2026-09-09.md` section 5, owner question 1, answered as no.
+
+**Epoch impact.** None. No scored record is read or written, no digest moves, and `VERIFIER_HASH`
+is untouched. This decides what may be published, not what is measured.
+
+---
+
+## D40 - The lane elites documents join the traceability list, the per-day records do not (2026-09-10)
+
+**Decision.** `rk-work/adaptive_archive/elites.json` and `rk-work/implicit_archive/elites.json`
+are permitted sources for a number on a public page. `rk-work/{lane}_archive/YYYY-MM-DD.jsonl`
+stays off. A number taken from an elites document is rendered with its metric
+(cycles-to-tolerance on the axis-T ladder), its arithmetic (float64) and the fact that nothing in
+it is order-verified against the pinned checker, the way a side-track number carries its job's own
+`arithmetic` string (D24).
+
+**Why the elites and not the records behind them.** The elites document is bounded at
+`ELITE_CAP = 32`, ranked by a total order that reads no clock and samples nothing, validated
+against `lane-elites/1`, and it carries `rule` and `statement` fields saying exactly what it
+ranked and over what. It is 54.9 KB for adaptive and 45.3 KB for implicit. A per-day file is a
+search log: about 18 KB per record, 164.1 MB of adaptive records and 168.4 MB of implicit records
+on disk on 2026-09-10, and its per-candidate rows sit at the grain of a scored archive record
+while meaning something else. That is the comparison `not_comparable` exists to prevent, and the
+way to prevent it is to leave the log unquotable rather than to ask every page to be careful with
+it.
+
+**The alternative this rejects.** "Admit the lane archive whole, since the elites are derived from
+the records, and a list that admits a summary while refusing its input is inconsistent." The list
+is not a list of true files. It is a list of documents that can be quoted without misleading a
+reader, and a capped, ranked, self-describing document meets that where the 8,900-line input
+behind it does not.
+
+**What it cost.** `NOT_A_PAGE_SOURCE` is record content: `build_record` writes it into every
+record and `build_elites` into the elites `_meta`, so changing the publication contract changes
+what a record says. Rewriting it moves `lanesearch.code_hash()` off `6a5be0d8f26639ea` and
+re-opens every candidate measured under that digest, 8,928 adaptive and 8,958 implicit ledger
+lines when this was written, about 17,900. At the measured 0.49 s per adaptive candidate and
+1.77 s per implicit candidate that is roughly 1.2 hours of adaptive-lane seconds and 4.4 hours of
+implicit-lane seconds to stand where the run stands today, spread across the rotation.
+
+**Why that is the digest working rather than waste.** A record written under the old contract
+asserts on its face that no page may quote this lane at all. A record written under the new one
+does not. The two generations mean different things and should not be indistinguishable; the code
+hash is what tells them apart, and a contract sentence that rides in a field is exactly the record
+content the hash exists to cover. Nothing scored is touched, so the bill is paid in lane seconds.
+
+**Evidence.** `rk_harness/lanesearch.py:178-182`, `NOT_A_PAGE_SOURCE`; `:1026` and `:1272`, where
+it is written into a record and into `_meta`; `:229` `ELITE_CAP`; `:1161` `ELITE_RULE`; `:1230`
+`build_elites`; `rk_harness/sitegen.py` `_lane_elites_path` and `_load_lane_archive`, the loader
+that already reads the file; `rk-work/adaptive_archive/ledger.jsonl` and
+`rk-work/implicit_archive/ledger.jsonl`, 8,928 and 8,958 lines under `6a5be0d8f26639ea`; the
+CLAUDE.md Prose paragraph and `docs/LANESEARCH.md`.
+
+**Consequence.** A class page may quote a ranked elite: its median cycles at the elite target, how
+many problems it reached, its tableau. It may not quote a per-day record, and no loader for one
+exists. `NOT_A_PAGE_SOURCE` states the split now instead of a blanket refusal, so a record says
+which of the two documents it stands behind may be published.
+
+**Closes.** `docs/THIRDS-2026-09-09.md` section 5, the question it raised separately for the two
+lane archives, and `docs/LANESEARCH.md`'s "whether these numbers may ever be published".
+
+**Epoch impact.** None on the scored archive. `VERIFIER_HASH` is untouched, no scored record is
+read or written, and every archived score keeps its meaning. The lane digest does move, which
+re-opens lane candidates and nothing else.
+
+---
+
+## D41 - The findings site drops to seven tabs, and the build deletes the pages it retired (2026-09-11)
+
+**Decision.** The findings site has seven tabs in one nav row: overview (`index.html`),
+explicit, implicit, adaptive, validation, research log (`hypotheses.html`) and methodology. The
+header carries one link to the overview site, beside the tabs and styled apart from them. Seven
+pages are retired and their content merged:
+
+- `benchmark.html` and `falsification.html` into `validation.html`, as its `#speed` and
+  `#falsification` sections;
+- `literature.html` and `interpretation.html` into `hypotheses.html`, as `#literature` and
+  `#interpretation`, each showing its newest entries and naming the log file that holds the rest;
+- `costmodel.html`, `sidetrack.html` and `glossary.html` into `methodology.html`, as
+  `#costmodel`, `#ledger` and `#glossary`. Every glossary term keeps its anchor id, and `_gloss`
+  now links `methodology.html#<anchor>`.
+
+`_CONDITIONAL` is `{"validation.html"}`, and that page is written when any of
+`validation/results.json`, `benchmark/results.json` or `falsification.json` exists.
+
+**Why.** Owner request, 2026-09-11: no more than eight tabs, more graphs about the three classes,
+less clutter, and a link from the findings site to the overview. Fourteen tabs in three rows gave
+the reference pages the same weight as the results, and two of the retired pages, literature and
+interpretation, were model-written text with no charts at all.
+
+**Deletion.** GitHub Pages has no redirects and serves whatever sits in `docs/`, and `build()`
+never deleted anything, so a page dropped from the build stayed published, stale and unlinked.
+`build()` now deletes exactly the seven retired names from `out_dir`, plus any
+`cell-p*-s*-b*.html` for a cell the current archive does not hold. It does this after every page
+has passed the banned-word check and been written, so a failed build deletes nothing. Nothing
+else is ever deleted. The runner's `git add -A` in the findings checkout commits the deletions
+with the next cycle's pages.
+
+**Class pages.** explicit, implicit and adaptive share one layout: a short lead, an "At a
+glance" list, a few key-number cards, one chart per question, and "Measured against real
+counterparts, at matched accuracy" as a chart with its table folded. implicit and adaptive
+add their lane elites and the "What these numbers are not" block, and fold their per-job
+side-track tables at the bottom. Three things left the class pages: the single-rung
+work-precision chart over `adaptive_results` and the library table, which matched accuracy
+replaces, and the explicit page's off-list panel, whose source `validation/axes.json` is not
+admitted (D39). The adaptive Q15 attempt-cost bar stacks the three priced parts (stage,
+estimate, controller) and prints the `total` that `benchmark/results.json`
+`adaptive_matched_tolerance` records for them. The branch allowance in that document is a
+count of conditional branches, not cycles, so the caption names it and the bar does not draw
+it.
+
+**What this supersedes.** The docstring of the t18 test
+`the_ledger_page_keeps_its_filename_and_its_provenance_role` called `sidetrack.html` a permanent
+URL that "changes role rather than being deleted". That no longer holds. The ledger's rules and
+its failed points moved to `methodology.html#ledger`, its readings were already on the class
+pages, and the test is retargeted to the new location. D41 also supersedes the `sidetrack.html`
+page in `SIDETRACK-AUTOMATION.md` D8 with its acceptance items A4.1 to A4.6, and the line in
+section 4 of `THIRDS-2026-09-09.md` that kept `sidetrack.html` as a provenance page. D8's rule
+that publication is derived from the ledger and never authored still holds, on
+`methodology.html#ledger` and the class pages. Both documents are records and stay as written.
+
+**Cost.** An outside link to a retired URL now returns 404. The overview site's links into the
+findings site are rewritten to the new URLs in the same change.
+
+**Evidence.** `rk_harness/sitegen.py`: `_NAV_ITEMS`, `_CONDITIONAL`, `_RETIRED`, `_prune`,
+`build`; `rk_harness/methodology.py`: `render_page(page, sections)`;
+`tests/test_t4_ledger_runner_site.py` and `tests/test_t18_class_pages.py` (the nav, conditional,
+prune and retired-link tests); `scripts/preflight.py` H1 (`explicit.html`), H4
+(`methodology.html`), K4 (`validation.html`).
+
+**Epoch impact.** None. No pinned file changes, no record is read or written differently, and
+every archived score keeps its meaning.
+
+**Amended 2026-09-15: the 404 above is narrowed.** From the epoch-2 boundary
+(D45) `_prune` leaves a JavaScript-free stub at every root cell URL the frozen
+snapshot still publishes, each linking its `epoch-1/` copy. Those URLs no
+longer 404. The rule this record states is unchanged for pages no snapshot
+carries, which still go.
+
+---
+
+## D29 - A status file states its own expiry, and can be asked its age without being rewritten (2026-09-08)
+
+**Decision.** `stats.txt` declares a staleness deadline on both paths, not only when a loop wrote
+it. A file written once carries `ONE_SHOT_SHELF_LIFE_S`, fifteen minutes, computed from its own
+`written_at` rather than from a clock read at render time. `rk_harness.status` gains
+`read_written_at` and `age_report`, and `--age` answers the freshness question from the file's
+header alone, running no probe and rewriting nothing: exit 0 current, 1 past the declared shelf
+life, 2 unreadable. `stop.ps1` stops the background writer by this workspace's own full path and
+then takes one final one-shot reading, so the last state on disk is the stopped container.
+
+**Why.** The header used to tell a reader of a one-shot file that `stats.ps1 -Loop` would keep it
+current. That is a fact about a writer that is not running, and it left the reader to work out for
+themselves whether the numbers below it were two minutes or two days old, which is the arithmetic
+the deadline exists to remove. Rejected: rendering the deadline from `_utcnow()`, which is simpler
+and wrong, because the file would then claim a future for a document written last Tuesday and
+`--age` and the header could disagree. The deadline is a pure function of `written_at`, which is
+also what lets `--age` read it back and reach the same answer.
+
+Fifteen minutes is longer than any cycle at the current cadence, so a one-shot file written between
+cycles is still describing the present, and short enough that nobody builds a habit of trusting a
+stale one. A file written by a loop keeps the six-interval rule it already had, and `age_report`
+reads the interval out of the header so the two cannot drift.
+
+**Evidence.** `rk_harness/status.py`: `ONE_SHOT_SHELF_LIFE_S`, the `refresh_s is None` branch of
+`render_text`, `read_written_at`, `age_report`, and the `--age` branch of `main` which returns
+before `collect` is reached. `stop.ps1`: the escaped-full-path matcher and the final write.
+`stats.ps1 -Age`. Tests S24 to S29 in `tests/test_t5_status.py`; S12 updated in the same change,
+because it asserted the previous behaviour.
+
+**Consequence.** The stats writer is matched by full path and never by `*stats.ps1*`. A second
+harness in this workspace may ship its own `stats.ps1`, exactly as rk's `*watchdog.ps1*` matcher
+already forces that harness to name its watchdog `scripts/watchdog-jobs.ps1`.
+
+**Closes.** A file that could be arbitrarily old while looking exactly like a fresh one.
+
+**Epoch impact.** None. Host-side reporting only: no verifier-pinned file, no `VERIFIER_HASH`, no
+score.
+
+---
+
+## D30 - Alert on the rate of work, not on signs of life (2026-09-08)
+
+**Decision.** `stats.txt` reports acceptance rate and the model-directive gap alongside cadence.
+`accept_rate` compares the median of the newest third of the `cycle_done` events in the tail
+against the median of the oldest third and prints both medians with both sample counts;
+`directive_gap` counts cycles since the last `directive_accepted` carrying `source="llm"` and reads
+back the plan snapshot that gate last saw. `watchdog.ps1` gains `-LogFile`, and `status` reads the
+tail of that log into a new section. The collapse verdict renders as a row inside PROGRESS, not in
+PROBLEMS.
+
+**Why.** The run was fast, green, heartbeating and scientifically dead for thirty-five hours and
+nothing in the system had anything to say about it. D25's `progress_note` catches a run that has
+stopped completing cycles; it cannot catch a run completing cycles that accept nothing, or one that
+has not heard from the model in a thousand cycles because a usage snapshot latched a gate shut.
+Both are rates, and neither is visible in any liveness signal.
+
+The verdict needs both windows because a byte tail is not a cycle tail: phase 0 and 1 cycles
+enumerate in bulk and occupy more bytes each, so the two thirds can straddle a phase change and a
+ratio alone would read that as a collapse. Ten samples per window are required before any verdict
+is offered, and the row prints the two medians either way, so a phase change can read as a phase
+change. No division anywhere: a zero baseline is not an infinite collapse and a rise is not a
+collapse at all.
+
+Rejected: putting the collapse row in PROBLEMS. That section is headed PROBLEMS READING STATE, is
+documented as where a failed probe lands, and its exact title is pinned by S9. `progress_note` is
+the precedent for a derived judgement, and it renders as a STUCK row inside PROGRESS. Widening the
+section is an owner call, not a side effect of this change.
+
+The watchdog log exists because the watchdog runs in a minimized window nobody looks at, so an
+ALERT or a pause is printed once and lost. Its stamps are UTC with a `Z`, not `Get-Date -Format s`,
+which is local and unlabelled: `status._parse_ts` treats a naive stamp as UTC and would be seven
+hours wrong on this machine. The section says in its own closing lines that these are lines the
+watchdog printed when it acted, not a reading of the container's state now, which is what keeps
+property 2 intact.
+
+**Evidence.** `rk_harness/status.py`: `PRODUCTIVITY_TAIL_BYTES`, `ACCEPT_MIN_SAMPLES`,
+`ACCEPT_COLLAPSE_RATIO`, the `kinds` gate in `tail_events`, `accept_rate`, `directive_gap`,
+`read_watchdog_log`, the new PROGRESS rows and the WHAT THE WATCHDOG SAID section.
+`scripts/watchdog.ps1`: `-LogFile`, `Say`, `Rotate-Log`. `runner.py:533` is where `source="llm"`
+is written and `runner.py:715` where a gate names itself; neither file is touched by this change.
+Tests S30 to S39. Measured on this host 2026-09-08: the four-megabyte tail read costs 33 ms and the
+substring gate cuts it from 14,461 parsed dicts to 407.
+
+**Consequence.** The productivity read is four megabytes rather than 512 KB. `watch.py` has read
+four megabytes every few seconds for months, which is the precedent, and the kind filter keeps the
+parse cost at a tenth of the unfiltered read. `PRODUCTIVITY_TAIL_BYTES` is the single knob if it
+ever hurts.
+
+**Closes.** A run that can be green on every existing signal while producing nothing.
+
+**Epoch impact.** None. Host-side reporting and one host script; no verifier-pinned file, no
+`VERIFIER_HASH`, no `entrypoint.sh`, no score.
+
+---
+
+## D31 - The pause guard's docker probe is bounded, its peer list is deliberate, and the rest of the daemon becomes visible (2026-09-08)
+
+**Decision.** `docker stats` runs through one bounded helper, `Get-DockerCpuRows`, as a child
+process the watchdog can kill after `-StatsTimeoutMs` (default 4000). On timeout the guard decides
+nothing for that pass: it clears the sample buffer, says so once per outage, and skips the pause
+decision. While the container is paused no probe is made at all, because a frozen cgroup has no CPU
+share to subtract. `-PeerContainers` (default `rk`) names the containers whose CPU is subtracted
+from host load; every other container counts as foreground load the run should yield to. The
+watchdog publishes each sample to `docker-cpu.json` for a second harness to read, and reads none
+back. The system drive is reported and only guarded when `-MinFreeSystemGB` is non-zero. `status`
+gains a census of every container on the daemon with status, health and restart count.
+
+**Why, and one number corrected.** P12's arithmetic rested on `status.py`'s note that `docker
+stats` was measured at 47 s here, which would turn a 10 s poll into a 50 s one and a twelve-sample
+heartbeat window into a two-sample one. That measurement was taken on a saturated machine. Measured
+2026-09-08 on a quiet one over five consecutive calls, the cost is 1.41 s minimum and 2.01 s median,
+so the real effect today is an effective poll near 12 s and about ten samples inside the 120 s
+window instead of twelve. That is a skew, not a collapse, and the 47 s figure must not be repeated
+as if it were typical. The case for bounding the call stands on the tail rather than the median:
+this daemon has been seen wedged and answering HTTP 500 on every endpoint, and an unbounded call
+there sits on the path that decides whether the run is paused. The `WHERE THESE NUMBERS COME FROM`
+line in `stats.txt` that stated the 47 s figure as fact is rewritten to give the durable reason
+instead, which is that `docker stats` samples every container and has no timeout of its own.
+
+The peer list stays a deliberate name list. Subtracting every container would let a crash-looping
+third-party stack run this machine hot while the guard reported it quiet, which is the opposite of
+why the guard exists. The default of `rk` alone reproduces today's behaviour exactly. A wrong name
+silently subtracts nothing, so the startup line names the requested set and the earliest
+successful poll names the resolved one.
+
+The census reports what it can see this pass and never a trend. Rule 1 forbids carrying a value
+forward and this module keeps no cache, so a restart count that is rising is not something it can
+honestly compute; it flags single-sample facts instead, a restarting status, an unhealthy health
+check, or a count already past `RESTART_FLAG`. Do not add a history file to make "climbing" work.
+
+`docker-cpu.json` is written and never read here. rk is what wrote it, so a reader in rk would only
+be rk reusing its own last sample, which is the carried-forward value this project refuses
+everywhere else. The reader contract is in the comment: a consumer treats a file older than about
+2.5 polls as absent and samples for itself, and no decision may ever wait on it. The second harness
+is the reader, and it does not exist in this workspace yet.
+
+**Evidence.** `scripts/watchdog.ps1`: `Get-DockerCpuRows`, `Write-CpuSample`, the rewritten
+pause-guard preamble and block 5b. `rk_harness/status.py`: `RESTART_FLAG`, `probe_containers`,
+`_ascii`, the `with_census` switch and the OTHER CONTAINERS ON THIS DAEMON section. Tests S40 to
+S42 and C25 to C28. The 1.41/2.01 s figures were measured on this host on 2026-09-08; the parsing
+half of `Get-DockerCpuRows` was exercised against canned output rather than the live daemon.
+
+**Consequence.** Three watchdog parameters need `configure.py` keys and `start.ps1` wiring, and
+C25 fails until every `watchdog.*` key in `SCHEMA` is passed. C28 stays skipped until
+`watchdog.peer_containers` exists. `min_free_system_gb` defaults to 0, so nothing stops the run on
+the system drive without the owner turning it on. The census names third-party containers and
+belongs in `stats.txt`, which is gitignored; it must never reach a findings page, where every
+number has to trace to `key_findings.json`, `validation/results.json`, `benchmark/results.json` or
+the side-track ledger, and a restart count traces to none of them.
+
+**Closes.** An unbounded call on the pause path, a guard that could only ever subtract one
+container, and a shared machine whose other containers no status file mentioned.
+
+**Epoch impact.** None. Host scripts and host-side reporting; no verifier-pinned file, no
+`VERIFIER_HASH`, no `Dockerfile`, no `entrypoint.sh`, no score.
+
+
+---
+
+## D42 - The compiled and traced cycle comparison joins the traceability list, under a second pin (2026-09-12)
+
+**Decision.** `rk-work/trace/results.json` is a permitted source for a number on a public
+page. A number taken from it is rendered with what produced it: compiled ARM Thumb code for
+cortex-m0plus, executed under an instruction-accurate emulator, priced offline against the
+Cortex-M0+ TRM table under the assumptions the document states. It is not a measurement on
+any physical part, and a page that quotes it says so in the same breath, the way a
+side-track number carries its job's own `arithmetic` string (D24). The tracer is pinned by
+`TRACE_HASH` and `rk_harness/trace_hash.py`, never by `VERIFIER_HASH`.
+
+**Why.** The cost model is analytic and always has been. `cycle_count` derives an instruction
+sequence from a tableau's sparsity pattern and each coefficient's CSD weight, takes
+`min(csd_cost, mul_cost)` per coefficient, and prices the result. The 65,536-cycle budget
+that defines fitness, the `m0plus_fast` and `m0plus_slow` split, and the champion's 22 cycles
+per step all rest on that derivation, and nothing in the harness had ever compiled it or run
+it. The risk was never the TRM table: MULS at 1 cycle on the fast multiplier and 32 on the
+small one is in the TRM, and the two cost models correspond to those two configurations. The
+risk was the instruction mix, and that is answerable without hardware. It is now answered,
+so the answer needs a document it can be quoted from.
+
+**What the comparison found, because it is not a confirmation.** Under `m0plus_fast` the
+analytic model undercounts the compiled combination on five of six methods. At matched scope
+the traced-to-analytic ratio runs 1.000 for euler, 1.273 midpoint, 1.308 heun2, 1.591 for the
+champion, 1.639 rk38 and 2.030 rk4; three of those exceed the 0.25 relative band the audit
+proposed, and the document says so rather than moving the band. The cause is one line of the
+model. `coeff_cost` takes the cheaper of the CSD shift-add sequence and a multiply, and under
+`m0plus_fast` a multiply plus shift costs 2, so every coefficient whose CSD weight is 2 or
+more is priced at 2. GCC 13.2.1 at -O2 never emits that multiply. Across all six methods the
+count of MULS instructions applying a tableau coefficient is zero; every MULS in every trace
+is the h times k product, one per stage, which the model excludes from its scope entirely.
+Under `m0plus_slow`, where a multiply costs 33 and the model therefore picks the shift-add
+sequence, the same ratios run 0.788 to 1.308 and the rank correlation with the traced order
+is exactly 1.0. The model's slow-variant pricing describes the compiled code; its
+fast-variant pricing assumes a shortcut the compiler declines to take.
+
+Two consequences worth stating plainly. The dyadic-coefficient assumption holds, and holds
+harder than it was stated: dyadic coefficients compile to shifts and adds, and so do the
+non-dyadic ones, which is why rk4 is the worst row. And the ordering is not quite preserved:
+Spearman between analytic and traced cycles across the six methods is 0.9429 under
+`m0plus_fast`, with one inverted pair. The model puts rk4 at 33 and rk38 at 36; the trace
+puts rk38 at 130 and rk4 at 139. rk4's b coefficients 1/6 and 1/3 carry high CSD weight and
+the model caps them at the 2-cycle multiply it never gets; rk38's b is 1/8 and 3/8. Under
+`m0plus_slow` there is no inversion.
+
+**Why a second pin and not two more entries in `VERIFIER_FILES`.** The audit asked for the C
+source and the emulator to be hash-pinned by the same mechanism as the existing ten files.
+Taken literally that means appending to `verifier_hash.VERIFIER_FILES`, whose sha256 is
+`VERIFIER_HASH`, which is checked at container start and carried inside every archived
+record. Moving it invalidates all 141,364 scores. CLAUDE.md rule 1 calls that an epoch
+boundary rather than an edit, and this work measures the cost model instead of changing it,
+so it has no business charging one. `TRACE_HASH` gives the identical guarantee, a changed
+file is a refused run, over the two files that actually produce the document. `costmodel.py`
+stays untouched: `emit_c` is imported and its output compiled verbatim, and the generated C
+is published beside the results with its sha256 recorded per method.
+
+**The alternative this rejects.** "Publish the whole-step traced number alone, since it is
+the one a reader wants." The whole-step ratios run 3.611 to 6.400, and most of that gap is
+work the analytic model excludes on purpose: the derivative call, the h times k scaling, the
+stack frame. Quoting it against `cycles_analytic` would report a scope difference as a model
+error. Both are published, `ratio` whole step and `ratio_model_scope` matched, and the schema
+says which is which.
+
+**What it does not establish.** No wall-clock time on any part. Nothing about flash wait
+states, bus contention or buffering, all of which are assumed away. Nothing about interrupt
+or RTOS overhead. Nothing about a chip the TRM table does not describe. No free tool is cycle
+accurate for Cortex-M0+, so the document states that the emulator is instruction accurate and
+not cycle accurate, and any page quoting it repeats that.
+
+**Evidence.** `rk_harness/tracecheck.py`, the tracer; `rk_harness/trace_hash.py` and
+`TRACE_HASH`, the pin; `rk-work/trace/results.json` and the generated C under
+`rk-work/trace/c/`. Toolchain: arm-none-eabi-gcc 13.2.1 at
+`-mcpu=cortex-m0plus -mthumb -O2 -ffreestanding -nostdlib`, GNU objdump 2.42, unicorn 2.1.4.
+Correctness before timing: 48 of 48 comparable cases agree with `simulate.solve_q15` on the
+exact final int16 state and on every stage input, and 10 of those are cases where the Q15
+primitives raise, where the checked C traps at the same operation index. Tests B86 to B96 in
+`tests/test_t1_fixedpoint_coeff_cost.py`.
+
+**Consequence.** A validation page may state the per-method table, the ratios at either
+scope, the opcode histogram, the MULS count per step, and the rank correlation with its one
+inverted pair named. It may not state a time, a clock rate or a measured cycle count, because
+none was measured. The comparability rule D24 set applies here too: a traced number and a Q15
+error number may not appear in one claim without their labels, since one is an emulated
+instruction stream priced by a table and the other is arithmetic. The run itself is
+unaffected; nothing in the search, the scorer or the site build calls this module, and it is
+run on the host when the cost model or the toolchain moves.
+
+**What would reopen this.** A cost-model change. `coeff_cost` under `m0plus_fast` is now
+known to price a multiply the compiler does not emit, and if that line is ever revisited the
+epoch boundary it sits behind is the place to do it, with this document as the evidence.
+
+**Closes.** The audit's F1 Tier A, acceptance conditions 1 through 7, and the question of
+whether the instruction mix the cost model assumes is the one a compiler produces.
+
+**Epoch impact.** None. No verifier-pinned file is edited, `VERIFIER_HASH` is untouched, no
+scored record is read or written, and every archived score keeps its meaning. The tracer
+imports `costmodel.emit_c` and never modifies it. The new pin is separate by construction,
+which is the whole point of it.
+
+**Amended 2026-09-12: the coverage above is extended, and `TRACE_HASH` moves once to pay for
+it.** The entry's numbers describe a run over six methods at one and two states. `CASES` and
+`TRACE_CASES` now reach every state count the scored problems use, adding rc_thermal at three
+states and quaternion at four with a step ladder and a rail probe each, and `DEFAULT_METHODS`
+adds ralston2, heun3 and kutta3 so that all eight classical anchors carry a trace row rather
+than five of them. The reason for the second half is the anchor set rather than the coverage:
+anything pricing steps from this document re-chooses its best classical anchor by minimum, and
+a minimum over five traced anchors is not comparable with a published one taken over eight.
+`TRACE_HASH` is repinned to `61f3a1bc` and the document regenerated; every one-state and
+two-state number in it is byte-identical to the run described above, the cross-check is now
+144 of 144 comparable cases with 25 trapping at the same operation index, and `state_scaling`
+carries n1 through n4. Two published readings move with the wider field and are not errors in
+it: the Spearman correlation under `m0plus_fast` is 0.9833 over nine methods where it was
+0.9429 over six, and under `m0plus_slow` the two orderings no longer agree on every pair, so
+any page saying they do is now stating something this document does not.
+
+**Amended 2026-09-14: the multiply sentence is scoped to the nine traces.** The entry's
+"What would reopen this" said `coeff_cost` prices a multiply the compiler does not emit.
+The epoch plan's recount showed that holds only for the nine traced methods: at the same
+flags GCC emits a hardware multiply for 12,978 of 16,383 positive odd multipliers, and
+negative coefficients compile differently again (recomputed independently for this entry:
+`n_muls` 12978 over 16383 keys, zero sequence mismatches, s-invariance clean). Both sites
+now say "in these nine traces" (`rk_harness/sitegen.py:4729`,
+`rk-overview/tools/generate.py:3131`, asserted in
+`tests/test_t4_ledger_runner_site.py:3528`). The correction itself stays an epoch boundary
+behind D45 and is not part of this amendment.
+
+---
+
+## D43 - The counterfactual grid is published in full, and whole step is admitted as a budget basis and nothing else (2026-09-12)
+
+**Decision.** `rk-overview/tools/counterfactual.py` rescores the eight classical anchors and the
+champion under two cost bases and three weightings, re-ranks the whole archive under equal
+weighting, and writes the result into `rk-overview/tools/key_findings.json` as the
+`counterfactual` finding. That file is already on the traceability list, so this admits no new
+document. Every number taken from it is rendered with three labels: the cost basis it was scored
+under, the scope of that basis (the whole `rk_step`, the derivative routine's own body excluded),
+and the fact that the prices behind it come from an emulator that is instruction accurate and not
+cycle accurate. Nothing pinned is edited; `costmodel`, `evaluator`, `problems` and `simulate` are
+imported and used as they are, no archived score is read as authoritative or rewritten, and the
+module refuses to run unless the trace document's `verifier_hash` and `trace_hash` both equal the
+pins on disk.
+
+**Whole step as a budget basis, and not as a model-error ratio.** CLAUDE.md and D42 forbid quoting
+a whole-step traced count against `cycles_analytic`. That prohibition stands and this entry does
+not soften it: most of the gap between 5 and 32 cycles for euler is work the analytic model
+excludes on purpose, so the ratio reports a scope difference as a model error. The counterfactual
+puts the traced number somewhere else, under the division that turns a budget into steps:
+`steps = 65,536 // cycles`. A real part pays the derivative call, the h times k product, loop
+control and the stack frame out of that same budget, so pricing steps at the compiled cost asks
+what the archive would have scored on a part. It does not ask how wrong the cost model is, and it
+cannot answer that question. The two uses are told apart by which side of the division the number
+sits on. Printing `ratio 6.400` beside `analytic 5` stays forbidden. Printing that euler takes
+1,598 steps at two states where the model gave it 6,553, and then printing the error that follows,
+is what this entry permits. Neither basis is the whole cost either: the analytic model prices less
+than the traced count and the traced count prices less than an application step, so the two
+together are a bracket rather than a correction, and a page that quotes one quotes the bracket.
+
+**What the counterfactual found, because it is not a confirmation.** Under the published weighting,
+moving from the analytic basis to the traced whole-step basis takes the champion's lead over the
+best classical anchor from 2.95x to 1.01x. The best anchor changes identity from midpoint to
+heun3, which is exactly the anchor that had no trace row before the extension above, and on three
+of the four reduced held-out sets the anchor is ahead rather than behind: dropping rc_thermal
+leaves 0.61x where the published number is 1.92x. Finding 2 moves further. On the analytic basis
+euler holds rank 1 of the four published methods on search-set RMS at 0.0129; on the traced basis
+it holds rank 4 at 0.0265 and rk38 holds rank 1 at 0.0095. The direction could not have been
+reasoned out in advance, because Q15 error is not monotone in step count, and it was measured at
+every state count the problem set uses rather than modelled at two of them: the whole-step cost is
+markedly non-linear in state dimension, and the affine fit from one and two states would have
+underpriced four states by 1.46x for rk4 up to 2.43x for midpoint.
+
+The weighting moves the same headline by more than the cost does. Held-out error is an RMS, which
+sums squares, so rc_thermal carries 64.8 percent of the champion's held-out sum of squares and 85.1
+percent of midpoint's while pendulum carries 0.7 and 0.00002 percent. Dividing each problem by the
+median error of the eight anchors takes 2.95x to 1.10x, with the best anchor ahead on three of the
+four reduced sets (0.94x, 0.81x, 0.99x), and moves rank 1 on the search set from euler to heun2.
+
+**Why two scales and not one.** The audit proposed either the reference norm or the median error
+across the anchor set as the divisor. They disagree, and the disagreement is the result. Dividing
+by the reference norm takes 2.95x to 3.36x, a wider lead than the published one, because
+rc_thermal's norm of 0.159 is the smallest of the four held-out problems: normalizing by it
+concentrates weight rather than spreading it, and rc_thermal's share of the champion's sum of
+squares rises from 64.8 percent to 98.7 percent and midpoint's from 85.1 to 99.6. So the
+reference-norm scale does not implement equal weighting here, it implements a sharper rc_thermal
+score. The median-anchor scale is the equal-weighting answer and is named as such wherever both
+appear; the reference-norm scale is published beside it, never alone, as the demonstration that
+the choice of divisor decides the outcome. Both scales are constants of the analytic basis, so a
+weighting comparison and a cost comparison never move together.
+
+**The archive re-ranking, which the ratio alone cannot answer.** The champion was selected under
+magnitude weighting, so an equal-weighted ratio for that same champion describes the metric and
+not the search. Every archived record already stores its four held-out errors, so re-aggregating
+all 141,364 of them under equal weighting needs no simulation. Under the published weighting the
+champion is rank 1 of 141,364. Under the median-anchor scale it is rank 9,974, and the tableau
+that would have won is a 6-stage elite at 73 cycles per step. Under the reference-norm scale it is
+rank 15, and the winner is a 2-stage elite at 17 cycles. No classical anchor is ahead of the
+champion under any of the three. What the search would have kept under equal weighting is
+therefore a different method, and the page says that rather than implying the champion survives a
+metric it was not selected under.
+
+**The alternative this rejects.** "Report the counterfactual only where it is favourable, or fold
+it into a sentence about robustness." Three of the six cells in the grid put a classical anchor
+ahead of the champion. A grid published with two cells removed is a different claim from the grid,
+and the project has published against itself before: three of six methods outside the tolerance
+band in D42, the Spearman inversion named rather than dropped. The whole grid ships, including the
+cell where the median-anchor ratio on the traced basis falls to 0.05, which is the metric
+magnifying pendulum rather than the champion losing twentyfold, and which the document explains in
+a generated sentence beside the number.
+
+**What it does not establish.** Not that the cost model is wrong, and not by how much: that is the
+model-error question D42 answered at matched scope and this entry does not reopen. Not what the
+search would have found under a different cost basis, which would need the archive replayed rather
+than re-aggregated. Not anything about a physical part, since no number here was measured on one.
+Not that equal weighting is the better metric; it is a different metric, and the site publishes
+both with the shares that tell them apart.
+
+**Evidence.** `rk-overview/tools/counterfactual.py`, the harness and the driver;
+`rk-overview/tools/key_findings.json`, key `counterfactual`, which carries `invariants` recomputed
+at build time: the leave-one-out rows reproduce the published ones to 0.0, rebuilding search and
+held-out error from the per-problem values reproduces the published aggregates to 0.0, the 28
+floor cells of `tools/floor_round.json` reproduce to 0.0 relative, all 108 published share sets sum
+to one within 2.2e-16, and every step count is still a budget division.
+`rk-overview/tools/key_findings.py` `_check_counterfactual`, where those invariants fail the build
+instead of publishing. Prices from `rk-work/trace/results.json` `state_scaling`, joined by tableau
+content hash rather than by name, under `TRACE_HASH` 61f3a1bc and `VERIFIER_HASH` de5bec22.
+
+**Consequence.** A page may state the counterfactual ratios, the search-set ranks, the weight
+shares and the archive re-ranking, each with its basis and its weighting named in the same
+sentence, because six cells of a grid are only readable if each one says which cell it is. A page
+may not state that the cost model is wrong by a factor, may not compare a counterfactual error
+with an archived score without both labels, which is the comparability rule D24 set, and may not
+publish one weighting scale without the other. The fifteen discovered cell elites that hold a cell
+but were never compiled and traced are named as excluded rather than priced by a fit, and every
+state count the problem set uses is priced, so nothing in the grid is extrapolated.
+
+**Closes.** The audit's G1 acceptance conditions 3 and 4 and G3 acceptance conditions 1, 3, 5 and
+7. The page halves of G1 acceptance 2 and G3 acceptances 2, 4 and 6 belong to the renderers and are
+not closed here.
+
+**Epoch impact.** None. No verifier-pinned file is edited, `VERIFIER_HASH` is untouched, nothing
+under `rk-work/archive` is read as authoritative or written, and every archived score keeps its
+meaning. The counterfactual re-prices steps in a document beside the archive and never in it.
+
+**D43 note (dated 2026-09-15, R3).** Its numbers are epoch 1's, scored
+under de5bec22 on the analytic basis. The whole-step budget denominator
+stays admitted; whole step as a numerator stays forbidden.
+
+---
+
+## D44 - The round-2 audit closes on fifteen recorded defaults, and one check is left for a person (2026-09-13)
+
+**Decision.** The round-2 audit of the two sites left a set of items that only the owner could
+decide. The close-out's acceptance ledger holds 159 acceptances, and its completeness critic
+listed 25 owner items among and around them. The orchestrator of the close-out took fifteen
+defaults on the owner's behalf, D-a to D-o, and the fix lanes built against them. This entry
+records each default with its reason, gives every owner item a disposition, answers the audit on
+three G2 points, and names the one check a build cannot run. The owner can reverse any default.
+A reversal is a new entry; this one stays as written, the way D41 left the records it superseded.
+
+**The defaults, and why each was taken.**
+
+D-a. No page asserts a design intent that no document records. G1 acceptance 5 asks the
+methodology page to say why the aggregate is magnitude-weighted. Nothing in this file, in
+`rk-harness/docs/`, in `docs/rk/` or in `docs/handoffs/` records a reason, and writing one now would put a
+decision on the page that nobody made. A page may say what the aggregate does: it is a root mean
+square, so a problem's influence goes as the square of its error, and both weightings are
+published beside it (D43). It may not call the choice deliberate, or give a reason for it, until
+an entry records one.
+
+D-b. Tests check invariants and pin no snapshot. G1 acceptance 6 asks a test to reproduce the
+audit's share values for the current snapshot. The archive grows every cycle and
+`key_findings.json` is rebuilt from it, so a pinned value turns red on a correct refresh, and a
+test people expect to turn red gets repinned or skipped instead of read. An invariant holds at
+every snapshot and fails on the fault itself. C39 checks that every share set sums to one and
+every aggregate rebuilds from its rows, C39b that every counterfactual table prints the rows the
+document holds, and C39c that every overview table feeding an RMS keeps a share column that adds
+up.
+
+D-c. The overview build carries an equal-weight phrase gate that lets negations and labelled
+counterfactuals through. The false sentence G1 found, that each held-out problem "carries a
+quarter of the ratio above", passed because no gate read for it. `_check_weighting_phrases` reads
+every visible sentence and fails the build on an equal-weight claim. A sentence that negates the
+claim ahead of the match passes, and so does one that names the median-anchor scale, because that
+counterfactual is where the site correctly says equal weighting. A gate that blocked it would
+block a true sentence with the false one. The gate reads wording and is a backstop, not a proof.
+The findings half belongs to the session that owns `sitegen.py`.
+
+D-d. rc-table in finding 4 gains a share column. The table prints each method's rc_thermal
+error, and that error is one term of the method's held-out RMS. That puts it inside the scope
+SPEC2 set for G1 acceptance 2, although the scout's inventory of thirteen tables left it out. The
+column is rc_thermal's share of the method's held-out sum of squares, under magnitude weighting on
+the analytic basis, read from `counterfactual.series.per_method`.
+
+D-e. The reference-norm scale is never labelled equal. Dividing by the reference norm moves
+weight onto rc_thermal: its share of the champion's held-out sum of squares goes from 64.8 to
+98.7 percent (D43). A label reading "equal, reference norm" said the opposite of what the scale
+does. The median-anchor scale keeps the name equal weighting, as D43 set, and the phrase gate
+also fails the build on the reference-norm scale labelled equal.
+
+D-f. A degenerate problem is marked where its error is printed, with one note naming the field.
+A verdict column on every table that prints a per-problem error would repeat the same seven
+verdicts in each of them. The marker " (flagged)" beside the problem's name, plus a note saying
+which field the verdict was computed over, keeps the verdict next to the number. The field has to
+be named because the verdict moves with it: rc_thermal is flagged over finding 2's four methods
+and over the nine the counterfactual scores on the analytic basis, and not over the same nine on
+the traced whole-step basis.
+
+D-g. The overview keeps "rank 1" and "rank 4 of 4". G3 acceptance 2 asks the page to say, in the
+audit's words, whether euler's place in finding 2 survives traced costs. A rank with its
+denominator says the same thing more exactly, matches the rank columns in the tables under it,
+and keeps a word the findings site bans out of shared phrasing. The clause after it is generated
+from the document and reads "survives" or "does not survive" the compiled cost basis, so the
+wording the acceptance asks for is there and is computed.
+
+D-h. The finding 1 and finding 2 lead sentences carry their own weighting, basis and survival
+clause. The lead is the sentence that gets quoted without its paragraph, and a qualifier added
+after it leaves the unqualified claim readable on its own, which G3 acceptance 6 exists to stop.
+CLAUDE.md asks a counterfactual number to name its basis, weighting and scope in the same
+sentence, and the published number it qualifies needs the same treatment. `HEADLINE_VERDICT` now
+opens under magnitude weighting on the analytic cost basis and carries a generated survival
+sentence, and finding 2's lead is generated whole.
+
+D-i. The traced held-out aggregate of every scored method is printed, in a table carrying the D43
+labels. The grid shows only the champion and the best anchor per cell, so the traced held-out
+error of every other anchor appeared nowhere, and a per-problem fold would have left the reader
+to compute the RMS. `cf-heldout-table` prints each scored method's held-out RMS under magnitude
+weighting on both bases, says what each basis prices, and never divides one column by the other.
+
+D-j. The charts on results.html stay static, and the page says the table is the keyboard and tap
+path. CLAUDE.md allows JavaScript on the overview only in `demo.html` and the index widget. The
+table folded under each chart already holds every plotted number and needs neither a pointer nor
+script, and one sentence on the page says so. Links from marks to table rows were not added: a
+tab stop per mark would lead to a table the reader can open directly.
+
+D-k. demo.html and the index hero get a full keyboard path, an aria-live readout, and a tap away
+that dismisses the readout and keeps a pinned selection. Both pages already run sanctioned script
+and invite interaction, so a reader without a mouse has to reach every mark and a screen reader
+has to hear what the mark shows. On the demo a pinned selection is the method loaded into the
+trajectory, and a stray tap should not unload it.
+
+D-l. The staleness badge turns stale at 7 days, and says what a snapshot cannot tell. F16
+acceptance 2 asks for a threshold, and no document records a cadence for regenerating the
+overview, which D21 keeps a deliberate act. Seven days is the default taken here. It is
+`STALE_DAYS` in `demo_page.py`, `check_hero.js` asserts the same value, and the two move together.
+F16 acceptance 3 asks that a paused run be told apart from a broken build. A static snapshot holds
+no signal that separates them, so at any age the badge says it cannot tell, and points to the
+findings site, which is rebuilt every cycle and carries its own build stamp. The findings half
+belongs to the session that owns `sitegen.py`.
+
+D-m. og:image stays absent, and every overview page other than the index is titled
+"<Page> | rk-harness overview". SPEC2 section 1 left og:image out because neither repository
+holds an image asset, and this entry does not reopen that. A bare title such as "Architecture"
+cannot be told apart from a tab of the findings site, and the suffix names the site.
+`_check_titles` fails the build on a page without it or with an og:title that differs.
+
+D-n. No tier chart comes back; one generated sentence or compact table gives the tier counts. The
+tier distribution chart went out in the overview's restructure, and its split rows depend on the
+tier backfill, which has not been applied. A chart drawn now would show 82,199 records under
+unreplicated and go stale the day the backfill runs. The counts and the tier words are read from
+`rk-work/archive` at build time, so the rebuild after the backfill states the split with no code
+change, and unreplicated keeps a definition because it stays a legal stored tier.
+
+D-o. held-out is not renamed, and its earliest use on each page links to the definition. The
+round-1 AUDIT-SPEC ruled against renaming it. A reader who does not know the term gets a link to
+`methodology.html#held-out-set` at its earliest visible use, and `_check_first_use` fails the build
+when that use on the index, architecture, design decisions or results page is not the link. The
+demo page links the term in its own limits paragraph.
+
+**The owner items, and their round-2 dispositions.** Numbered as the critic listed them.
+
+1. The tier backfill, `scripts/backfill_tiers.py`, is open and the owner's. It had not been
+   applied when this was written. It moves 82,199 records, 21 to no_incumbent and 82,178 to
+   no_improvement, and forces a full replay at the next container start. D-n readies the pages
+   for it. It gates F10 acceptances 2 and 3 and F10 round-1 rows 2 and 3.
+2. Correcting coeff_cost under m0plus_fast is open and the owner's. It is an epoch boundary that
+   moves `VERIFIER_HASH`, and D42's "What would reopen this" stands.
+3. G1 acceptance 5, the reason for magnitude weighting: D-a.
+4. G1 acceptance 6, the snapshot values: D-b. C39 and C39b stand in for a snapshot pin.
+5. G1 acceptance 1, the phrase gate: D-c on the overview; the findings half is sitegen's.
+6. G1.A2i, rc-table: D-d.
+7. C1, the reference-norm label and the headline "narrow or reverse": D-e. The phrase no longer
+   appears in the overview tools.
+8. G2 acceptances 2d and 2e and G2 fix 2: the reply below.
+9. G2 acceptances 3f and 3g, verdicts on the speed table and the step-size sweep: D-f, a marker
+   and a note rather than a column.
+10. G3 acceptance 2d: D-g.
+11. G3 acceptances 6b and 6d: D-h. The appended qualifier and the later heading were not
+    accepted in place of rewritten leads.
+12. G3 acceptance 3c: D-i.
+13. G3.W1, whether the findings validation page's trace section points to the overview
+    counterfactual: not decided here. It is a sitegen change and stays with the owner.
+14. G3.S3, the validation.html small-multiplier table that prints whole-step traced counts beside
+    `cycles_analytic` without a ratio: not decided here. D43 draws its line at the division and
+    no ratio is printed; whether the adjacent columns invite one is the owner's judgement.
+15. F3 acceptance 3a, renaming held-out: D-o.
+16. F12 acceptances 1c and 2b, the findings charts: the round-1 AUDIT-SPEC ruling that bars
+    tap-to-pin and arrow traversal on the findings site stands. This entry does not reverse it,
+    and those charts belong to the session that owns `sitegen.py`.
+17. F12 acceptances 1d and 2c, the results.html charts: D-j.
+18. F12 acceptance 2d, a tap away on demo.html: D-k.
+19. F12 acceptance 4 and F12 round-1 row 2: they need a person, below.
+20. F16 acceptance 2, the threshold: D-l, 7 days. F16 acceptance 3, paused against broken: D-l,
+    stated as a limit of a snapshot. The findings half, a clockless clause beside
+    `_archive_stamp`, stays with the session that owns `sitegen.py`.
+21. F18 round-1 row 1, the skipped-row convention: the round-1 AUDIT-SPEC ruling to keep it
+    stands.
+22. F23 acceptance 5, og:image: D-m, absent as SPEC2 set. F23 round-1 row 1, descriptive titles:
+    D-m, set per page.
+23. F26 acceptances 1 and 2, the "Ours" definition on the findings index and where it sits: not
+    decided here. Both are sitegen changes and stay with the owner.
+24. F13 round-1 row 4, an axe or Lighthouse pass: not decided here, and none has been run.
+25. Commit and publish belong to the main session under CLAUDE.md rule 9. The CLAUDE.md text D43
+    asked for was uncommitted when this was written. The overview imports `sitegen.py`, so it is
+    published only from a guarded rebuild taken after the tier backfill and the sitegen session's
+    changes have landed.
+
+**The reply to the audit on G2.**
+
+robertson_scaled is not degenerate under any sound criterion (G2 acceptance 2d). In
+`rk-work/validation/results.json` it has 3 finishers out of 8 rows, their Q15 errors span 117.37
+percent from best to worst, and none of the three is within 5 percent of its reference norm of
+0.7088. The spread rule needs a span under 5 percent and both norm rules need finishers near the
+norm, so nothing fires, and `sitegen.degeneracy` returns the clean rule for it. Only the dropped
+peak-magnitude criterion reaches it. The audit's predicted flag set also mixed two problem sets:
+enzyme_qssa and robertson_scaled are validation problems, not two of the seven archive problems its
+own fix 4 names. On current data the detector flags enzyme_qssa alone among the validation
+problems, on the spread rule (6 finishers within 2.68 percent), and dahlquist and rc_thermal among
+the archive problems over finding 2's four methods.
+
+The criterion-2 inference was invalid (G2 acceptance 2e). "If dahlquist does not flag, criterion 2
+is not implemented correctly" assumed criterion 2 was missing. It had already shipped, reading
+`reference_norm_over_peak`, and the methodology page described it. It missed dahlquist because it
+required every finisher to sit within 5 percent of the norm: three of finding 2's four methods sit
+on the norm, and rk4 sits one LSB further out, at 3.689 times it. That one method defeats the
+spread rule too. The fix was the audit's own fix 3, now the detector's third rule: any two
+finishers within 5 percent of each other and both within 5 percent of the norm. It flags
+dahlquist. The audit's premise that one non-collapsing method rescues the problem does not hold
+either. Each of the nine methods the counterfactual scores ends within 2 Q15 steps of zero on
+dahlquist, and the champion ends furthest out.
+
+Criterion 3 stays dropped (G2 fix 2). The peak-magnitude rule flags glucose_minimal, whose 8
+finishers span 305.99 percent, and damped_osc, whose eleven-method field spans 1,206 percent
+(measured 2026-09-12). Both problems are healthy, so the rule does not separate a dead integration
+from a healthy decay. The docstring of `sitegen.degeneracy` records both, so a later proposal
+meets the evidence.
+
+**What needs a person.** F12 acceptance 4 and F12 round-1 row 2 cannot be met by a build. Someone
+has to open the pages on a physical phone and check that tapping a line on the index hero pins it,
+then make a keyboard-only pass over one chart of each type: the index hero, the demo board and its
+Pareto chart, a results.html chart with its folded table, and one findings-site chart with its
+table. For each, record the device, the operating system, the browser and its version, the date,
+and the result, with what failed if anything did, as an amendment to this entry.
+`check_hero.js` and `check_demo.js` drive the same paths through the pages' own handlers, and the
+demo lane also ran them in headless Chrome. Neither is a phone or a person at a keyboard, so
+neither closes this.
+
+**The alternative this rejects.** "Leave every owner item open until the owner answers." The fix
+lanes needed something to build against, and the tier backfill has to land before a publish. A
+default recorded with its reason can be reversed by a later entry. An item left open while lanes
+write code gets answered anyway, in code, with no record of why.
+
+**What it does not establish.** The defaults are the orchestrator's, taken for the owner, and none
+of them says what the owner would have chosen. Nothing here says the sites meet every round-2
+acceptance: owner items 13, 14, 23 and 24 are open, the findings halves sit with the sitegen
+session, and the person check has not been run. The phrase gate and `sitegen.check_ratio_claim`
+read wording, so a claim written in other words passes both.
+
+**Evidence.** `rk-overview/tools/generate.py`: `_check_weighting_phrases`, `_EQUAL_CLAIM_RE`,
+`_NEGATION_RE`, `_MEDIAN_LABEL_RE` and `_REFNORM_EQUAL_RE` (D-c, D-e); `rc_chart` (D-d);
+`_FLAG_MARK`, and `_cf_degeneracy`, whose build claim holds the four-method flag set at dahlquist
+and rc_thermal (D-f); the generated survival clauses in `_cf_ctx` (D-g, D-h); `_cf_heldout_table`
+(D-i); `_check_titles` (D-m); `_TIER_RULE` and `_tier_ctx` (D-n); `_FIRST_USE` and
+`_check_first_use` (D-o); `_check_ratio_claims`, which runs `sitegen.check_ratio_claim` over every
+page with the trace document passed in. `rk-overview/tools/pages_text.py`: `RESULTS_CHARTS_NOTE`
+(D-j), `HEADLINE_VERDICT` and `F_FLIP_INTERP` (D-h). `rk-overview/tools/demo_page.py`:
+`STALE_DAYS` and the `boardlive`, `paretolive` and `flipread` live regions, checked by
+`check_hero.js` and `check_demo.js` (D-k, D-l). `rk_harness/sitegen.py`: `degeneracy`, its rule
+ids and its docstring (the G2 reply). `tests/test_t5_hygiene.py`: C39, C39b and C39c (D-b). The
+ledger, the critic's owner items and the audit handoff are working notes of the close-out and are
+not in the repository.
+
+**Consequence.** A page may say what an aggregate does and may not say why it was chosen. A table
+that prints a per-problem error marks a flagged problem and names the field. A counterfactual lead
+sentence carries its weighting, basis and survival clause within itself. The reference-norm scale
+is never called equal. Tier words and counts on the overview are read at build time. A test checks
+an invariant of the current documents and does not pin a value from one snapshot of them.
+
+**Closes.** The owner items settled by D-a to D-o and by the G2 reply above; the ledger's G3.AUTO,
+through C39b; and the overview half of G1.AUTO2, through C39c. It does not close owner items 1, 2,
+13, 14, 23, 24 and 25, the findings halves that sit with the sitegen session, or F12 acceptance 4
+and its round-1 row.
+
+**Epoch impact.** None. No verifier-pinned file is edited, `VERIFIER_HASH` and `TRACE_HASH` are
+untouched, nothing under `rk-work/archive` is written, and every archived score keeps its meaning.
+The tier backfill this entry prepares for is the owner's to apply and is not part of it.
+
+---
+
+## D45 - Epoch 1 freezes, and epoch 2 prices each coefficient by the instructions GCC 13.2.1 emits for it (2026-09-14, decided; landed 2026-09-15)
+
+**Decision.**
+(a) The rule in the epoch plan section 2, with one corner the validation
+found: an inexact coefficient rounding to plus or minus 1 at shift 0 costs
+0, grounded by compiled probes (`M = +1` emits a bare `adds`, `M = -1` a
+bare `subs`, both priced by the combination add already). Ten archive
+records need the corner; without it the rule raises KeyError.
+(b) `fixtures/m0plus_coeff_ops.json` joins `VERIFIER_FILES`.
+(c) D22(a) is executed: `tableau.py`, `simulate.py` and `fixedpoint.py` are
+pinned; `simulate.py` and `fixedpoint.py` leave `SIDETRACK_FILES`;
+`sidetrack.code_hash` folds in the pinned hash string.
+(d) Epoch separation by relocation to `rk-work/epochs/1`, with the runner
+guard refusing a mixed or foreign-hash archive.
+(e) Epochs are numbered by boundary, so this is epoch 2. EPOCH2-DESIGN and
+EPOCH3-DESIGN keep their filenames as design identifiers.
+(f) The start gate gains G21_, G22_ and G28_.
+(g) The findings site stays off until epoch support lands per
+`docs/handoffs/epoch2-sitegen.md`.
+(h) The residual taxonomy widens instead of the analytic scope: k-reloads
+in the state loop and h-times-k products become named residual classes
+with n-dependent bounds. Spill volume follows register allocation rather
+than the tableau alone, so it cannot be priced from coefficients.
+
+**Why.** The D42 evidence plus the sweep and the validation ledger V0
+through V6: pricing equality exact over 196,600 checks, traced MULS equal
+to predicted on every row, nine anchors zero inversions at Spearman 1.0
+both models, crosscheck matched with identical trace hashes, all 141,364
+tableaus priced. Rejected: always-CSD (collapses the models and still
+inverts twice); dropping the multiply option (identical models, two
+inversions left); h-times-k or load/store in scope; re-scoring the old
+archive; a replay filter (never built; relocation replaces it); a work
+subdirectory. The owner confirmed the rule with the corner and the
+residual ruling in the working session on 2026-09-14, accepting the
+decision brief.
+
+**Numbering note.** The plan reserved D44 for the tier relabelling, but
+D44 was taken by the audit close-out before the plan landed. The tier
+record lives here instead: `scripts/backfill_tiers.py --apply` ran once on
+2026-09-14, rewriting 82,199 `unreplicated` tiers (21 `no_incumbent`,
+82,178 `no_improvement`) with every other byte verified original against
+the pre-apply backup; counts read back from the archive match. This
+supersedes D44 owner item 1.
+
+**Evidence.** The V0-V6 gate reports and numbers, the sweep counts, the
+probe files including the corner disassembly, the fixture candidate with
+its generator, and the backup path, all under `/tmp/epoch-vlab/` with the
+lab script, corpus and preregistration in `lab/`. The owner brief is
+`docs/handoffs/coeff-cost-decision.md`.
+
+**Departs from the handoff.** Section 4.5 `min(csd_cost, mul_cost)` and
+"taking the minimum is the entire point", and C7b. The anchor reversal
+becomes a property of epoch 1's cost rule.
+
+**Consequence.** The champion goes 22 to the fixture value; classical
+anchors take fixture values; slow minus fast is 31 per MULS application
+per state. The 21 pre-pin records stay inside epoch 1. The epoch-1
+overview cannot be rebuilt once the pin moves. Epoch 2 runs with no public
+site at first.
+
+**What it does not establish.** In-context sharing, which the table
+over-prices; other compilers, flags or tunings; AVR; cycle accuracy.
+
+**Closes.** D42's revisit clause and D22(a). It does not close the
+findings halves that sit with the sitegen lane, or the person check.
+
+**Epoch impact.** Decided, not landed: no verifier-pinned file is edited
+and `VERIFIER_HASH` still reads de5bec22 until the boundary commit
+re-pins last.
+
+**Amended 2026-09-15: landed.** The boundary commit re-pinned last, so
+`VERIFIER_HASH` reads 2db0816c over fourteen files where it read de5bec22 over
+ten. Epoch 1's run state sits at `rk-work/epochs/1` under a sha256 manifest
+that re-verifies at the new path, `rk-work/EPOCH.json` opens epoch 2 and names
+the frozen block, and `epoch-1-final` is an annotated tag in all five
+repositories. The findings generator now takes the epoch number from
+`EPOCH.json` rather than a hard-coded read. Two parts stay open: the image is
+not rebuilt, so the container still runs the previous pin, and `run.site` is
+false until publish 3.
+
+**Amended 2026-09-17: the root copies go, and one sentence above is wrong.**
+
+(a) *Root paths mean the open epoch, without exception.* The relocation left
+byte-identical copies of `adaptive_archive/`, `implicit_archive/`,
+`sidetrack/` and `LAST_DIRECTIVE.json` at the root, although
+`epochs/1/MANIFEST.json` lists all 113 of those files among the 210 it
+records as moved, and it never moved `schedule/`. The rk-work commit that kept them called them "the live
+tree the running harness writes to". That reason rested on a root
+`RUNSTATE.json` showing cycle 3930 starting on 2026-09-15. A test run wrote
+that file; epoch 1's real cycle 3930 had finished on 2026-09-10, and no
+runner has run since. Nothing in the runtime needs the copies. Kept, they would have taken epoch 2's appends to epoch 1's ledgers,
+mixed epoch-1 rows into the 200-row `schedule/shares.json` window, and let a
+phase-2 cycle reuse the epoch-1 directive D-3929A. All 113 files were
+re-hashed against `epochs/1` and matched, `schedule/` matched the
+`epoch-1-final` tree, and the lot was moved rather than deleted, to
+`D:\Programming-projects\rk-backups\epoch1-root-copies-2026-09-17`, together
+with a stray `epochs/1/HEARTBEAT` the manifest does not list. The tracked
+copies leave the rk-work index. `epochs/1` and the tag hold every byte.
+`literature/` and `prototypes/` stay: the model reads the digest log back as
+context, and nothing reads the prototype curves.
+
+(b) *Labels follow the ledger line, not only the bytes.* A side-track artifact
+holds only numbers, with no code hash and no time, and only two of the ten
+jobs (`sdirk.stiff_suite` and `sdirk.stiff_suite_budget`) call
+`costmodel.cycle_count`. So a point epoch 2 measures again can write the
+exact bytes `epochs/1` holds, and a label keyed on bytes alone would call it
+epoch 1's. `sitegen._points_epoch_note` now labels an artifact with the epoch
+its newest ledger line falls in, and only where that epoch's copy holds the
+same bytes. A line later than every freeze carries no label. Once an epoch
+has frozen, the research log names the epoch beside every literature cycle
+number, because cycle numbers restart at a boundary.
+
+(c) *Correction.* "The container still runs the previous pin" is false. The
+pin check runs the mounted `verifier_hash` module, so an image built before
+the boundary already checked 2db0816c over fourteen files. What it lacked was
+`G21_`, `G22_` and `G28_` in the entrypoint's gate selector. That, not the
+pin, is why the rebuild was required.
+
+(d) *Open.* `lanesearch.code_hash` does not fold in the pin the way
+`sidetrack.code_hash` does. Relocation per (a) is what keeps a boundary from
+carrying lane elites across: an `elites.json` left at the root through a
+boundary that edits no lane file would be merged into the new epoch's
+ranking, and the adaptive lane's elites are priced by the pinned cost model.
+Here the lane hash had moved as well (0c67fece in the epoch-1 elites,
+229c1559 now), so even the copies left at the root would have dropped out.
+
+---
+
+## D46 - The watchdog resumes the stops it made, and the container commits the lane documents (2026-09-22)
+
+**Decision.** Two gaps between "running" and "left alone", closed together because the owner
+asked for both on 2026-09-22.
+
+(a) *Resume.* `scripts/watchdog.ps1` records every stop it makes (stale-heartbeat kill, work
+drive, system drive, spend cap) in a state file at the workspace root, `watchdog-state.json`
+for the `rk` container. The record holds the reason, the time, and the container's id and start
+time. While the container is down, the watchdog runs `docker start` on the same container once
+that stop's condition has cleared. A heartbeat kill clears after a 60 s cooldown. A disk stop
+clears once free space is `resume_margin_gb` (2 GB) above the floor that tripped it. A spend stop
+is never resumed this way: `docker start` keeps the environment the container was created with,
+and the runner reads the cap from that environment before `.env`, so only `start.ps1`, which
+recreates the container, can hand it a raised cap. Restarts are capped at `resume_max` (3) per
+`resume_window_hours` (6), counted on disk, and each one waits twice as long after the last as
+the one before it (60 s, 120 s, 240 s), so a `docker start` that keeps failing cannot spend the
+budget in half a minute. A `STOP` file, a pending freeze, battery power or `auto_resume=false`
+keeps the run down. `stop.ps1` stops the watchdog before anything else and deletes the record;
+`start.ps1` deletes it once the previous watchdog is dead.
+
+(b) *Commit set.* `runner._commit_outputs` stages both lanes' `elites.json` and `schedule/`
+every cycle, and each lane's `ledger.jsonl` once per UTC day, marked per path only after git has
+taken it. No archive day, lane document or other file the runner stages by name is staged at
+95 MiB or more. The runner logs `commit_skipped_oversize` once per path per process instead,
+and the file stays on disk. Directories in the commit set are staged whole, and nothing under
+them is over 5 MB today.
+
+(c) *Stale git locks.* At start, with `RK_GIT_COMMIT=on`, the runner deletes any `*.lock` under
+`.git/` or `.git/refs/` of `/work` and `/findings` that is more than ten minutes old, and logs
+`git_lock_cleared`.
+
+**Why.** On 2026-09-17 at 22:09Z the system-drive guard stopped the run with C: at 2 GB free.
+Docker's restart policy does not act on a container stopped with `docker stop` or `docker kill`,
+and nothing else started it either. The run stayed down for five days while the watchdog logged
+"container not running (exited); watchdog idle" every ten seconds. The 2026-09-09 kill had the
+same cause. Rejected: `--restart always` or `unless-stopped`. Under those, Docker would also
+restart after a graceful `STOP` exit and after the runner's own epoch-mismatch refusal, both of
+which must stay down, and it still would not undo a `docker stop`. Rejected as well: resuming any
+exited container. An exit the watchdog did not cause is one whose condition it cannot watch
+clear: a gate failure, a crash loop Docker gave up on, a person's `docker stop`. The record is
+what separates the stops it may undo from the rest.
+
+For (b): the container committed closed archive days and the paths in `_WORK_EXTRA_PATHS`, but
+never the lane documents or the cycle log. After the five-day stop, epoch 2's first 61 cycles
+of them were still uncommitted, and a host session had to commit them by hand (rk-work
+`6189d3d`). `elites.json` is a published traceability source (D40), so it has to be in git in
+the cycle whose site build publishes it. The ledgers are append-only. The adaptive one measured
+4.7 to 10.4 MB a day over epoch 2's first 74 cycles. Staged every cycle, each lane firing would
+add a full-size loose blob, 100 to 300 a day, which is why they go in daily. Rejected: staging
+the ledgers every cycle, for that churn, and leaving them out, because `rk-work/.gitignore`
+keeps them tracked on purpose. The size guard exists because GitHub refuses a push that carries
+a file of 100 MiB or more, and once such a blob is committed every later push of the branch
+fails on it. Without the guard, the adaptive ledger would break the watchdog's push loop for
+all of rk-work in ten to twenty days.
+
+For (c): the runner ignores SIGTERM, so every `docker stop` and every watchdog kill ends in
+SIGKILL. One that lands during a `git add` or `git commit` leaves a lock behind, every later
+commit then fails, and `_git` does not raise, so the findings site would stop publishing without
+a word. (a) makes that restart unattended, which is why the runner now clears the lock itself.
+
+**Evidence.** `rk-harness/scripts/watchdog.ps1`: `Stop-Run` (line 293), `Resume-Blocker`
+(306), `Resume-Run` (353), `Handle-Down` (375), and the four `Stop-Run` call sites (517, 532,
+540, 553). `rk-harness/rk_harness/runner.py`: `_git` (706), `_clear_stale_git_locks` (721, called
+at 1545), `_WORK_EXTRA_PATHS`, `_WORK_DAILY_PATHS` (817), `_COMMIT_MAX_BYTES` (827), `_stage`
+(831), `_commit_outputs` (848). Tests: `test_C42` and `test_C43` in
+`tests/test_t5_config_watch.py`; `test_ST29` to `test_ST32` in `tests/test_t13_sidetrack.py`.
+The watchdog was also driven against a throwaway `sleep` container, one `-Once` pass at a time.
+That run covered a heartbeat kill, the cooldown, two restarts and the limit. It covered a
+work-drive stop held by the margin, by a `STOP` file and by `-NoAutoResume`, then released. It
+covered a system-drive stop and release, a spend stop that stays down after the cap is raised,
+and a failing `docker start` backing off at 6 s and 12 s before the limit. It also showed a
+manual stop left alone, a recreated container whose old record was discarded, and a pass against
+another container writing its own state file. An independent review of the diff found the spend,
+backoff, ordering, shared-file and ledger-marker defects fixed above. Growth figures:
+`rk-work/schedule/cycles.jsonl`, `lane_records_appended` and `seconds`.
+
+**Consequence.** A watchdog stop is now a pause with a stated exit condition. The watchdog prints
+it when it changes and every ten minutes, and `stats.txt` shows it through the watchdog log
+tail. A fault that keeps coming back costs at most three restarts in six hours, each logged.
+rk-work carries every document a findings page reads, as of the cycle that published it, apart
+from today's archive file and the ledgers' current day.
+
+**Closes.** The two set-and-forget gaps reported on 2026-09-22: "nothing ever restarts it" and
+"the archive isn't auto-committed". The second was half wrong. Closed archive days were always
+committed. What was never committed was the lane documents and the cycle log.
+
+**Still open.** Once the adaptive ledger passes 95 MiB it stops reaching git. Splitting it by day
+would fix that, but it edits `lanesearch.py`, re-opens every lane record, and is the owner's
+call (`docs/LANESEARCH.md`). Nothing starts the watchdog at logon, so after a reboot there is no
+guard, no push and no resume until `start.ps1` runs.
+
+**Epoch impact.** None. No verifier-pinned file is edited and `VERIFIER_HASH` is untouched.
+`runner.py` is in neither `LANESEARCH_FILES` nor `SIDETRACK_FILES`, so neither lane hash nor the
+side-track hash moves, and no record re-opens.
+
+---
+
+## D47 - The lane ledger splits by UTC day, and a logon task starts the run after a reboot (2026-09-23)
+
+**Decision.** The owner closed both items D46 left open, on 2026-09-23.
+
+(a) *Ledger by day.* `lanesearch` writes each ledger line to
+`<lane>_archive/ledger/YYYY-MM-DD.jsonl`, filed under the UTC day of the record's own stamp, the
+same day that names its record file. `load_ledger` reads the pre-split `ledger.jsonl` first, then
+the days in date order. Nothing appends to `ledger.jsonl` any more. The runner stages closed
+ledger days the way it stages closed archive days, together with the pre-split file, in one
+batched `git add`. D46(b)'s once-a-day ledger staging is gone. Editing `lanesearch.py` moved
+`lanesearch_code_hash` from 229c1559 to d99e4d2d, so every lane record measured before the edit
+re-opened, and the lanes are measuring those candidates again under the new hash. The owner
+accepted that cost.
+
+(b) *Start at sign-in.* `autostart.ps1 -Install` registers the Task Scheduler task
+"rk-run autostart". It runs at the owner's sign-in after a one-minute delay, with no elevation,
+and is allowed to start and keep running on battery, because the watchdog owns the battery rule.
+The task waits up to ten minutes for Docker, and launches Docker Desktop once if Docker does not
+answer. Then it runs `start.ps1`, unless `run-stopped.txt` or `rk-work/STOP` exists, or `rk` and a
+watchdog are already up. `stop.ps1` now leaves `run-stopped.txt`, and only `start.ps1` deletes it,
+so a deliberate stop outlasts a reboot. The task logs to `autostart.log` at the workspace root.
+
+**Why.** (a) As one file, the adaptive index grew 4.7 to 10.4 MB a day (D46). It would have
+reached D46's 95 MiB guard in ten to twenty days and then stopped reaching git. A day's file is
+5 to 10 MB and never changes after its day. Rejected: keeping the single file and having the
+runner commit per-day copies of it. That avoids the re-open, but it keeps every line twice on
+disk and in the repository, and it leaves the lane reading one ever-growing file. The owner
+preferred to pay the re-open while it is cheap, 143 cycles into the epoch.
+
+(b) The container may come back with Docker, but the watchdog and the stats writer are host
+processes. A reboot therefore left the run with no guard, no push and no resume until someone
+ran `start.ps1`. Docker Desktop's own sign-in start is off on this machine (`AutoStart: false`),
+which is why the task launches it. Rejected: a restart policy of `always`, which brings back the
+container and nothing else, and a Windows service, which needs elevation that a per-user task
+does not.
+
+**Evidence.** `rk-harness/rk_harness/lanesearch.py`: `ledger_dir` (line 341), `ledger_path`
+(353), `legacy_ledger_path` (358), `ledger_paths` (363), `every_ledger_path` (373),
+`append_record` (1118), `load_ledger` (1148). `rk-harness/rk_harness/runner.py`: `_stage` (819),
+`_closed_days` (843), `_commit_outputs` (848). The workspace `autostart.ps1`, and its copy in
+`scripts/workspace/`, which `hygiene.py` now byte-compares. Tests:
+`test_the_ledger_is_one_file_per_utc_day_read_after_the_pre_split_file` in
+`tests/test_t16_lanesearch.py`, `test_ST29` to `test_ST31` in `tests/test_t13_sidetrack.py`, and
+`test_C44` in `tests/test_t5_config_watch.py`. Deployed 2026-09-23. The run stopped cleanly at
+cycle 143 through `stop.ps1`, which left `run-stopped.txt`. The task, started by hand, logged
+"run-stopped.txt is present ... not starting" and left the container down. With the file removed,
+the same task ran `start.ps1` and the run came up at 05:07:31Z. The watchdog it launched outlived
+the task's own process. Cycle 144 committed the final lines of both pre-split ledgers. Both lanes
+then wrote `ledger/2026-09-23.jsonl` under d99e4d2d, and by 05:14Z the elites held 32 entries
+each, from 223 adaptive and 78 implicit candidates measured again.
+
+**Consequence.** No lane file grows without bound in git. Today's ledger files, like today's
+archive file, reach git the first cycle after 00:00 UTC. After a reboot the run comes back within
+about a minute of sign-in, plus Docker's start time, unless the owner stopped it.
+
+**Closes.** D46's "Still open": the ledger's size ceiling, and the reboot gap.
+
+**Epoch impact.** None on the scored archive. No verifier-pinned file is edited and
+`VERIFIER_HASH` is untouched. `lanesearch_code_hash` moves, which re-opens every lane record: the
+lane elites D40 admits to pages were rebuilt from records measured under d99e4d2d.
+`sidetrack.code_hash` does not move (2b9f0b0f before and after), because `lanesearch.py` is not in
+`SIDETRACK_FILES`.
+
+**Amended 2026-09-23: the logon task is uninstalled.** At the owner's request the run no longer
+starts at sign-in. The "rk-run autostart" task was removed with `autostart.ps1 -Uninstall`; the
+script stays in the workspace, and `-Install` brings the task back. In its place are three
+commands on the PATH in Windows and WSL, `start-integration-harness`,
+`stop-integration-harness` and `watch-integration-harness`, thin wrappers around the workspace's
+`integration-harness.ps1`, which runs `start.ps1` or `stop.ps1` and prints whether the run came up
+or went down. After a reboot the run is started by hand with the first of them. (b) above
+describes the task as installed; that is no longer true. The stop marker `run-stopped.txt`
+still means what (b) says, for anyone who reinstalls the task.
+
+**Amended 2026-09-24: `stop-integration-harness --force`.** The wrappers splatted their raw
+arguments into `start.ps1` and `stop.ps1`, so `-Force` reached `stop.ps1` as a value for
+`-WaitMinutes` and the stop failed, and `-Build` failed the same way; the README said `-Force`
+passed through. `integration-harness.ps1` now matches `--force`, `--build`, `--restart` and
+`--once` by name (one dash or two, any case), passes them on as switches and refuses anything
+else. `stop.ps1 -Force` sends `docker kill` rather than `docker stop`: the runner ignores SIGTERM,
+so a stop only ever ended in SIGKILL once the stop timeout ran out. After any kill it removes
+lock files from the `rk-work` and `rk-findings` git directories, because a kill during a commit
+leaves one there and the runner clears locks at start only once they are ten minutes old, so a
+start soon after a kill would otherwise commit nothing for the whole run. A graceful stop waits
+for the cycle boundary (71 s for the owner's stop at 01:36Z on 2026-09-25); a forced one returns in a few seconds.
+
+**Amended 2026-09-25: the start command starts Docker Desktop.** Docker Desktop does not start
+with Windows on this machine, so the owner's first `start-integration-harness` after a reboot
+failed on the docker named pipe. `start.ps1` now runs `docker desktop start` when `docker info`
+fails (launching `Docker Desktop.exe` on a Docker without that command) and waits up to 300 s for
+the engine. It calls docker through `cmd` there, because under `$ErrorActionPreference = "Stop"`
+PowerShell 5.1 turned docker's stderr into the terminating error that replaced the script's own
+"Docker Desktop is not running" message. On 2026-09-25 the engine was ready 9 s after the start.
+
+---
+
+---
+
+## D48 - Directives see what earlier directives produced, and the model moves to GPT-6-Sol at high effort (2026-09-24)
+
+**Decision.** The owner asked whether the run was still finding anything new, and to raise the
+model. A read of epoch 2's event stream answered the first question: still improving (the last
+new cell at 2026-09-25T00:43Z), but retracing epoch 1 with one systematic waste. 152 of 186
+directives asked for order 4 at stages [5, 6] without `c_fixed`, and none of those 5,237 islands
+yielded an order-4 candidate. The islands snap A to a dyadic grid and solve b exactly, and at
+order 4 that system is overdetermined unless the nodes are pinned. Over the last 300 cycles,
+order-3 directives ran 9% of the islands and made 9 of the 13 new elites. The directive prompt
+showed the grid, never what the model's own earlier directives had produced.
+
+(a) *Outcome history.* `rk_harness/outcomes.py` tallies, per directive shape (target order,
+stages, `c_fixed` set, source), the islands run, the orders the candidates reached and the new
+elites, from the last 16 MB of `events.jsonl`, and flags a shape with 20 or more islands that
+never reached its target order. `build_user_prompt` shows that table, with the one shape that
+has produced order-4 candidates here (epoch 1's D-357A: 16 islands, 4 of 106 candidates at
+order 4, 2 new elites).
+
+(b) *Hypotheses.* The hypothesis prompt lists supported and inconclusive hypotheses as well as
+open and refuted ones, and a proposal whose predicate matches one already in the ledger (case
+and spacing aside) is dropped with a `hypothesis_duplicate` event. 22 proposals had held 10
+distinct predicates, one of them proposed 7 times.
+
+(c) *Model.* The image moves from Codex CLI 0.151.0 to 0.156.1, the version already in use on
+the host, because the GPT-6 models refuse older clients. `run.llm_model` is `gpt-6-sol`, and a
+new key, `run.llm_reasoning_effort` (passed as `RK_LLM_EFFORT`, then `-c
+model_reasoning_effort`), is `high` for directives, hypotheses and interpretations. Directive
+calls had averaged about 120 reasoning tokens at the old default. The literature digest keeps
+the model's default effort. Codex 0.156 searches the web unless told not to, which quadrupled a
+test directive's input tokens, so every call except the digest passes
+`web_search="disabled"`, and the digest asks for `web_search="live"` (`tools.web_search=false` no
+longer turns search off). `codex_usage` and `llm_call` events record the model and effort; the
+`llm_call` event had named `gpt-4.1-mini` on every codex call.
+
+(d) *Budget and cadence.* The owner judged the weekly limit far away. It is closer than it looks:
+at the old settings a call cost about 0.06% of the weekly Plus limit, and at about 8 calls an
+hour the run alone would use about 80% of a full week. The previous week ended at 13% only
+because the run was down for five of its days. Literature digests were half of all input
+tokens (45 calls averaging 104k), so `run.litreview_every_cycles` goes from 8 to 25. Side-tracks
+are off (`run.sidetrack_every_cycles=0`): all 103 points were done by cycle 120. The lane
+schedule goes from EAI to EEA, because the implicit lane's 32 elites have tied at 2292 cycles
+since cycle 239. `run.codex_usage_cap_percent` (80) still stops LLM calls before the limit.
+
+(e) *Watcher.* One failing panel renders its own error instead of blanking the view, and a failed
+first frame or a bad `config.json` section no longer ends it. The header opens with a verdict
+(RUNNING, STARTING, STALLED, PAUSED, STOPPING, STOPPED ON PURPOSE, DOWN, UNKNOWN), reading
+`rk-work/STOP` and `run-stopped.txt` to tell a deliberate stop from a dead run. Under WSL, the
+view reaches Windows PowerShell by full path, so the watchdog shows instead of "n/a".
+
+**Epoch impact.** None. No pinned file moves; prompts and directives only narrow the search, and
+the grading is untouched. The Dockerfile change is an image rebuild, not an epoch boundary (D25).
+`lanesearch.py` is unchanged, so `lanesearch_code_hash` stays d99e4d2d.
+
+**Amended 2026-09-25: islands since the latest new elite.** In its first 1.4 hours the change did
+what it was for: the model moved to the D-357A shape at once, the first cycle filled the order-4,
+six-stage cell (bucket 3), and 32 cycles made 9 new elites. It then chose that shape five times
+running while its elites dried up (48 islands since the latest by 05:02Z), because the table
+showed each shape's total and not its recent yield. The table and the watcher now show the
+islands each shape has run since its latest new elite, and the prompt says a shape with many is
+spent at its current settings whatever its total.
