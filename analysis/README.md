@@ -1,127 +1,17 @@
-# rk-overview
+# analysis (was rk-overview)
 
-The hand-written explainer for the rk project, an unattended search for Runge-Kutta
-integrators that do well in Q15 fixed point (int16, floor multiply) on a Cortex-M0+
-cycle model. The machine-generated numbers live in
-[rk-findings](https://github.com/jgoetzmann/rk-findings); this site explains what the
-project is, how it is built, the decisions behind it and what it found, and it runs the
-Q15 integrator in the browser.
+These scripts compute the key findings of the rk run from the run data and the harness. They
+were the tools of the old rk-overview site. The project site replaced that site on 2026-11-21.
 
-- Site: https://jgoetzmann.github.io/rk-overview/
-- Findings (final snapshot): https://jgoetzmann.github.io/rk-findings/
-
-**The run is over.** The owner ended it on 2026-11-10, after cycle 17,364, and no more
-compute goes to it. Epoch 2 is frozen, both sites are its final record, and every page here
-carries a run-ended banner. The front page closes with "The run is over" (`index.html#final`):
-the final findings and how anyone can download and run the harness. `generate.py` writes the
-banner, that section, the "final findings" nav link and the footer wording whenever the open
-epoch has a freeze record (`rk-work/EPOCH_STATUS.json`).
-
-The pages got those changes by hand this time, as the banner did on 2026-11-10: `generate.py`
-cannot rebuild today, because its forbidden-ratio gate and validation loader still read
-`rk-work/trace/results.json` and `rk-work/validation/results.json`, which the epoch 1
-relocation moved under `rk-work/epochs/1/`, and its record count would come from the epoch 2
-archive while every other number is epoch 1's. The hand edits are what the updated
-`generate.py` and `pages_text.py` emit, so a rebuild once those paths are settled comes out the
-same.
-
-## The repositories
-
-Four public repositories. Every number on this site traces through them in one direction:
-the harness computes it, the run data records it, the findings site publishes it, and this
-repository explains it.
-
-| Repo | What it holds | Written by |
-| --- | --- | --- |
-| [rk-harness](https://github.com/jgoetzmann/rk-harness) | The package the container runs: the hash-pinned verifier, cost model and evaluator, the search, the site generator, and the tests that gate all of it. | people |
-| [rk-work](https://github.com/jgoetzmann/rk-work) | Run data: the append-only archive, the hypothesis ledger, and the validation and benchmark outputs. | the container, per cycle |
-| [rk-findings](https://github.com/jgoetzmann/rk-findings) ([site](https://jgoetzmann.github.io/rk-findings/)) | The numbers site, rebuilt every cycle with no human in the loop until the run ended, and now frozen as the final snapshot. Deterministic and JavaScript-free. | the container, per cycle |
-| [rk-overview](https://github.com/jgoetzmann/rk-overview) | This repository: the explainer pages, the interactive demo, and the tools that build both from the run archive. | people, on demand |
-
-A fifth, private repository holds the scripts and configuration that run all of this on
-one machine. It is not linked here.
-
-rk-findings is written by a container that cannot edit its own scorer, which is what makes
-its numbers worth anything. This repository is written by hand and says so. Where the two
-disagree, the machine-generated one is right and this one is stale.
-
-## Pages
-
-Five pages in one nav row, followed by a link to the findings site ("final findings" once the run has ended, "live findings" before).
-
-| Page | What it holds |
+| File | What it does |
 | --- | --- |
-| `index.html` (overview) | The ranking widget (eleven methods, floor against round-to-nearest), the problem, approach, result and verify steps, "The run is over" (`#final`: the run's end, the final findings and the harness, shown once the run has ended), the three method classes with links to their findings pages, the scale of the run, and the four repositories. |
-| `architecture.html` | The system as built: repository and trust-boundary diagrams, the cycle loop and how it rotates the three classes (`#lanes`), verification in order (`#verify`), arithmetic, the cost model, where candidates come from, the archive, the outer loop, the host layer, tests (`#tests`) and reproducibility (`#repro`). The findings methodology page deep-links `#arithmetic`, `#costmodel`, `#archive`, `#candidates`, `#outer`, `#verify`, `#tests` and `#repro`, so those ids must stay, and the build fails if one of them goes missing. |
-| `design-decisions.html` | The pre-build decisions from DESIGN.md, each with what the build did to it, the deliberate cuts and how two of them were revisited, and prior art. |
-| `results.html` (key findings) | The anchor result, six findings with their charts, discovered against classical against library methods (`#matrix`), measured speed (`#speed`), how the numbers were made (`#protocol`), the limits, and a pointer to the implicit and adaptive class pages on the findings site. |
-| `demo.html` | A line-for-line port of `rk_harness.fixedpoint` and `rk_harness.simulate.solve_q15` that ranks the method field at one cycle budget, flips the rounding mode, and recomputes a Pareto frontier on every click. |
+| `tools/key_findings.py` | Computes every headline number (the lead, the frontier, the floor-rounding comparison, the premise test) and writes `tools/key_findings.json`. |
+| `tools/counterfactual.py` | Computes the lead again under the other cost basis and the other weightings (six cells in all). |
+| `tools/demo_data.py` | Writes `tools/demo_data.json`: the methods, the problems and 154 Python results that the Q15 demo on the site checks itself against. |
+| `tools/floor_round.json` | The floor against round-to-nearest runs that the key findings read. |
+| `DESIGN.md` | The design notes of the harness, as the project wrote them. |
 
-The build deletes the retired pages (`tradeoffs.html`, `methodology.html`, `tracks.html`,
-`literature.html`) and any old `docs/findings/` copy, so GitHub Pages stops serving them.
+The scripts read `../harness/` and `../run-data/`. Some numbers need the daily archive logs: get
+`rk-work-final.tar.gz` from the [final-archive release](https://github.com/jgoetzmann/numeric-integration-methods-exploration/releases/tag/final-archive) and extract it into `../run-data/`.
 
-Links into the findings site name one of its seven current pages, and a fragment only
-where that page is known to carry the id: `validation.html#speed` and `#falsification`,
-`hypotheses.html#interpretation` and `#literature`, and `methodology.html#costmodel`,
-`#ledger`, `#glossary` or a glossary term (the term ids are read from
-`rk_harness.sitegen._GLOSSARY`).
-
-Two pages carry JavaScript: `demo.html` and the ranking widget on `index.html`, which ships
-about 3 KB reduced out of `demo_data.json` so that both pages rank the same numbers.
-
-## Regenerating
-
-Numbers first, then the demo fixture, then the pages. Run from this directory; all three
-default `RK_WORK_DIR` to `..\rk-work`:
-
-    ..\rk-harness\.venv\Scripts\python.exe tools\key_findings.py   # analysis from the archive
-    ..\rk-harness\.venv\Scripts\python.exe tools\demo_data.py      # tableaus, problems, fixture
-    ..\rk-harness\.venv\Scripts\python.exe tools\generate.py       # write docs/
-
-Regenerate `demo_data.json` whenever the archive elites or the problem set move.
-
-## What the build checks
-
-`generate.py` checks every page before it writes any, and stops the build on:
-
-- unbalanced tags on any page;
-- SVG text that leaves its viewBox;
-- a broken link: an internal href must name a page and an id that exist, and a link into
-  the findings site must follow the rule above;
-- a dropped id: every architecture id the findings methodology page deep-links must still
-  exist here. The links are read from `rk_harness.methodology`, so this side of the pair
-  is checked as well as the side above;
-- a pattern sentence the data no longer supports (for example "floor puts euler first"),
-  so the prose is rewritten instead of going quietly wrong.
-
-After writing the pages it runs a headless check on each JavaScript page and fails the
-build if either fails. The checks need node on the PATH. Without it the build prints a
-WARN, skips them and still writes the pages, so run them by hand:
-
-    node tools\check_demo.js     # docs/demo.html
-    node tools\check_hero.js     # the ranking widget in docs/index.html
-
-`check_demo.js` loads the published page, drives every control and recomputes every
-fixture case in JavaScript, comparing the final int16 state bit for bit against
-`rk_harness.simulate.solve_q15`. `check_hero.js` drives every problem and hover and
-re-derives the ranking independently, so a chart that mis-sorts fails the build.
-
-## Numbers that must not drift
-
-No number from the run is typed into `pages_text.py`. Every string there is a template,
-and `generate.py` fills it from `tools/key_findings.json`, `rk-work/validation/results.json`,
-`rk-work/benchmark/results.json`, the archive, the pinned cost model, `demo_data.json` and
-the test collection. Counts that appear on more than one page (occupied cells, cells won,
-archive size) come from `generate._eff_ctx`, so the pages cannot disagree.
-
-The test count and the tier list come from `pytest --collect-only` at build time
-(`generate._collect_suite`), and the gate size from `rk-harness/tests/golden_gate.txt`.
-Only the per-tier descriptions are hand-written, in `_SUITE_DESC`. A new
-`tests/test_tN_*.py` with no entry there fails the build, so a new tier gets described
-rather than silently left out.
-
-Because it reads live inputs, this build is not byte-reproducible across suite or archive
-changes. The findings site is the one with the byte-determinism guarantee.
-
-DESIGN.md is the original pre-build decision record, kept verbatim; the design-decisions
-page annotates it against the system as built.
+The old site pages are in the git history of this folder, and in the final-archive release.

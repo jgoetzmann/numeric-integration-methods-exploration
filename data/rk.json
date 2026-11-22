@@ -884,7 +884,10 @@
    "path": "EPOCH_STATUS.json; RUNSTATE.json; archive/*.jsonl",
    "repo": "rk-work",
    "url": "https://github.com/jgoetzmann/rk-work"
-  }
+  },
+  "epoch2_records": 358752,
+  "records_both_epochs": 500116,
+  "records_note": "final_records and epoch2_records count the lines of archive/*.jsonl (epoch 2 only); epoch 1's 141,364 are in epochs/1/archive/*.jsonl. Both counted on 2026-11-21 at rk-work 100319524c09."
  },
  "setup": {
   "budget_cycles": 65536,

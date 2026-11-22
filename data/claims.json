@@ -1,259 +1,932 @@
 {
- "about": "Claims about both projects, each with its verdict, its limits and the files that show it. For the 2025 project the original wording is kept beside each correction.",
+ "about": "Each claim about the two projects has a verdict, its limits and the files that show it. For the 2025 project, the original words stay next to each correction. The text follows ASD-STE100 (Simplified Technical English). The audit wrote the verdicts in September 2026.",
  "verdicts": {
-  "supported": "The cited files show it, as stated.",
-  "supported-with-limits": "The cited files show it, but only under the conditions named in its limits. Quote it with them.",
-  "not-supported": "The cited files do not show it, or show something else.",
-  "artifact": "The number is real, but it measures a bug or a setup quirk rather than the thing it was labelled as."
+  "supported": {
+   "label": "True",
+   "meaning": "The cited files show it, as stated."
+  },
+  "supported-with-limits": {
+   "label": "True, with limits",
+   "meaning": "The cited files show it, but only with the conditions in its limits. Quote it with those limits."
+  },
+  "not-supported": {
+   "label": "Not true",
+   "meaning": "The cited files do not show it, or they show something different."
+  },
+  "artifact": {
+   "label": "A bug, not a result",
+   "meaning": "The number is real, but it measures a bug or a setup error, not the thing that its label names."
+  }
  },
  "claims": [
   {
-   "id": "R1", "project": "rk", "headline": true, "title": "The Q15 lead",
-   "claim": "Inside Q15 fixed point with floor rounding, at a 65,536-cycle budget, on the analytic m0plus_fast cost model with magnitude weighting, the searched three-stage method 11e898cb has 2.95x lower held-out error than midpoint, the best of eight classical methods.",
+   "id": "R1",
+   "project": "rk",
+   "headline": true,
+   "title": "The Q15 lead",
+   "claim": "In Q15 with floor rounding, at a budget of 65,536 cycles, the champion 11e898cb has 2.95 times lower held-out error than midpoint. Midpoint is the best of the eight classical methods. This result uses the analytic m0plus_fast cost model and magnitude weighting.",
    "verdict": "supported-with-limits",
-   "limits": "This is an epoch-1 result on the cost model that the trace later found had rk4 and rk38 in the wrong order; epoch 2 scores under a corrected model and has not re-measured it. Elites were picked on held-out error among 141,364 archived tableaus, so the four held-out problems act as a selection set and the lead carries winner's-curse bias. The 2.95x is an RMS over four problems: the champion has lower error than midpoint on three of them and higher on pendulum, and much of the gap comes from rc_thermal, where every classical method stalls near a quantization floor. Of six cost-basis and weighting cells, the champion keeps its lead on every leave-one-out subset in two, both analytic: 2.95x under magnitude weighting and 3.36x under reference-norm weighting. On the traced whole-step basis the ratio is 1.01x under magnitude weighting (lowest leave-one-out 0.614x) and 1.84x under reference-norm weighting (lowest 0.604x). Under median-anchor weighting, which weights the four problems equally, it is 1.1x on the analytic basis (lowest 0.814x) and 0.0494x on the traced one; the source reads that last cell as the weighting magnifying pendulum, not as the champion losing by that factor. The lead is a floor-rounding result: under round-to-nearest, at the same budget and cost model and with no extra cycles charged for the rounding, rk38, one of the four classical methods run under both rounding modes, reaches 0.0263 held-out error, below the champion's 0.0286 under floor rounding.",
+   "limits": [
+    "This is an epoch-1 result. A later trace showed that the epoch-1 cost model put rk4 and rk38 in the wrong order. Epoch 2 uses a corrected model, but it did not measure this result again.",
+    "The search picked each elite by its held-out error, from 141,364 archived tableaus. This gives the lead a selection bias (the winner's curse).",
+    "The 2.95x is an RMS over four problems. The champion has lower error than midpoint on three of them and higher error on pendulum. Much of the gap comes from rc_thermal, where all classical methods stop near a quantization floor.",
+    "The lead changes with the cost basis and the weighting. With analytic cost and reference-norm weighting, it is 3.36x. With traced whole-step cost, it is 1.01x (magnitude) and 1.84x (reference-norm). If you remove one held-out problem, these two fall as low as 0.614x and 0.604x.",
+    "With median-anchor weighting, the lead is 1.1x on the analytic basis (lowest 0.814x) and 0.0494x on the traced basis. The source says that the weighting causes this last value because it magnifies pendulum. It does not mean that the champion loses by that factor.",
+    "The lead is a floor-rounding result. With round-to-nearest, at the same budget and cost model, rk38 gets 0.0263 held-out error. This is less than the 0.0286 of the champion with floor rounding. The comparison adds no cycles for the rounding, and only four classical methods ran in both rounding modes."
+   ],
    "evidence": [
-    {"repo": "rk-overview", "path": "tools/key_findings.json", "at": "counterfactual.numbers.headline_checks.cells"},
-    {"repo": "rk-overview", "path": "tools/key_findings.json", "at": "counterfactual.numbers.weightings; counterfactual.numbers.scope"},
-    {"repo": "rk-overview", "path": "tools/key_findings.json", "at": "efficiency.numbers.best_discovered.per_problem_heldout; efficiency.numbers.caveats"},
-    {"repo": "rk-overview", "path": "tools/key_findings.json", "at": "floor_bias_flip.numbers.aggregate"}
+    {
+     "files": [
+      {
+       "path": "analysis/tools/key_findings.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "counterfactual.numbers.headline_checks.cells"
+    },
+    {
+     "files": [
+      {
+       "path": "analysis/tools/key_findings.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "counterfactual.numbers.weightings; counterfactual.numbers.scope"
+    },
+    {
+     "files": [
+      {
+       "path": "analysis/tools/key_findings.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "efficiency.numbers.best_discovered.per_problem_heldout; efficiency.numbers.caveats"
+    },
+    {
+     "files": [
+      {
+       "path": "analysis/tools/key_findings.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "floor_bias_flip.numbers.aggregate"
+    }
    ]
   },
   {
-   "id": "R2", "project": "rk", "headline": true, "title": "Every discovered cell elite ahead of all eight classical methods",
-   "claim": "In all 16 of the 18 occupied archive cells that a discovered method holds, it has lower held-out error than all eight classical methods, whatever their cost; the closest, a four-stage elite at 30 cycles per step, has 0.0836 against midpoint's 0.0844.",
+   "id": "R2",
+   "project": "rk",
+   "headline": true,
+   "title": "All 16 discovered cell elites beat all eight classical methods",
+   "claim": "The archive has 18 occupied cells, and a discovered method holds 16 of them. Each of these 16 elites has lower held-out error than all eight classical methods, at any cost. The closest is a four-stage elite at 30 cycles per step: 0.0836, against 0.0844 for midpoint.",
    "verdict": "supported-with-limits",
-   "limits": "Same conditions and the same selection bias as R1: Q15 with floor rounding, 65,536-cycle budget, analytic cost model, magnitude weighting. Classical methods hold the other 2 cells. Re-ranking all 141,364 archived tableaus on the analytic basis, no classical method ranks above the champion under any of the three weightings, though the champion's own rank moves with the weighting: rank 1 under magnitude weighting, 15 under reference-norm weighting and 9,974 under median-anchor weighting.",
+   "limits": [
+    "The conditions are the same as in R1: Q15 with floor rounding, a 65,536-cycle budget, the analytic cost model and magnitude weighting. The selection bias is also the same. Classical methods hold the other 2 cells.",
+    "A second analysis ranked all 141,364 archived tableaus again on the analytic basis. With each of the three weightings, no classical method is above the champion. But the rank of the champion changes with the weighting: 1 (magnitude), 15 (reference-norm) and 9,974 (median-anchor)."
+   ],
    "evidence": [
-    {"repo": "rk-overview", "path": "tools/key_findings.json", "at": "efficiency.series.frontier_cycles_vs_heldout; efficiency.numbers.note_on_comparison"},
-    {"repo": "rk-overview", "path": "tools/key_findings.json", "at": "counterfactual.numbers.archive_reranking"}
+    {
+     "files": [
+      {
+       "path": "analysis/tools/key_findings.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "efficiency.series.frontier_cycles_vs_heldout; efficiency.numbers.note_on_comparison"
+    },
+    {
+     "files": [
+      {
+       "path": "analysis/tools/key_findings.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "counterfactual.numbers.archive_reranking"
+    }
    ]
   },
   {
-   "id": "R3", "project": "rk", "title": "Leave-one-out",
-   "claim": "Dropping any one of the four held-out problems leaves the champion ahead, by 1.92x to 3.17x.",
+   "id": "R3",
+   "project": "rk",
+   "headline": false,
+   "title": "Remove one problem, and the champion stays ahead",
+   "claim": "If you remove any one of the four held-out problems, the champion stays ahead by 1.92x to 3.17x.",
    "verdict": "supported-with-limits",
-   "limits": "On the published basis only (analytic cost, magnitude weighting). The low end, 1.92x, comes from dropping rc_thermal, the problem where every classical method stalls near a quantization floor. Magnitude weighting lets problems with small errors count for little, so this check cannot show a loss on one of them: the champion has higher error than midpoint on pendulum.",
-   "evidence": [{"repo": "rk-overview", "path": "tools/key_findings.json", "at": "efficiency.numbers.leave_one_out; efficiency.numbers.classical_anchors"}]
-  },
-  {
-   "id": "R4", "project": "rk", "headline": true, "title": "Out-of-sample problems",
-   "claim": "On eight out-of-sample problems, the best of the three discovered methods tried had lower Q15 error than the best of the five classical methods run (euler, heun2, midpoint, rk4, rk38) on 4 of 5 non-stiff problems. On the stiff robertson_scaled problem every discovered method overflowed, and so did rk4 and rk38; euler, heun2 and midpoint finished, midpoint with the lowest error.",
-   "verdict": "supported-with-limits",
-   "limits": "Out-of-sample, not blind: no optimizer or model saw these problems and the champion was fixed before they ran, but people chose the problems after the search began. The fixed champion alone had the lower error on 3 of the 5 non-stiff problems.",
-   "evidence": [{"repo": "rk-work", "path": "epochs/1/validation/results.json", "at": "verdicts.per_problem; methods; results[]"}]
-  },
-  {
-   "id": "R5", "project": "rk", "headline": true, "title": "In float64, rk4 is far more accurate",
-   "claim": "In float64, rk4 is far more accurate than the champion: at the step count the 65,536-cycle budget gives each method, the champion's float64 error was 1,992x to 420,975x rk4's on the 7 validation problems where both finish.",
-   "verdict": "supported-with-limits",
-   "limits": "The champion is order 2 and rk4 order 4, and classical order-2 methods trail float64 rk4 by a similar margin in the same runs. Two wider comparisons, run on the seven search and held-out problems rather than the validation set, measure the arithmetic rather than the coefficients: float64 rk4 had lower error than every Q15 run, classical and discovered alike, in 56 of 56 fixed-step cells at identical step counts, and at tolerances of one Q15 least significant bit the most accurate library solver, Radau on each of those problems, was a median 519x more accurate than the most accurate Q15 run. Dormand-Prince (SciPy RK45) was among the library solvers but was never the most accurate one, and it was never run against the champion in the same arithmetic. The search optimized for Q15 floor arithmetic on purpose.",
+   "limits": [
+    "This is true only on the published basis (analytic cost, magnitude weighting). The low value, 1.92x, comes when you remove rc_thermal. On that problem, all classical methods stop near a quantization floor.",
+    "With magnitude weighting, problems with small errors have little effect. Because of this, the check cannot show a loss on such a problem. The champion has higher error than midpoint on pendulum."
+   ],
    "evidence": [
-    {"repo": "rk-work", "path": "epochs/1/validation/results.json", "at": "results[].float_error; results[].steps"},
-    {"repo": "rk-work", "path": "epochs/1/benchmark/results.json", "at": "verdicts.fixed_step; verdicts.matched_tolerance; verdicts.per_problem.*.best_library; tolerance_rule"}
+    {
+     "files": [
+      {
+       "path": "analysis/tools/key_findings.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "efficiency.numbers.leave_one_out; efficiency.numbers.classical_anchors"
+    }
    ]
   },
   {
-   "id": "R6", "project": "rk", "title": "The champion appeared at cycle 33",
-   "claim": "The champion appeared at cycle 33, and no later cycle in epoch 1's 3,931 lowered the best held-out error.",
+   "id": "R4",
+   "project": "rk",
+   "headline": true,
+   "title": "Out-of-sample problems",
+   "claim": "The project tested three discovered methods and five classical methods (euler, heun2, midpoint, rk4, rk38) on eight new problems. On 4 of the 5 non-stiff problems, the best discovered method had lower Q15 error than the best classical method. On the stiff problem robertson_scaled, all discovered methods overflowed, and so did rk4 and rk38. Euler, heun2 and midpoint completed it, and midpoint had the lowest error.",
+   "verdict": "supported-with-limits",
+   "limits": [
+    "These problems are out-of-sample, but the test was not blind. No optimizer or model saw them, and the project fixed the champion before they ran. But people chose the problems after the search started.",
+    "The champion alone had the lower error on 3 of the 5 non-stiff problems."
+   ],
+   "evidence": [
+    {
+     "files": [
+      {
+       "path": "run-data/epochs/1/validation/results.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "verdicts.per_problem; methods; results[]"
+    }
+   ]
+  },
+  {
+   "id": "R5",
+   "project": "rk",
+   "headline": true,
+   "title": "In float64, rk4 is much more accurate",
+   "claim": "In float64, rk4 is much more accurate than the champion. Each method used the step count that the 65,536-cycle budget gives it. On the 7 validation problems where both completed, the float64 error of the champion was 1,992 to 420,975 times the error of rk4.",
+   "verdict": "supported-with-limits",
+   "limits": [
+    "The champion is order 2 and rk4 is order 4. In the same runs, the classical order-2 methods are behind float64 rk4 by a similar margin.",
+    "Two wider comparisons used the seven search and held-out problems. They measure the arithmetic, not the coefficients. In 56 of 56 fixed-step comparisons at the same step counts, float64 rk4 had lower error than every Q15 run.",
+    "At tolerances of one Q15 least significant bit, the most accurate library solver was Radau on each problem. Its median error was 519 times lower than the error of the most accurate Q15 run.",
+    "Dormand-Prince (SciPy RK45) was one of the library solvers, but it was never the most accurate one. It never ran against the champion in the same arithmetic. The search was for Q15 floor arithmetic only, by design."
+   ],
+   "evidence": [
+    {
+     "files": [
+      {
+       "path": "run-data/epochs/1/validation/results.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "results[].float_error; results[].steps"
+    },
+    {
+     "files": [
+      {
+       "path": "run-data/epochs/1/benchmark/results.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "verdicts.fixed_step; verdicts.matched_tolerance; verdicts.per_problem.*.best_library; tolerance_rule"
+    }
+   ]
+  },
+  {
+   "id": "R6",
+   "project": "rk",
+   "headline": false,
+   "title": "The champion appeared at cycle 33",
+   "claim": "The champion appeared at cycle 33. In the 3,931 cycles of epoch 1, no later cycle made the best held-out error lower.",
    "verdict": "supported",
-   "limits": "The search kept filling and improving other cells after cycle 33: 11 of the 16 discovered cell elites appeared later, including elites of order 3 and order 4; the last new cell was filled on 2026-09-05 and the last cell improvement came on 2026-09-09.",
+   "limits": [
+    "After cycle 33, the search continued to fill and improve other cells. 11 of the 16 discovered cell elites came later, and these include order-3 and order-4 elites. The last new cell came on 2026-09-05, and the last cell improvement came on 2026-09-09."
+   ],
    "evidence": [
-    {"repo": "rk-overview", "path": "tools/key_findings.json", "at": "search_progress.numbers"},
-    {"repo": "rk-work", "path": "epochs/1/archive/*.jsonl; epochs/1/EPOCH_STATUS.json", "at": "cycle_id of each elite's tableau_hash; metrics.last_improvement_ts"}
+    {
+     "files": [
+      {
+       "path": "analysis/tools/key_findings.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "search_progress.numbers"
+    },
+    {
+     "files": [
+      {
+       "path": "rk-work/epochs/1/archive/*.jsonl",
+       "kind": "release"
+      },
+      {
+       "path": "run-data/epochs/1/EPOCH_STATUS.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "cycle_id of each elite's tableau_hash; metrics.last_improvement_ts"
+    }
    ]
   },
   {
-   "id": "R7", "project": "rk", "headline": true, "title": "An audit caught the cost model's error",
-   "claim": "A host-side audit compiled the step with GCC 13.2.1 and traced it under an emulator. The compiled step agreed with the Python evaluator bit for bit in 144 of 144 cases, 25 of them overflow cases where both stop at the same operation, and it showed that the m0plus_fast cost model the archive was scored under put rk4 and rk38 in the wrong order. The run froze epoch 1 and started epoch 2 under a corrected cost model instead of rescoring the old archive.",
+   "id": "R7",
+   "project": "rk",
+   "headline": true,
+   "title": "An audit found an error in the cost model",
+   "claim": "An audit on the host compiled the step with GCC 13.2.1 and ran it in an emulator. The compiled step and the Python evaluator agreed bit for bit in 144 of 144 cases. In 25 of these cases, both stopped at the same operation because of an overflow. The audit also showed that the m0plus_fast cost model put rk4 and rk38 in the wrong order. The run then froze epoch 1 and started epoch 2 with a corrected cost model, and it did not score the old archive again.",
    "verdict": "supported",
-   "limits": "The emulator is instruction-accurate, not cycle-accurate. Cycle counts come from a timing table applied to the executed instructions; nothing was measured on a physical chip.",
+   "limits": [
+    "The emulator is accurate for instructions, but not for cycles. The cycle counts come from a timing table for the executed instructions. Nobody measured a physical chip."
+   ],
    "evidence": [
-    {"repo": "rk-work", "path": "epochs/1/trace/results.json", "at": "verdicts.crosscheck; verdicts.inversions"},
-    {"repo": "rk-harness", "path": "docs/DECISIONS.md", "at": "D42, D45"}
+    {
+     "files": [
+      {
+       "path": "run-data/epochs/1/trace/results.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "verdicts.crosscheck; verdicts.inversions"
+    },
+    {
+     "files": [
+      {
+       "path": "harness/docs/DECISIONS.md",
+       "kind": "repo"
+      }
+     ],
+     "at": "D42, D45"
+    }
    ]
   },
   {
-   "id": "R8", "project": "rk", "title": "Floor rounding reorders the classical methods",
-   "claim": "Floor rounding reorders the classical methods: on the search problems euler has the lowest error and rk4 the highest, and round-to-nearest puts rk4 back ahead of euler.",
+   "id": "R8",
+   "project": "rk",
+   "headline": false,
+   "title": "Floor rounding changes the order of the classical methods",
+   "claim": "With floor rounding, euler has the lowest error on the search problems and rk4 has the highest. With round-to-nearest, rk4 is again ahead of euler.",
    "verdict": "supported-with-limits",
-   "limits": "The round-to-nearest comparison covers four methods (euler, heun2, rk4, rk38). Euler's lead holds on the search set under the published basis only; on the held-out problems rk38 has the lowest error of those four under both rounding modes.",
-   "evidence": [{"repo": "rk-overview", "path": "tools/key_findings.json", "at": "floor_bias_flip.numbers.aggregate"}]
-  },
-  {
-   "id": "R9", "project": "rk", "title": "The premise test came back mixed",
-   "claim": "The project's own premise test, with thresholds committed before the search, came back mixed: rk4 on both cost models and heun2 on the fast one met the proceed criterion, while heun2 on the slow-multiplier model met neither the proceed nor the kill criterion.",
-   "verdict": "supported",
-   "limits": "The thresholds were committed to the project's own repository before the test ran, not to an outside registry. A later comparison of four classical methods on the seven search and held-out problems, made after the search began, found rk4 best on 0 of 7 under floor rounding and 1 of 7 under round-to-nearest.",
+   "limits": [
+    "The round-to-nearest comparison has four methods: euler, heun2, rk4 and rk38. The lead of euler on the search set is true only on the published basis. On the held-out problems, rk38 has the lowest error of the four in both rounding modes."
+   ],
    "evidence": [
-    {"repo": "rk-overview", "path": "tools/key_findings.json", "at": "crossover.numbers.stored_verdict; crossover.numbers.thresholds; crossover.numbers.methods; crossover.numbers.rk4_wins_at_budget"},
-    {"repo": "rk-work", "path": "epochs/1/falsification.json", "at": "methods"}
+    {
+     "files": [
+      {
+       "path": "analysis/tools/key_findings.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "floor_bias_flip.numbers.aggregate"
+    }
    ]
   },
   {
-   "id": "R10", "project": "rk", "title": "Measured speed and the cost model",
-   "claim": "Measured in Python on the same solver path, the champion's step ran 1.45x faster than rk4's against a model prediction of 1.5x, and analytic cycles tracked measured time with Pearson r = 0.97 over 56 runs.",
+   "id": "R9",
+   "project": "rk",
+   "headline": false,
+   "title": "The premise test gave a mixed result",
+   "claim": "Before the search, the project tested its own premise with thresholds that it set in advance. The result was mixed. rk4 on both cost models and heun2 on the fast model met the 'proceed' criterion. heun2 on the slow-multiplier model met neither the 'proceed' nor the 'kill' criterion.",
+   "verdict": "supported",
+   "limits": [
+    "The project put the thresholds in its own repository before the test, not in an outside registry.",
+    "A later comparison, made after the search started, used four classical methods on the seven search and held-out problems. rk4 was best on 0 of 7 with floor rounding and on 1 of 7 with round-to-nearest."
+   ],
+   "evidence": [
+    {
+     "files": [
+      {
+       "path": "analysis/tools/key_findings.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "crossover.numbers.stored_verdict; crossover.numbers.thresholds; crossover.numbers.methods; crossover.numbers.rk4_wins_at_budget"
+    },
+    {
+     "files": [
+      {
+       "path": "run-data/epochs/1/falsification.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "methods"
+    }
+   ]
+  },
+  {
+   "id": "R10",
+   "project": "rk",
+   "headline": false,
+   "title": "Measured speed agrees with the cost model",
+   "claim": "In Python, on the same solver path, the step of the champion was 1.45 times faster than the step of rk4. The model predicted 1.5 times. Over 56 runs, analytic cycles followed measured time with Pearson r = 0.97.",
    "verdict": "supported-with-limits",
-   "limits": "Python wall clock, so it speaks to ordering, not to absolute cycle counts on a Cortex-M0+, and only as far as Python mirrors the chip: Python timed rk4 slightly faster than rk38, as the analytic model predicts, while the compiled trace found rk38 cheaper on a Cortex-M0+ (R7).",
-   "evidence": [{"repo": "rk-work", "path": "epochs/1/benchmark/results.json", "at": "speedup; correlation"}]
-  },
-  {
-   "id": "R11", "project": "rk", "headline": true, "title": "A scorer the search cannot edit",
-   "claim": "The scorer is out of the search's reach: the harness is mounted read-only, and a sha256 over the pinned files (10 in epoch 1, 14 since epoch 2) is checked at every start and stored in every record. 91 golden and canary cases must pass before any cycle runs, and the suite collects 1,908 tests.",
-   "verdict": "supported",
-   "limits": "No GitHub credential enters the container: it commits and the host pushes. The one credential inside is the model's sign-in file, mounted read-only. The counts are as of 2026-09-23.",
+   "limits": [
+    "This is Python wall-clock time. It shows the order of the methods, not absolute cycle counts on a Cortex-M0+. It is only as good as the match between Python and the chip.",
+    "Python timed rk4 as a little faster than rk38, as the analytic model predicts. But the compiled trace found rk38 cheaper on a Cortex-M0+ (R7)."
+   ],
    "evidence": [
-    {"repo": "rk-harness", "path": "VERIFIER_FILES.txt; VERIFIER_HASH; entrypoint.sh; tests/golden_gate.txt; scripts/run.ps1", "at": ""},
-    {"repo": "rk-harness", "path": "tests/", "at": "pytest --collect-only"}
+    {
+     "files": [
+      {
+       "path": "run-data/epochs/1/benchmark/results.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "speedup; correlation"
+    }
    ]
   },
   {
-   "id": "R12", "project": "rk", "title": "How the run ran",
-   "claim": "Epoch 1 ran from 2026-08-29 to 2026-09-10: 3,931 search cycles over 13 days of archive and 141,364 scored records, all under the epoch-1 hash apart from 21 written minutes before that pin was set. No person chose candidates or scores and the pinned scorer never changed, though the runner started 24 times, including restarts to deploy changes to the unpinned harness code. Epoch 2 started on 2026-09-17 under the new verifier hash, stopped late that day, and nothing restarted it until 2026-09-23.",
+   "id": "R11",
+   "project": "rk",
+   "headline": true,
+   "title": "The search cannot change its scorer",
+   "claim": "The search cannot change the code that scores it. The container mounts the harness read-only. At each start, the runner checks a sha256 hash of the pinned files, and each record keeps that hash. Epoch 1 pinned 10 files, and epoch 2 pinned 14. Before a cycle can start, 91 golden and canary cases must pass, and the test suite has 1,908 tests.",
    "verdict": "supported",
-   "limits": "Autonomous means no person chooses what the search tries or how it scores; it does not mean free of human operation. The watchdog now resumes the stops it makes itself; after a reboot the run is started by hand with one command.",
+   "limits": [
+    "No GitHub credential goes into the container. The container makes the commits, and the host pushes them. The only credential in the container is the sign-in file for the model, which it mounts read-only. The counts are from 2026-09-23."
+   ],
    "evidence": [
-    {"repo": "rk-work", "path": "EPOCH.json; epochs/1/RUNSTATE.json; epochs/1/archive/*.jsonl; epochs/1/events.jsonl", "at": "frozen[0]; verifier_hash; runner_started"},
-    {"repo": "rk-harness", "path": "docs/DECISIONS.md", "at": "D25, D45, D46, D47"}
+    {
+     "files": [
+      {
+       "path": "harness/VERIFIER_FILES.txt",
+       "kind": "repo"
+      },
+      {
+       "path": "harness/VERIFIER_HASH",
+       "kind": "repo"
+      },
+      {
+       "path": "harness/entrypoint.sh",
+       "kind": "repo"
+      },
+      {
+       "path": "harness/tests/golden_gate.txt",
+       "kind": "repo"
+      },
+      {
+       "path": "harness/scripts/run.ps1",
+       "kind": "repo"
+      }
+     ],
+     "at": ""
+    },
+    {
+     "files": [
+      {
+       "path": "harness/tests/",
+       "kind": "tree"
+      }
+     ],
+     "at": "pytest --collect-only"
+    }
    ]
   },
   {
-   "id": "R13", "project": "rk", "title": "A language model steers the search inside a narrow schema",
-   "claim": "A language model proposes each search cycle's direction as a JSON directive that can only narrow the search, and an unknown key sends the runner to a fixed fallback. The scorer, the verifier and every hypothesis verdict are code.",
+   "id": "R12",
+   "project": "rk",
+   "headline": false,
+   "title": "How the run operated",
+   "claim": "Epoch 1 ran from 2026-08-29 to 2026-09-10. It did 3,931 search cycles over 13 days and wrote 141,364 scored records. All records have the epoch-1 hash, except 21 that the run wrote minutes before it set that pin. No person chose candidates or scores, and the pinned scorer did not change. But the runner started 24 times, which includes restarts for changes to code that is not pinned. Epoch 2 started on 2026-09-17 with the new verifier hash, stopped late that day, and did not start again until 2026-09-23.",
    "verdict": "supported",
-   "limits": "The model is shown held-out errors (U2), so those errors are not independent of the search.",
-   "evidence": [{"repo": "rk-harness", "path": "rk_harness/directive.py; rk_harness/encourager.py; rk_harness/ledger.py; rk_harness/prompts.py", "at": ""}]
+   "limits": [
+    "Here, 'autonomous' means that no person chose what the search tried or how it scored. It does not mean that no person operated the run. The watchdog started the run again after the stops that it made itself. After a reboot, a person started the run with one command."
+   ],
+   "evidence": [
+    {
+     "files": [
+      {
+       "path": "run-data/EPOCH.json",
+       "kind": "repo"
+      },
+      {
+       "path": "rk-work/epochs/1/RUNSTATE.json",
+       "kind": "release"
+      },
+      {
+       "path": "rk-work/epochs/1/archive/*.jsonl",
+       "kind": "release"
+      },
+      {
+       "path": "rk-work/epochs/1/events.jsonl",
+       "kind": "release"
+      }
+     ],
+     "at": "frozen[0]; verifier_hash; runner_started"
+    },
+    {
+     "files": [
+      {
+       "path": "harness/docs/DECISIONS.md",
+       "kind": "repo"
+      }
+     ],
+     "at": "D25, D45, D46, D47"
+    }
+   ]
   },
   {
-   "id": "R14", "project": "rk", "title": "An independent reimplementation agrees",
-   "claim": "The overview site's browser demo reimplements the Q15 solver in JavaScript and reproduces the Python evaluator in 154 of 154 fixture cases.",
+   "id": "R13",
+   "project": "rk",
+   "headline": false,
+   "title": "A language model steers, but only inside a narrow schema",
+   "claim": "For each search cycle, a language model proposes a direction as a JSON directive. The directive can only make the search narrower. If the directive has an unknown key, the runner uses a fixed fallback. Code does all scores, all checks and every hypothesis verdict.",
    "verdict": "supported",
-   "limits": "",
-   "evidence": [{"repo": "rk-overview", "path": "tools/check_demo.js; docs/demo_data.json", "at": ""}]
+   "limits": [
+    "The model sees the held-out errors (U2). Because of this, those errors are not independent of the search."
+   ],
+   "evidence": [
+    {
+     "files": [
+      {
+       "path": "harness/rk_harness/directive.py",
+       "kind": "repo"
+      },
+      {
+       "path": "harness/rk_harness/encourager.py",
+       "kind": "repo"
+      },
+      {
+       "path": "harness/rk_harness/ledger.py",
+       "kind": "repo"
+      },
+      {
+       "path": "harness/rk_harness/prompts.py",
+       "kind": "repo"
+      }
+     ],
+     "at": ""
+    }
+   ]
   },
   {
-   "id": "N1", "project": "novel", "headline": true, "title": "The 2025 benchmark ran",
-   "claim": "Across 12 methods and 10,000 generated ODEs (8,113 scorable), Dormand-Prince had the lowest mean error (0.0791) and RK4 the next lowest (0.14).",
+   "id": "R14",
+   "project": "rk",
+   "headline": false,
+   "title": "A second implementation agrees",
+   "claim": "The Q15 demo on this site is a second implementation of the Q15 solver, in JavaScript. It gets the same result as the Python evaluator in 154 of 154 fixture cases. You can do that check again on this page.",
+   "verdict": "supported",
+   "evidence": [
+    {
+     "files": [
+      {
+       "path": "site/src/q15.js",
+       "kind": "repo"
+      },
+      {
+       "path": "analysis/tools/demo_data.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "the check button in the demo on the page"
+    }
+   ]
+  },
+  {
+   "id": "N1",
+   "project": "novel",
+   "headline": true,
+   "title": "The 2025 benchmark ran",
+   "claim": "The 2025 benchmark used 12 methods and 10,000 generated ODEs, and 8,113 of these ODEs had a score. Dormand-Prince had the lowest mean error (0.0791), and RK4 had the next lowest (0.14).",
    "verdict": "supported-with-limits",
-   "limits": "The error is the mean of each ODE's maximum error, which a few outlier ODEs dominate. The trial entries were copies of RK4 and Dormand-Prince or random tables, the Gauss-Legendre entries ran through a stepper that ignores the implicit part of a table (N5), and the reference solutions came from SciPy RK45, an adaptive Dormand-Prince solver, so the Dormand-Prince entry is measured against a reference built on its own tableau. This ranks two textbook methods against copies of themselves, random tables and truncated methods.",
-   "evidence": [{"repo": "Novel-Numerical-Integration-Methods", "path": "results/real_trial_results.csv", "at": "Max_Error"}]
+   "limits": [
+    "The error is the mean of the maximum error of each ODE, and a few outlier ODEs control it. The trial entries were copies of RK4 and Dormand-Prince, or random tables. The Gauss-Legendre entries ran through a stepper that ignores the implicit part of a table (N5).",
+    "The reference solutions came from SciPy RK45, an adaptive Dormand-Prince solver. This means that the reference for the Dormand-Prince entry used its own tableau. The benchmark ranks two textbook methods against copies of themselves, random tables and truncated methods."
+   ],
+   "evidence": [
+    {
+     "files": [
+      {
+       "path": "ml-2025/results/real_trial_results.csv",
+       "kind": "repo"
+      }
+     ],
+     "at": "Max_Error"
+    }
+   ]
   },
   {
-   "id": "N2", "project": "novel", "headline": true, "title": "The rediscovery claim",
-   "claim": "Evolutionary search independently rediscovered RK4 and Dormand-Prince.",
+   "id": "N2",
+   "project": "novel",
+   "headline": true,
+   "title": "The claim that the search found RK4 and Dormand-Prince again",
+   "claim": "Evolutionary search found RK4 and Dormand-Prince again, independently.",
+   "verdict": "not-supported",
    "original_wording": "Evolutionary search, by contrast, independently rediscovered RK4 and Dormand-Prince with exact performance match (README).",
-   "verdict": "not-supported",
-   "correction": "RK4 was placed in the starting population of the 4-stage runs and Dormand-Prince in that of the 7-stage run. The genetic operators did run and the population moved off the seed, but the composite score is clipped at 1: every one of the 10,000 rows of the one training log scores 1, and the checkpoints of trials 12 to 15 record a best and a mean score of 1 in every one of their 100 epochs. The best-table tracker replaces the saved table only on a strictly higher score, so the seed stayed. Trials 12, 14 and 15 saved RK4 exactly and trial 13 saved Dormand-Prince exactly.",
+   "correction": [
+    "The 4-stage runs had RK4 in their start population, and the 7-stage run had Dormand-Prince. The genetic operators ran, and the population moved away from the seed.",
+    "But the composite score has a maximum of 1. All 10,000 rows of the one training log have a score of 1. The checkpoints of trials 12 to 15 show a best and a mean score of 1 in all 100 epochs.",
+    "The best-table tracker replaces the saved table only for a higher score. For this reason, the seed stayed. Trials 12, 14 and 15 saved RK4 exactly, and trial 13 saved Dormand-Prince exactly."
+   ],
    "evidence": [
-    {"repo": "Novel-Numerical-Integration-Methods", "path": "src/models/model.py", "at": "183-190"},
-    {"repo": "Novel-Numerical-Integration-Methods", "path": "src/core/metrics.py", "at": "441"},
-    {"repo": "Novel-Numerical-Integration-Methods", "path": "src/training/train.py", "at": "246-250"},
-    {"repo": "Novel-Numerical-Integration-Methods", "path": "metrics_log.csv; trials/*/checkpoints/checkpoint_epoch_100.json; trials/*/best_butcher_table.json", "at": "composite_score; training_history; butcher_table"}
+    {
+     "files": [
+      {
+       "path": "ml-2025/src/models/model.py",
+       "kind": "repo"
+      }
+     ],
+     "at": "183-190"
+    },
+    {
+     "files": [
+      {
+       "path": "ml-2025/src/core/metrics.py",
+       "kind": "repo"
+      }
+     ],
+     "at": "441"
+    },
+    {
+     "files": [
+      {
+       "path": "ml-2025/src/training/train.py",
+       "kind": "repo"
+      }
+     ],
+     "at": "246-250"
+    },
+    {
+     "files": [
+      {
+       "path": "ml-2025/metrics_log.csv",
+       "kind": "repo"
+      },
+      {
+       "path": "ml-2025/trials",
+       "kind": "tree",
+       "label": "ml-2025/trials/*/checkpoints/checkpoint_epoch_100.json"
+      },
+      {
+       "path": "ml-2025/trials",
+       "kind": "tree",
+       "label": "ml-2025/trials/*/best_butcher_table.json"
+      }
+     ],
+     "at": "composite_score; training_history; butcher_table"
+    }
    ]
   },
   {
-   "id": "N3", "project": "novel", "title": "The optimality claim",
-   "claim": "The results validate RK4 and Dormand-Prince as mathematically optimal.",
+   "id": "N3",
+   "project": "novel",
+   "headline": false,
+   "title": "The claim that RK4 and Dormand-Prince are optimal",
+   "claim": "The results show that RK4 and Dormand-Prince are mathematically optimal.",
+   "verdict": "not-supported",
    "original_wording": "validating them as true mathematical optima (README); RK4 and Dormand-Prince are not just historically successful methods, but mathematically optimal solutions (results/analysis_report.md).",
-   "verdict": "not-supported",
-   "correction": "Optimality would need a stated objective and a proof or a search that could have found something better. Here the score could not tell RK4 from a random table: trial 8's saved file gives its seeded random table a score ratio of 1 to RK4 at 69.4 times RK4's error on the same sample.",
+   "correction": [
+    "To show that a method is optimal, you need a stated objective. You also need a proof, or a search that could find a better method. Here the score could not find a difference between RK4 and a random table.",
+    "In the saved file of trial 8, a seeded random table has a score ratio of 1 to RK4. But its error is 69.4 times the error of RK4 on the same sample."
+   ],
    "evidence": [
-    {"repo": "Novel-Numerical-Integration-Methods", "path": "src/core/metrics.py", "at": "441"},
-    {"repo": "Novel-Numerical-Integration-Methods", "path": "trials/trial_008_4stage_accuracy/best_butcher_table.json", "at": "comparisons.rk4"}
+    {
+     "files": [
+      {
+       "path": "ml-2025/src/core/metrics.py",
+       "kind": "repo"
+      }
+     ],
+     "at": "441"
+    },
+    {
+     "files": [
+      {
+       "path": "ml-2025/trials/trial_008_4stage_accuracy/best_butcher_table.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "comparisons.rk4"
+    }
    ]
   },
   {
-   "id": "N4", "project": "novel", "headline": true, "title": "The local-minima claim",
-   "claim": "Gradient descent collapsed into local minima.",
+   "id": "N4",
+   "project": "novel",
+   "headline": true,
+   "title": "The claim about local minima",
+   "claim": "Gradient descent stopped in local minima.",
+   "verdict": "not-supported",
    "original_wording": "Empirical benchmarks show gradient descent consistently collapsed into local minima, producing near-identical low-accuracy schemes (README).",
-   "verdict": "not-supported",
-   "correction": "The generator that proposes tables was never trained: its optimizer is created and never stepped, its outputs never pass validation, and every empty slot is filled by a random generator that resets the seed to 42. The only gradient descent in the project trained a surrogate model, and nothing in the training loop reads its predictions. Trials 1-4, 6, 8 and 9 saved the same A matrix and weights b (trials 8 and 9 carry a different node vector c, which none of the 6 test families depends on). Trials 8 and 9 score the same because they are the same table.",
+   "correction": [
+    "Nobody trained the generator that proposes tables. The code makes its optimizer but does not step it, and its outputs never pass validation. A random generator fills every empty slot, and it resets the seed to 42.",
+    "The only gradient descent in the project trained a surrogate model. Nothing in the training loop reads its predictions.",
+    "Trials 1 to 4, 6, 8 and 9 saved the same A matrix and weights b. Trials 8 and 9 have a different node vector c, but none of the 6 test families uses c. Trials 8 and 9 have the same score because they are the same table."
+   ],
    "evidence": [
-    {"repo": "Novel-Numerical-Integration-Methods", "path": "src/models/model.py", "at": "333; 394-405; 446-450"},
-    {"repo": "Novel-Numerical-Integration-Methods", "path": "src/training/train.py", "at": "123; 220-221"},
-    {"repo": "Novel-Numerical-Integration-Methods", "path": "src/core/butcher_tables.py", "at": "204-206"},
-    {"repo": "Novel-Numerical-Integration-Methods", "path": "trials/*/best_butcher_table.json", "at": "butcher_table"}
+    {
+     "files": [
+      {
+       "path": "ml-2025/src/models/model.py",
+       "kind": "repo"
+      }
+     ],
+     "at": "333; 394-405; 446-450"
+    },
+    {
+     "files": [
+      {
+       "path": "ml-2025/src/training/train.py",
+       "kind": "repo"
+      }
+     ],
+     "at": "123; 220-221"
+    },
+    {
+     "files": [
+      {
+       "path": "ml-2025/src/core/butcher_tables.py",
+       "kind": "repo"
+      }
+     ],
+     "at": "204-206"
+    },
+    {
+     "files": [
+      {
+       "path": "ml-2025/trials",
+       "kind": "tree",
+       "label": "ml-2025/trials/*/best_butcher_table.json"
+      }
+     ],
+     "at": "butcher_table"
+    }
    ]
   },
   {
-   "id": "N5", "project": "novel", "title": "Gauss-Legendre 3's error",
+   "id": "N5",
+   "project": "novel",
+   "headline": false,
+   "title": "The error of Gauss-Legendre 3",
    "claim": "Gauss-Legendre 3 is numerically unstable, with a mean error of 8.31e+211.",
+   "verdict": "artifact",
    "original_wording": "Gauss-Legendre 3: Numerical instability (8.31e+211 max error) (results/analysis_report.md).",
-   "verdict": "artifact",
-   "correction": "The stepper reads the diagonal only while that stage is still zero and never reads the upper triangle, so an implicit table runs as its strictly lower part. Both Gauss-Legendre entries ran as truncated explicit methods of order one; the number measures that bug, not the method.",
-   "evidence": [{"repo": "Novel-Numerical-Integration-Methods", "path": "src/core/integrator_runner.py", "at": "201-214"}]
+   "correction": [
+    "The stepper reads the diagonal only while that stage is still zero, and it never reads the upper triangle. Because of this, an implicit table runs as only its strictly lower part. Both Gauss-Legendre entries ran as truncated explicit methods of order one. The number measures this bug, not the method."
+   ],
+   "evidence": [
+    {
+     "files": [
+      {
+       "path": "ml-2025/src/core/integrator_runner.py",
+       "kind": "repo"
+      }
+     ],
+     "at": "201-214"
+    }
+   ]
   },
   {
-   "id": "N6", "project": "novel", "title": "The success rate",
-   "claim": "Every method succeeded on 81.1% of the ODEs.",
+   "id": "N6",
+   "project": "novel",
+   "headline": false,
+   "title": "The success rate",
+   "claim": "Each method was successful on 81.1% of the ODEs.",
+   "verdict": "artifact",
    "original_wording": "Success Rate 81.13% for every method (results/analysis_report.md).",
-   "verdict": "artifact",
-   "correction": "The rate is a property of the ODE set, not of the methods: the reference solver supports 5 of the 6 families in the final test (Robertson is missing), and some polynomial ODEs blow up before the end of the interval. It is the same number for every method for that reason.",
-   "evidence": [{"repo": "Novel-Numerical-Integration-Methods", "path": "src/core/integrator_runner.py; results/real_trial_evaluation.py", "at": "240-254; 50-130"}]
+   "correction": [
+    "The rate comes from the ODE set, not from the methods. The reference solver supports 5 of the 6 families in the final test. It does not support Robertson. Also, some polynomial ODEs become too large before the end of the interval. For this reason, the number is the same for every method."
+   ],
+   "evidence": [
+    {
+     "files": [
+      {
+       "path": "ml-2025/src/core/integrator_runner.py",
+       "kind": "repo"
+      },
+      {
+       "path": "ml-2025/results/real_trial_evaluation.py",
+       "kind": "repo"
+      }
+     ],
+     "at": "240-254; 50-130"
+    }
+   ]
   },
   {
-   "id": "N7", "project": "novel", "title": "The price of forcing variety",
-   "claim": "Forcing novelty produced a different method at a large accuracy cost.",
+   "id": "N7",
+   "project": "novel",
+   "headline": false,
+   "title": "The cost of forced variety",
+   "claim": "A novelty reward made a different method, at a large cost in accuracy.",
+   "verdict": "not-supported",
    "original_wording": "Novelty reward successfully created different method but at severe accuracy cost (results/analysis_report.md).",
-   "verdict": "not-supported",
-   "correction": "Trial 16's table is the top scorer among fresh random draws: the script's evolution branch never ran, so no mutation or crossover happened. Its fitness read an accuracy field that does not exist, so accuracy carried no weight at all. Its mean error of 5,577 describes a random table picked without regard to accuracy, not a price paid for variety.",
-   "evidence": [{"repo": "Novel-Numerical-Integration-Methods", "path": "src/training/train_4stage_novelty_2.py", "at": "168; 245-254"}]
+   "correction": [
+    "The table of trial 16 is the best of a set of new random draws. The evolution branch of the script never ran, so no mutation or crossover occurred.",
+    "Its fitness read an accuracy field that does not exist. Because of this, accuracy had no weight. Its mean error of 5,577 is the error of a random table that nobody chose for accuracy. It is not a cost of variety."
+   ],
+   "evidence": [
+    {
+     "files": [
+      {
+       "path": "ml-2025/src/training/train_4stage_novelty_2.py",
+       "kind": "repo"
+      }
+     ],
+     "at": "168; 245-254"
+    }
+   ]
   },
   {
-   "id": "N8", "project": "novel", "title": "Training scale",
+   "id": "N8",
+   "project": "novel",
+   "headline": false,
+   "title": "Training scale",
    "claim": "Large-scale training on 10,000 ODEs.",
-   "original_wording": "Large-scale training on 10k ODEs confirmed the framework could replicate classical integrators (README).",
    "verdict": "not-supported",
-   "correction": "The 10,000-ODE set was used only for the final evaluation. Trials 8 to 16 trained on 1,000 ODEs each and trials 1 to 7 on 500 to 1,200, so no training set came near 10,000. No committed result ran on a GPU, and the author had already removed the CUDA-speedup claim from the README.",
-   "evidence": [{"repo": "Novel-Numerical-Integration-Methods", "path": "trials/*/best_butcher_table.json; results/real_trial_evaluation.py; src/models/model.py", "at": "config.N_ODES; 197; 313"}]
-  },
-  {
-   "id": "N9", "project": "novel", "title": "The 2025 harness",
-   "claim": "The project built a working evaluation harness for explicit tables: a generic Butcher-table stepper, a generator covering 11 ODE families including stiff ones, a SciPy reference solver, parallel scoring and 16 trial configurations, and it ran a 12-method benchmark over 10,000 ODEs. Its source tree holds 10,279 lines of Python across 47 files.",
-   "verdict": "supported-with-limits",
-   "limits": "The harness runs end to end for explicit tables. Two of its parts produced the artifacts in N5 and N6: the stepper runs only the explicit part of a table, and the reference solver covers 5 of the 6 test families and 5 of the 11 training families. An SQLite results module is in the tree, but nothing in the pipeline calls it. Its main conclusions from 2025 are what did not hold.",
-   "evidence": [{"repo": "Novel-Numerical-Integration-Methods", "path": "src/; configs/; trials/; results/real_trial_results.csv", "at": ""}, {"repo": "Novel-Numerical-Integration-Methods", "path": "src/__init__.py", "at": "16"}]
-  },
-  {
-   "id": "N10", "project": "novel", "title": "No working order check",
-   "claim": "The project enforced no order conditions: the only hard validation was that the weights sum to one, and its order-4 test uses a condition that RK4 itself fails, so it labels RK4 as order 3.",
-   "verdict": "supported",
-   "limits": "",
+   "original_wording": "Large-scale training on 10k ODEs confirmed the framework could replicate classical integrators (README).",
+   "correction": [
+    "The project used the 10,000-ODE set only for the final evaluation. Trials 8 to 16 trained on 1,000 ODEs each, and trials 1 to 7 on 500 to 1,200. No training set was near 10,000.",
+    "No committed result ran on a GPU. The author had already removed the CUDA speed-up claim from the README."
+   ],
    "evidence": [
-    {"repo": "Novel-Numerical-Integration-Methods", "path": "src/core/butcher_tables.py", "at": "46-47; 94-101"},
-    {"repo": "Novel-Numerical-Integration-Methods", "path": "trials/*/best_butcher_table.json", "at": "butcher_table.consistency_order"}
+    {
+     "files": [
+      {
+       "path": "ml-2025/trials",
+       "kind": "tree",
+       "label": "ml-2025/trials/*/best_butcher_table.json"
+      },
+      {
+       "path": "ml-2025/results/real_trial_evaluation.py",
+       "kind": "repo"
+      },
+      {
+       "path": "ml-2025/src/models/model.py",
+       "kind": "repo"
+      }
+     ],
+     "at": "config.N_ODES; 197; 313"
+    }
    ]
   },
   {
-   "id": "N11", "project": "novel", "title": "No test suite",
-   "claim": "The repository has no automated test suite: tests/ holds two example scripts, and src/evaluation/quick_test.py is a smoke script.",
-   "verdict": "supported",
-   "limits": "",
-   "evidence": [{"repo": "Novel-Numerical-Integration-Methods", "path": "tests/; src/evaluation/quick_test.py", "at": ""}]
-  },
-  {
-   "id": "U1", "project": "both", "headline": true, "title": "Which methods lead depends on the arithmetic and the cost model",
-   "claim": "In float64 the established methods were more accurate in both projects: in the rk run float64 rk4 was 1,992x to 420,975x more accurate than the champion at the same cycle budget, and in the 2025 benchmark Dormand-Prince and RK4 had the lowest mean error.",
+   "id": "N9",
+   "project": "novel",
+   "headline": false,
+   "title": "The 2025 harness",
+   "claim": "The project built an evaluation harness for explicit tables that works from start to end. It has a generic Butcher-table stepper and an ODE generator with 11 families, which include stiff families. It also has a SciPy reference solver, parallel scoring and 16 trial configurations. It ran a 12-method benchmark over 10,000 ODEs. Its source tree has 10,279 lines of Python in 47 files.",
    "verdict": "supported-with-limits",
-   "limits": "The 2025 benchmark is weak evidence: its other entries were copies of RK4 and Dormand-Prince, random tables and truncated methods, and its reference solutions came from SciPy RK45, itself a Dormand-Prince solver (N1). In the rk run Dormand-Prince was never run against the champion in the same arithmetic (R5). Inside Q15 with floor rounding at a 65,536-cycle budget, on the analytic cost model, the searched method leads the classical fixed-step methods (R1); on the traced whole-step basis that lead falls to 1.01x, which dropping one held-out problem overturns.",
+   "limits": [
+    "Two of its parts caused the errors in N5 and N6. The stepper runs only the explicit part of a table. The reference solver covers 5 of the 6 test families and 5 of the 11 training families.",
+    "The tree has an SQLite results module, but nothing in the pipeline calls it. The main conclusions from 2025 are the parts that were not true."
+   ],
    "evidence": [
-    {"repo": "rk-work", "path": "epochs/1/validation/results.json", "at": "results[].float_error"},
-    {"repo": "Novel-Numerical-Integration-Methods", "path": "results/real_trial_results.csv", "at": "Max_Error"}
+    {
+     "files": [
+      {
+       "path": "ml-2025/src/",
+       "kind": "tree"
+      },
+      {
+       "path": "ml-2025/configs/",
+       "kind": "tree"
+      },
+      {
+       "path": "ml-2025/trials/",
+       "kind": "tree"
+      },
+      {
+       "path": "ml-2025/results/real_trial_results.csv",
+       "kind": "repo"
+      }
+     ],
+     "at": ""
+    },
+    {
+     "files": [
+      {
+       "path": "ml-2025/src/__init__.py",
+       "kind": "repo"
+      }
+     ],
+     "at": "16"
+    }
    ]
   },
   {
-   "id": "U2", "project": "both", "title": "A blind comparison",
+   "id": "N10",
+   "project": "novel",
+   "headline": false,
+   "title": "No order check that works",
+   "claim": "The project did not apply order conditions. Its only hard check was that the weights add up to one. Its order-4 test uses a condition that RK4 itself fails, so it calls RK4 order 3.",
+   "verdict": "supported",
+   "evidence": [
+    {
+     "files": [
+      {
+       "path": "ml-2025/src/core/butcher_tables.py",
+       "kind": "repo"
+      }
+     ],
+     "at": "46-47; 94-101"
+    },
+    {
+     "files": [
+      {
+       "path": "ml-2025/trials",
+       "kind": "tree",
+       "label": "ml-2025/trials/*/best_butcher_table.json"
+      }
+     ],
+     "at": "butcher_table.consistency_order"
+    }
+   ]
+  },
+  {
+   "id": "N11",
+   "project": "novel",
+   "headline": false,
+   "title": "No test suite",
+   "claim": "The repository has no automated test suite. The tests/ folder has two example scripts, and src/evaluation/quick_test.py is a smoke script.",
+   "verdict": "supported",
+   "evidence": [
+    {
+     "files": [
+      {
+       "path": "ml-2025/tests/",
+       "kind": "tree"
+      },
+      {
+       "path": "ml-2025/src/evaluation/quick_test.py",
+       "kind": "repo"
+      }
+     ],
+     "at": ""
+    }
+   ]
+  },
+  {
+   "id": "U1",
+   "project": "both",
+   "headline": true,
+   "title": "The arithmetic and the cost model decide which method leads",
+   "claim": "In float64, the established methods were more accurate in both projects. In the rk run, float64 rk4 was 1,992 to 420,975 times more accurate than the champion at the same cycle budget. In the 2025 benchmark, Dormand-Prince and RK4 had the lowest mean error.",
+   "verdict": "supported-with-limits",
+   "limits": [
+    "The 2025 benchmark is weak evidence. Its other entries were copies of RK4 and Dormand-Prince, random tables and truncated methods. Its reference solutions came from SciPy RK45, which is also a Dormand-Prince solver (N1).",
+    "In the rk run, Dormand-Prince never ran against the champion in the same arithmetic (R5).",
+    "In Q15 with floor rounding at a 65,536-cycle budget, on the analytic cost model, the discovered method leads the classical fixed-step methods (R1). On the traced whole-step basis, that lead is only 1.01x. If you remove one held-out problem, the lead goes away."
+   ],
+   "evidence": [
+    {
+     "files": [
+      {
+       "path": "run-data/epochs/1/validation/results.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "results[].float_error"
+    },
+    {
+     "files": [
+      {
+       "path": "ml-2025/results/real_trial_results.csv",
+       "kind": "repo"
+      }
+     ],
+     "at": "Max_Error"
+    }
+   ]
+  },
+  {
+   "id": "U2",
+   "project": "both",
+   "headline": false,
+   "title": "A blind comparison",
    "claim": "The comparisons were blind.",
    "verdict": "not-supported",
-   "correction": "Neither project ran a blind test. In the rk run the model that proposes directions is shown held-out errors and elites are picked on them, so the held-out comparison is not blind; the nearest thing to an independent check is the out-of-sample validation suite (R4). The 2025 project's evolutionary search started from the very tables it was said to rediscover (N2).",
-   "evidence": [{"repo": "rk-harness", "path": "rk_harness/prompts.py", "at": "100-105"}]
+   "correction": [
+    "Neither project did a blind test. In the rk run, the model that proposes directions sees the held-out errors, and the search picks elites on them. For this reason, the held-out comparison is not blind.",
+    "The nearest thing to an independent check is the out-of-sample validation suite (R4). The evolutionary search of 2025 started from the same tables that the project said it found again (N2)."
+   ],
+   "evidence": [
+    {
+     "files": [
+      {
+       "path": "harness/rk_harness/prompts.py",
+       "kind": "repo"
+      }
+     ],
+     "at": "100-105"
+    }
+   ]
   },
   {
-   "id": "U3", "project": "both", "title": "Large local minima",
-   "claim": "The search landscape is full of large local minima.",
+   "id": "U3",
+   "project": "both",
+   "headline": false,
+   "title": "Large local minima",
+   "claim": "The search space is full of large local minima.",
    "verdict": "not-supported",
-   "correction": "Neither project measured the landscape. The 2025 flat results came from a clipped score, an untrained generator and a random fallback reseeded to 42 (N2, N4). In the rk run the best held-out error stopped improving after cycle 33 while other cells kept improving (R6), which describes one search, not the landscape.",
-   "evidence": [{"repo": "rk-overview", "path": "tools/key_findings.json", "at": "search_progress.numbers"}]
+   "correction": [
+    "Neither project measured the search space. In 2025, flat results came from a clipped score, an untrained generator and a random fallback with seed 42 (N2, N4).",
+    "In the rk run, the best held-out error stopped at cycle 33, but other cells continued to improve (R6). This describes one search, not the search space."
+   ],
+   "evidence": [
+    {
+     "files": [
+      {
+       "path": "analysis/tools/key_findings.json",
+       "kind": "repo"
+      }
+     ],
+     "at": "search_progress.numbers"
+    }
+   ]
   }
  ]
 }

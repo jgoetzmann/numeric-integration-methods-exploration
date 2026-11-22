@@ -1,19 +1,16 @@
-# rk-work
+# run-data (was rk-work)
 
-Run data for the rk search, an unattended hunt for Runge-Kutta integrators that hold up in Q15
-fixed point on a Cortex-M0+ cycle model. The run container wrote this repository at the end of
-every cycle. People do not edit it.
+This folder holds the final run data of the rk search. The run container wrote it at the end of
+each cycle, and no person edited it. The run stopped for good on 2026-11-10, after cycle 17,364.
 
-**The run is over, and this is its final data.** The owner ended the run on 2026-11-10, after
-cycle 17,364, and no more compute goes to it. `EPOCH_STATUS.json` freezes epoch 2, the last
-commit (`run ended after cycle 17364`) is the final state, and nothing will be appended again.
-Every number on both sites can be rebuilt from this repository and rk-harness; the overview's
-closing section, [The run is over](https://jgoetzmann.github.io/rk-overview/#final), sums up the
-final findings.
+This folder has only the small files (307 files, 7.4 MB) from rk-work at commit 100319524c09.
+The daily archive logs (`archive/`, `epochs/1/archive/`, the lane `ledger/` folders) and the
+large ledgers are 1.3 GB. They are in `rk-work-final.tar.gz` in the
+[final-archive release](https://github.com/jgoetzmann/numeric-integration-methods-exploration/releases/tag/final-archive), and the full rk-work history is the `rk-work.bundle` file there.
+The table below describes the whole rk-work tree, so some paths are only in that download.
 
-- Overview of the project: https://jgoetzmann.github.io/rk-overview/
-- Findings built from this data (final snapshot): https://jgoetzmann.github.io/rk-findings/
-- The code that wrote it: [rk-harness](https://github.com/jgoetzmann/rk-harness)
+- Project site: https://jgoetzmann.github.io/numeric-integration-methods-exploration/
+- The code that wrote it: [`../harness/`](../harness)
 
 ## What is in here
 

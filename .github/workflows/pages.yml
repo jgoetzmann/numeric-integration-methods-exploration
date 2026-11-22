@@ -1,6 +1,6 @@
-# Publishes docs/ (the built site, committed) to GitHub Pages on every push to main.
-# The submodules are pointers to the source repositories and are not checked out: the
-# site builds from data/*.json, and docs/ is already built and committed.
+# Checks the site, then publishes docs/ (the built site, committed) to GitHub Pages on every
+# push to main. The check fails if docs/ is not the output of site/build.py, if a link on the
+# page has no target, or if the text falls below the ASD-STE100 target in site/ste_check.py.
 name: pages
 
 on:
@@ -18,15 +18,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - run: pip install pytest
+      - run: python -m pytest -q site
+      - run: python site/ste_check.py docs/index.html
+
   deploy:
+    needs: check
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: false
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

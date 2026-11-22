@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runge-Kutta in Q15</title>
+<meta name="description" content="An autonomous search for Runge-Kutta coefficients that work best in 16-bit fixed point on a small chip, with the final results, a live demo, every claim with its evidence, and the code.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Go to the content</a>
+<header class="top">
+  <nav aria-label="Sections">
+    <a class="brand" href="#">RK in Q15</a>
+    <a href="#problem">Problem</a>
+    <a href="#demo">Demo</a>
+    <a href="#result">Result</a>
+    <a href="#how">How</a>
+    <a href="#claims">Claims</a>
+    <a href="#run">Run it</a>
+    <a href="{{repo}}">GitHub</a>
+  </nav>
+</header>
+
+<main id="main">
+<section class="hero">
+  <p class="eyebrow">Research project · 2025 to 2026 · complete</p>
+  <h1>A search for Runge-Kutta methods that work in 16-bit fixed point</h1>
+  <p class="lede">Small chips often have no floating-point unit. This project built a system that searches for integrator coefficients that give the lowest error on such a chip. A container ran the search, with some stops, from {{e1_start}} to {{end_date}}. Code did every score, and the search could not change that code.</p>
+  <div class="stats">
+    <div class="stat"><b>{{all_records}}</b><span>scored records in two epochs</span></div>
+    <div class="stat"><b>{{lead}}</b><span>lower error than the best classical method, in Q15 <a href="#limits">(with limits)</a></span></div>
+    <div class="stat"><b>{{trace_ok}}/{{trace_all}}</b><span>compiled-step checks that agree with Python, bit for bit</span></div>
+    <div class="stat"><b>{{tests}}</b><span>tests in the harness</span></div>
+  </div>
+  <p class="cta"><a class="btn" href="#demo">Try the Q15 demo</a> <a class="btn ghost" href="#claims">Read the claims</a> <a class="btn ghost" href="{{repo}}">See the code</a></p>
+  <p class="done">The run stopped for good on {{end_date}}, after cycle {{end_cycle}}. No more compute goes to it. The code and the data stay here, and anyone can use them (MIT license).</p>
+</section>
+
+<section id="problem">
+  <h2>The problem</h2>
+  <div class="cols">
+    <div>
+      <p>An Arm Cortex-M0+ chip has no floating-point unit. Code on chips like this often uses Q15 numbers. A Q15 number is a 16-bit integer that holds a fraction from &minus;1 to 1.</p>
+      <p>Each Q15 multiply rounds its result down (floor rounding). These small errors add up over many steps. On this chip, a multiply by &frac12; or &frac14; is a cheap shift, but a multiply by &frac13; costs more cycles.</p>
+      <p>Textbook Runge-Kutta methods use coefficients that are best in exact arithmetic. They do not know about shift costs or floor rounding.</p>
+    </div>
+    <div class="question">
+      <p class="k">The question</p>
+      <p>Each method gets the same budget of {{budget}} cycles. A cheap step gives more steps. Which coefficients give the lowest error in Q15?</p>
+    </div>
+  </div>
+</section>
+
+<section id="demo">
+  <h2>Try it: the Q15 integrator in your browser</h2>
+  <p>This demo runs the same Q15 integrator as the harness, in JavaScript. Select a problem and a rounding mode. Each bar is the final error of one method after {{budget}} cycles.</p>
+  <div class="panel">
+    <div class="controls">
+      <label>Problem <select id="d-prob"></select></label>
+      <div class="seg" role="radiogroup" aria-label="Rounding">
+        <button type="button" role="radio" aria-checked="true" data-mode="floor">Floor rounding</button>
+        <button type="button" role="radio" aria-checked="false" data-mode="nearest">Round to nearest</button>
+      </div>
+    </div>
+    <p class="muted" id="d-desc"></p>
+    <div id="d-chart" class="chart" aria-live="polite"></div>
+    <p class="legend"><span class="sw sw-c"></span> classical <span class="sw sw-d"></span> discovered <span class="sw sw-x"></span> overflow (the value went outside the Q15 range)</p>
+    <div class="check">
+      <button type="button" class="btn small" id="d-check">Check against the Python harness</button>
+      <span id="d-check-out" class="muted">The page runs all {{demo_all}} stored cases again and compares each final state with the Python result.</span>
+    </div>
+    <noscript><p>The demo needs JavaScript. The stored result: {{demo_ok}} of {{demo_all}} cases agree with the Python evaluator.</p></noscript>
+  </div>
+</section>
+
+<section id="result">
+  <h2>The result</h2>
+  <p>In Q15 with floor rounding, the best discovered method, <code>{{champ_hash}}</code>, has <b>{{lead}}</b> lower held-out error than midpoint. Midpoint is the best of the eight classical methods. The champion has {{champ_stages}} stages and order {{champ_order}}. All its coefficients are dyadic fractions, such as 13/16 and 5/32.</p>
+  <p>The archive has {{cells_total}} cells, one for each order, stage count and cost band. A discovered method holds {{cells_disc}} of them. Each of those {{cells_disc}} methods has lower error than all eight classical methods.</p>
+  <div class="panel">
+    <div id="f-chart" class="chart tall"></div>
+    <p class="legend"><span class="sw sw-c"></span> classical method <span class="sw sw-d"></span> discovered cell elite <span class="sw sw-ch"></span> champion. Point at a mark to see its values.</p>
+    <p class="muted small">Held-out error is the RMS error on four test problems that no optimizer used. Every method gets {{budget}} cycles. Cost is in analytic cycles per step. Epoch 1, {{tableaus}} scored tableaus.</p>
+  </div>
+
+  <h3>How much does the lead depend on how you measure it?</h3>
+  <p>The {{lead}} uses one cost basis and one weighting of the four problems. Select others to see the lead change.</p>
+  <div class="panel lead-panel">
+    <div class="controls">
+      <div class="seg" role="radiogroup" aria-label="Cost basis" id="cf-basis">
+        <button type="button" role="radio" aria-checked="true" data-v="analytic">Analytic cost</button>
+        <button type="button" role="radio" aria-checked="false" data-v="traced_whole_step">Traced whole step</button>
+      </div>
+      <div class="seg" role="radiogroup" aria-label="Weighting" id="cf-weight">
+        <button type="button" role="radio" aria-checked="true" data-v="magnitude">Magnitude</button>
+        <button type="button" role="radio" aria-checked="false" data-v="equal_reference_norm">Reference norm</button>
+        <button type="button" role="radio" aria-checked="false" data-v="equal_median_anchor">Median anchor</button>
+      </div>
+    </div>
+    <div class="lead-out">
+      <div><b id="cf-ratio">{{lead}}</b><span>lead of the champion over the best classical method</span></div>
+      <div><b id="cf-loo">yes</b><span>still ahead if you remove any one problem? <span id="cf-low"></span></span></div>
+    </div>
+    <p id="cf-note" class="muted"></p>
+  </div>
+
+  <details id="limits" class="limits" open>
+    <summary>Limits of this result</summary>
+    <ul>
+      <li>It is an epoch-1 result. A later audit found that the epoch-1 cost model put rk4 and rk38 in the wrong order. Epoch 2 used a corrected model, but it did not measure this lead again.</li>
+      <li>The search picked each elite by its held-out error, from {{tableaus}} tableaus. This gives the lead a selection bias (the winner's curse).</li>
+      <li>On traced whole-step cost, the lead is only {{traced_mag}}. If you remove one problem, it falls to {{traced_mag_loo}}.</li>
+      <li>It is a floor-rounding result. With round to nearest, rk38 gets {{rk38_round}} held-out error, less than the {{champ_error_3}} of the champion with floor rounding.</li>
+      <li>The champion has higher error than midpoint on pendulum. Much of the lead comes from rc_thermal, where all classical methods stop near a quantization floor.</li>
+    </ul>
+    <p>Claims <a href="#R1">R1</a>, <a href="#R2">R2</a> and <a href="#R3">R3</a> give all the numbers.</p>
+  </details>
+</section>
+
+<section id="not">
+  <h2>What the result does not show</h2>
+  <div class="cards">
+    <article class="card"><h3>Float64 is much better</h3><p>In float64, rk4 is {{f64_min}} to {{f64_max}} times more accurate than the champion, on {{f64_problems}} validation problems. The search was for Q15 only, by design. <a href="#R5">R5</a></p></article>
+    <article class="card"><h3>New problems: a partial win</h3><p>On {{val_won}} of {{val_total}} new non-stiff problems, a discovered method had the lowest Q15 error. On a stiff problem, all discovered methods overflowed. <a href="#R4">R4</a></p></article>
+    <article class="card"><h3>No test on a real chip</h3><p>The audit ran the compiled step in an emulator that is accurate for instructions, not for cycles. Nobody measured a physical chip. <a href="#R7">R7</a></p></article>
+    <article class="card"><h3>Not a blind test</h3><p>The language model saw the held-out errors, and the search picked elites on them. The new problems are the nearest thing to an independent check. <a href="#U2">U2</a></p></article>
+  </div>
+</section>
+
+<section id="how">
+  <h2>How it works</h2>
+  <p>Each search cycle has six steps. Select a step to see what it does.</p>
+  <div class="panel">
+    <ol class="pipe" id="pipe">
+      <li><button type="button" aria-pressed="true" data-step="0"><span>1</span>Direct</button></li>
+      <li><button type="button" aria-pressed="false" data-step="1"><span>2</span>Search</button></li>
+      <li><button type="button" aria-pressed="false" data-step="2"><span>3</span>Verify</button></li>
+      <li><button type="button" aria-pressed="false" data-step="3"><span>4</span>Score</button></li>
+      <li><button type="button" aria-pressed="false" data-step="4"><span>5</span>Archive</button></li>
+      <li><button type="button" aria-pressed="false" data-step="5"><span>6</span>Publish</button></li>
+    </ol>
+    <div class="steps">
+      <div class="step" data-step="0"><h3>Direct</h3><p>A language model writes a JSON directive for the cycle. The directive can only make the search narrower. If it has an unknown key, the runner uses a fixed fallback. The model is optional. Without it, a fixed rule gives the direction.</p></div>
+      <div class="step" data-step="1" hidden><h3>Search</h3><p>Early phases try every dyadic coefficient on a grid. A dyadic coefficient, like &frac12; or &frac38;, has a power-of-two denominator, so a shift does the division. Later phases use CMA-ES over the stage matrix, with an exact projection onto the order conditions.</p></div>
+      <div class="step" data-step="2" hidden><h3>Verify</h3><p>The pinned verifier checks the order conditions of each candidate in exact rational arithmetic. A candidate that fails does not get a score.</p></div>
+      <div class="step" data-step="3" hidden><h3>Score</h3><p>The evaluator runs each candidate in Q15 on the search problems, at the same budget of {{budget}} cycles. It finds the held-out error on four other problems. No optimizer reads those four problems.</p></div>
+      <div class="step" data-step="4" hidden><h3>Archive</h3><p>Each result goes into an append-only archive with the hash of the code that scored it. A MAP-Elites grid keeps the best method in each cell of order, stage count and cost band.</p></div>
+      <div class="step" data-step="5" hidden><h3>Publish</h3><p>At the end of the cycle, the container rebuilt the findings site and made commits. A watchdog on the host pushed them. No GitHub credential went into the container.</p></div>
+    </div>
+  </div>
+  <h3>Why you can trust the scores</h3>
+  <ul class="checks">
+    <li>The container mounts the harness read-only, so the search cannot change its scorer.</li>
+    <li>A sha256 hash covers the {{pinned}} files that decide a score. The runner checks it at each start, and each record keeps it.</li>
+    <li>{{golden}} golden and canary cases must pass before a cycle can start. The harness has {{tests}} tests ({{tests_on}}).</li>
+    <li>The step compiled with GCC for the Cortex-M0+ agrees with Python in {{trace_ok}} of {{trace_all}} cases. The demo above agrees in {{demo_ok}} of {{demo_all}}.</li>
+  </ul>
+</section>
+
+<section id="timeline">
+  <h2>Timeline</h2>
+  <ol class="tl">
+    <li><time>{{e1_start}}</time><p>Epoch 1 starts. The best method appears at cycle {{champ_cycle}}.</p></li>
+    <li><time>{{e1_stop}}</time><p>Epoch 1 stops after {{e1_cycles}} cycles and {{e1_records}} scored records.</p></li>
+    <li><time>{{e1_frozen}}</time><p>The run freezes epoch 1. An audit of the compiled step found an error in the cost model, and the run does not score epoch 1 again.</p></li>
+    <li><time>{{e2_start}}</time><p>Epoch 2 starts with a corrected cost model and three method classes: explicit, adaptive and implicit.</p></li>
+    <li><time>{{end_date}}</time><p>The run stops for good after cycle {{end_cycle}}. Epoch 2 wrote {{e2_records}} records. The headline results stay from epoch 1.</p></li>
+  </ol>
+</section>
+
+<section id="ml-2025">
+  <h2>The 2025 project: an earlier attempt with machine learning</h2>
+  <p>In 2025, an earlier project tried to make new Runge-Kutta tables with a neural generator, a surrogate model and an evolutionary search. It scored them in float64 on {{novel_odes}} generated ODEs. In September 2026, an audit checked its code and its claims.</p>
+  <div class="cards">
+    <article class="card"><h3>What worked</h3><p>The evaluation harness works from start to end for explicit tables: a Butcher-table stepper, an ODE generator and a SciPy reference solver. <a href="#N9">N9</a></p></article>
+    <article class="card"><h3>What did not</h3><p>The search started from RK4 and Dormand-Prince, and a score capped at 1 kept them. For this reason, it did not find them again. Nobody trained the generator. <a href="#N2">N2</a> <a href="#N4">N4</a></p></article>
+    <article class="card"><h3>What changed</h3><p>The rk run fixed these faults: an exact verifier, a scorer that the search cannot change, out-of-sample tests and published limits for each claim.</p></article>
+  </div>
+</section>
+
+<section id="claims">
+  <h2>Every claim, with its evidence</h2>
+  <p>{{claims_about}} Of {{n_claims}} claims, {{n_true}} are true, {{n_limits}} are true with limits, {{n_false}} are not true, and {{n_bug}} measure a bug. Select a claim to see its limits and the files that show it.</p>
+  <div class="filters" id="cl-filter">
+    <div class="seg" role="radiogroup" aria-label="Project">
+      <button type="button" role="radio" aria-checked="true" data-f="all">All</button>
+      <button type="button" role="radio" aria-checked="false" data-f="rk">The rk run</button>
+      <button type="button" role="radio" aria-checked="false" data-f="novel">2025 project</button>
+      <button type="button" role="radio" aria-checked="false" data-f="both">Both</button>
+    </div>
+    <label class="hl"><input type="checkbox" id="cl-head"> Headline claims only</label>
+    <button type="button" class="btn small ghost" id="cl-open">Open all</button>
+  </div>
+  <div class="claims">
+{{claims}}
+  </div>
+  <details class="key"><summary>What the verdicts mean</summary><ul>{{verdict_key}}</ul></details>
+</section>
+
+<section id="run">
+  <h2>Run it yourself</h2>
+  <p>The harness needs Python 3.12 or newer. The tests and one search cycle need no credentials and no API key.</p>
+  <ol class="proc">
+    <li>Clone this repository and go to the <code>harness</code> folder.</li>
+    <li>Make a virtual environment and install the pinned packages from <code>pyproject.toml</code>.</li>
+    <li>Check the verifier hash, then run the tests.</li>
+    <li>Run one search cycle into two empty folders.</li>
+  </ol>
+  <div class="code">
+    <button type="button" class="copy" data-copy="run-code">Copy</button>
+<pre id="run-code"><code>git clone {{repo}}.git
+cd numeric-integration-methods-exploration/harness
+python -m venv .venv &amp;&amp; . .venv/bin/activate
+python -c "import tomllib; p=tomllib.load(open('pyproject.toml','rb'))['project']; print('\n'.join(p['dependencies']+p['optional-dependencies']['test']))" &gt; req.txt
+pip install -r req.txt
+python -m rk_harness.verifier_hash --check
+python -m pytest -q tests
+RK_WORK_DIR=/tmp/rk-work RK_FINDINGS_DIR=/tmp/rk-findings python -m rk_harness.runner --once</code></pre>
+  </div>
+  <p>To use the harness for a different search, read <a href="{{blob}}harness/README.md#using-it-for-another-search">"Using it for another search"</a> in the harness README. The container and the unattended run need Docker and a Windows host.</p>
+</section>
+
+<section id="repo">
+  <h2>What is in this repository</h2>
+  <table class="map">
+    <tr><td><a href="{{tree}}harness"><code>harness/</code></a></td><td>The search: runner, pinned verifier, Q15 evaluator, cost model, container and {{tests}} tests.</td></tr>
+    <tr><td><a href="{{tree}}run-data"><code>run-data/</code></a></td><td>The final run data: validation, trace, benchmark, hypotheses and lane results.</td></tr>
+    <tr><td><a href="{{tree}}analysis"><code>analysis/</code></a></td><td>The scripts that compute the key findings from the run data.</td></tr>
+    <tr><td><a href="{{tree}}ml-2025"><code>ml-2025/</code></a></td><td>The 2025 machine-learning project, with its own MIT license.</td></tr>
+    <tr><td><a href="{{tree}}site"><code>site/</code></a> <a href="{{tree}}data"><code>data/</code></a></td><td>The source of this page and the snapshot of numbers that it shows.</td></tr>
+    <tr><td><a href="{{release}}">final-archive</a></td><td>A release with the raw run logs (1.3 GB) and the full git history of the five old repositories.</td></tr>
+  </table>
+</section>
+</main>
+
+<footer>
+  <p>Text in ASD-STE100 Simplified Technical English. Code under the MIT license. <a href="{{repo}}">github.com/jgoetzmann/numeric-integration-methods-exploration</a></p>
+</footer>
+<script type="application/json" id="page-data">{{data_json}}</script>
+<script src="q15.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
