@@ -1,0 +1,5 @@
+# Novel Numerical Integration Methods
+
+This project built an ML framework to search for new Runge–Kutta schemes by generating Butcher tables with neural nets, evolutionary search, and gradient descent. It supports 4–7 stage methods with automated constraint handling and optimizes across accuracy, efficiency, and stability. Large-scale training on 10k ODEs confirmed the framework could replicate classical integrators and assess novel ones, with full instrumentation for runtime monitoring and analysis.
+
+Empirical benchmarks show gradient descent consistently collapsed into local minima, producing near-identical low-accuracy schemes. Evolutionary search, by contrast, independently rediscovered RK4 and Dormand–Prince with exact performance match, validating them as true mathematical optima. Attempts to force novelty generated structurally distinct methods but at catastrophic accuracy loss (orders of magnitude worse than baselines). The main conclusion: ML exploration confirms classical RK methods’ optimality, exposes gradient descent’s limitations, and underscores the difficulty of surpassing established solvers without severe trade-offs.

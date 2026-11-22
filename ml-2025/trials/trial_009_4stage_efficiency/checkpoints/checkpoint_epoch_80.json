@@ -1,0 +1,161 @@
+{
+  "epoch": 80,
+  "best_score": 1.0,
+  "best_table": {
+    "A": [
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        -0.250919762305275,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.9014286128198323,
+        0.4639878836228102,
+        0.0,
+        0.0
+      ],
+      [
+        0.1973169683940732,
+        -0.687962719115127,
+        -0.6880109593275947,
+        0.0
+      ]
+    ],
+    "b": [
+      0.014175094141077942,
+      0.4764367233203546,
+      0.21771965489880052,
+      0.29166852763976686
+    ],
+    "c": [
+      -1.9176620228167902,
+      1.8796394086479773,
+      1.329770563201687,
+      -1.1506435572868954
+    ],
+    "is_explicit": true,
+    "consistency_order": 1,
+    "stability_radius": 2.0
+  },
+  "training_history": [
+    {
+      "epoch": 8,
+      "n_valid_candidates": 15,
+      "best_score": 1.0,
+      "mean_score": 1.0,
+      "best_accuracy": 0.0,
+      "best_efficiency": 1.0,
+      "best_stability": 2.6152788765433796,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 23,
+      "n_valid_candidates": 15,
+      "best_score": 1.0,
+      "mean_score": 1.0,
+      "best_accuracy": 0.0,
+      "best_efficiency": 1.0,
+      "best_stability": 2.3783862092532746,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 25,
+      "n_valid_candidates": 15,
+      "best_score": 1.0,
+      "mean_score": 1.0,
+      "best_accuracy": 0.0,
+      "best_efficiency": 1.0,
+      "best_stability": 2.49300235749299,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 27,
+      "n_valid_candidates": 15,
+      "best_score": 1.0,
+      "mean_score": 1.0,
+      "best_accuracy": 0.0,
+      "best_efficiency": 1.0,
+      "best_stability": 2.3785012174363795,
+      "surrogate_loss": 122.09143829345703
+    },
+    {
+      "epoch": 40,
+      "n_valid_candidates": 15,
+      "best_score": 1.0,
+      "mean_score": 1.0,
+      "best_accuracy": 0.0,
+      "best_efficiency": 1.0,
+      "best_stability": 2.3700253976194183,
+      "surrogate_loss": 122.09143829345703
+    },
+    {
+      "epoch": 48,
+      "n_valid_candidates": 15,
+      "best_score": 1.0,
+      "mean_score": 1.0,
+      "best_accuracy": 0.0,
+      "best_efficiency": 1.0,
+      "best_stability": 2.4094688341290964,
+      "surrogate_loss": 83.09939575195312
+    },
+    {
+      "epoch": 59,
+      "n_valid_candidates": 15,
+      "best_score": 1.0,
+      "mean_score": 1.0,
+      "best_accuracy": 0.0,
+      "best_efficiency": 1.0,
+      "best_stability": 2.424920489476043,
+      "surrogate_loss": 83.09939575195312
+    },
+    {
+      "epoch": 64,
+      "n_valid_candidates": 15,
+      "best_score": 1.0,
+      "mean_score": 1.0,
+      "best_accuracy": 0.0,
+      "best_efficiency": 1.0,
+      "best_stability": 2.471063483066059,
+      "surrogate_loss": 83.09939575195312
+    }
+  ],
+  "config": {
+    "N_ODES": 1000,
+    "BATCH_SIZE": 100,
+    "N_STIFF_ODES": 300,
+    "N_NONSTIFF_ODES": 700,
+    "MIN_STAGES": 4,
+    "MAX_STAGES": 4,
+    "DEFAULT_STAGES": 4,
+    "T_START": 0.0,
+    "T_END": 0.5,
+    "REFERENCE_TOL": 1e-06,
+    "TEST_TOL": 0.001,
+    "GENERATOR_HIDDEN_SIZE": 256,
+    "SURROGATE_HIDDEN_SIZE": 128,
+    "LEARNING_RATE": 0.001,
+    "BATCH_SIZE_ML": 32,
+    "N_EPOCHS": 100,
+    "N_CANDIDATES_PER_BATCH": 15,
+    "EVALUATION_FREQUENCY": 20,
+    "DATA_DIR": "data",
+    "RESULTS_DIR": "trials/trial_4stage_efficiency",
+    "TRIALS_DIR": "trials/trial_4stage_efficiency",
+    "LOGS_DIR": "logs",
+    "CHECKPOINTS_DIR": "trials/trial_4stage_efficiency/checkpoints",
+    "DB_PATH": "results/integrator_results.db",
+    "ACCURACY_WEIGHT": 0.2,
+    "EFFICIENCY_WEIGHT": 0.8,
+    "STABILITY_WEIGHT": 0.0,
+    "USE_VARIED_STEPS": true,
+    "C_MATRIX_CONSTRAINED": true,
+    "COMPLEXITY_LEVEL": 2
+  }
+}

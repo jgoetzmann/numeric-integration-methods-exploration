@@ -1,0 +1,132 @@
+{
+  "butcher_table": {
+    "A": [
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        -0.250919762305275,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.9014286128198323,
+        0.4639878836228102,
+        0.0,
+        0.0
+      ],
+      [
+        0.1973169683940732,
+        -0.687962719115127,
+        -0.6880109593275947,
+        0.0
+      ]
+    ],
+    "b": [
+      0.014175094141077942,
+      0.4764367233203546,
+      0.21771965489880052,
+      0.29166852763976686
+    ],
+    "c": [
+      0.0,
+      -0.250919762305275,
+      1.3654164964426425,
+      -1.1786567100486485
+    ],
+    "is_explicit": true,
+    "consistency_order": 1,
+    "stability_radius": 2.0
+  },
+  "metrics": {
+    "max_error": 6.203455853545542e+73,
+    "l2_error": 1.6541543814388252e+73,
+    "mean_error": -0.8958678193450486,
+    "error_percentile_95": 33.90324928265164,
+    "runtime": 1.4164555072784424,
+    "n_steps": "5760",
+    "steps_per_second": 4066.488478037113,
+    "efficiency_score": 1.0,
+    "stability_score": 0.6129631372856602,
+    "convergence_rate": 0.0,
+    "composite_score": 0.9926516874056428,
+    "success_rate": 0.96,
+    "n_successful": 480,
+    "n_total": 500
+  },
+  "comparisons": {
+    "rk4": {
+      "accuracy_ratio": 1.0,
+      "efficiency_ratio": 0.9564951957105189,
+      "stability_ratio": 0.7033691872484513,
+      "score_ratio": 0.9926516874056428,
+      "better_accuracy": "False",
+      "better_efficiency": "True",
+      "better_stability": "False",
+      "better_overall": "False"
+    },
+    "rk45_dormand_prince": {
+      "accuracy_ratio": 1.0,
+      "efficiency_ratio": 2.8583900643741966,
+      "stability_ratio": 0.617911603785738,
+      "score_ratio": 0.9926516874056428,
+      "better_accuracy": "False",
+      "better_efficiency": "False",
+      "better_stability": "False",
+      "better_overall": "False"
+    },
+    "gauss_legendre_2": {
+      "accuracy_ratio": 1.0,
+      "efficiency_ratio": 0.38253236593898887,
+      "stability_ratio": 0.9191558797826046,
+      "score_ratio": 0.9926516874056428,
+      "better_accuracy": "False",
+      "better_efficiency": "True",
+      "better_stability": "False",
+      "better_overall": "False"
+    },
+    "gauss_legendre_3": {
+      "accuracy_ratio": 1.0,
+      "efficiency_ratio": 0.6769997534103849,
+      "stability_ratio": 0.8914181268241675,
+      "score_ratio": 0.9926516874056428,
+      "better_accuracy": "False",
+      "better_efficiency": "True",
+      "better_stability": "False",
+      "better_overall": "False"
+    }
+  },
+  "training_epoch": 350,
+  "config": {
+    "N_ODES": 1200,
+    "BATCH_SIZE": 20,
+    "N_STIFF_ODES": 800,
+    "N_NONSTIFF_ODES": 400,
+    "MIN_STAGES": 3,
+    "MAX_STAGES": 6,
+    "DEFAULT_STAGES": 4,
+    "T_START": 0.0,
+    "T_END": 0.15,
+    "REFERENCE_TOL": 1e-10,
+    "TEST_TOL": 1e-05,
+    "GENERATOR_HIDDEN_SIZE": 384,
+    "SURROGATE_HIDDEN_SIZE": 192,
+    "LEARNING_RATE": 0.0008,
+    "BATCH_SIZE_ML": 48,
+    "N_EPOCHS": 350,
+    "N_CANDIDATES_PER_BATCH": 12,
+    "EVALUATION_FREQUENCY": 25,
+    "DATA_DIR": "data",
+    "RESULTS_DIR": "experiments/run_4_stability_focused",
+    "CHECKPOINTS_DIR": "experiments/run_4_stability_focused/checkpoints",
+    "LOGS_DIR": "experiments/run_4_stability_focused/logs",
+    "DB_PATH": "experiments/run_4_stability_focused/integrator_results.db",
+    "ACCURACY_WEIGHT": 0.3,
+    "EFFICIENCY_WEIGHT": 0.2,
+    "STABILITY_WEIGHT": 0.5
+  }
+}

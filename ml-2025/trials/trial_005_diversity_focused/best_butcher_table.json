@@ -1,0 +1,165 @@
+{
+  "butcher_table": {
+    "A": [
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        -0.250919762305275,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.9014286128198323,
+        0.4639878836228102,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.1973169683940732,
+        -0.687962719115127,
+        -0.6880109593275947,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        -0.8838327756636011,
+        0.7323522915498704,
+        0.2022300234864176,
+        0.416145155592091,
+        0.0,
+        0.0
+      ],
+      [
+        -0.9588310114083951,
+        0.9398197043239886,
+        0.6648852816008435,
+        -0.5753217786434477,
+        -0.6363500655857988,
+        0.0
+      ]
+    ],
+    "b": [
+      0.06400767422755628,
+      0.11459878330433741,
+      0.23501680991587812,
+      0.17866076763131275,
+      0.10874467421942134,
+      0.2989712907014941
+    ],
+    "c": [
+      0.0,
+      -0.250919762305275,
+      1.3654164964426425,
+      -1.1786567100486485,
+      0.46689469496477787,
+      -0.5657978697128094
+    ],
+    "is_explicit": true,
+    "consistency_order": 1,
+    "stability_radius": 2.0
+  },
+  "metrics": {
+    "max_error": 3.12623306272944e+121,
+    "l2_error": 9.35228488400394e+120,
+    "mean_error": -2.692460792439672,
+    "error_percentile_95": 17.02588690958296,
+    "runtime": 2.230980157852173,
+    "n_steps": "5868",
+    "steps_per_second": 2630.2340607319825,
+    "efficiency_score": 1.0,
+    "stability_score": 0.5919989767495637,
+    "convergence_rate": 0.0,
+    "composite_score": 0.3072684187933995,
+    "success_rate": 0.978,
+    "n_successful": 489,
+    "n_total": 500
+  },
+  "comparisons": {
+    "rk4": {
+      "accuracy_ratio": 1.0,
+      "efficiency_ratio": 0.47933322140776363,
+      "stability_ratio": 0.6695292314309101,
+      "score_ratio": 1.1340123934249247,
+      "better_accuracy": "False",
+      "better_efficiency": "True",
+      "better_stability": "False",
+      "better_overall": "True"
+    },
+    "rk45_dormand_prince": {
+      "accuracy_ratio": 1.0,
+      "efficiency_ratio": 1.2743061674444283,
+      "stability_ratio": 0.5826923224465494,
+      "score_ratio": 0.5659570944684462,
+      "better_accuracy": "False",
+      "better_efficiency": "False",
+      "better_stability": "False",
+      "better_overall": "False"
+    },
+    "gauss_legendre_2": {
+      "accuracy_ratio": 1.0,
+      "efficiency_ratio": 0.1858179972682609,
+      "stability_ratio": 0.8689266850347745,
+      "score_ratio": 0.566071806012015,
+      "better_accuracy": "False",
+      "better_efficiency": "True",
+      "better_stability": "False",
+      "better_overall": "False"
+    },
+    "gauss_legendre_3": {
+      "accuracy_ratio": 1.0,
+      "efficiency_ratio": 0.3255800831191626,
+      "stability_ratio": 0.8319555126165591,
+      "score_ratio": 0.5479813520812634,
+      "better_accuracy": "False",
+      "better_efficiency": "True",
+      "better_stability": "False",
+      "better_overall": "False"
+    }
+  },
+  "training_epoch": 100,
+  "config": {
+    "N_ODES": 800,
+    "BATCH_SIZE": 20,
+    "N_STIFF_ODES": 300,
+    "N_NONSTIFF_ODES": 500,
+    "MIN_STAGES": 6,
+    "MAX_STAGES": 6,
+    "DEFAULT_STAGES": 6,
+    "T_START": 0.0,
+    "T_END": 0.05,
+    "REFERENCE_TOL": 1e-06,
+    "TEST_TOL": 0.001,
+    "GENERATOR_HIDDEN_SIZE": 256,
+    "SURROGATE_HIDDEN_SIZE": 128,
+    "LEARNING_RATE": 0.001,
+    "BATCH_SIZE_ML": 32,
+    "N_EPOCHS": 100,
+    "N_CANDIDATES_PER_BATCH": 10,
+    "EVALUATION_FREQUENCY": 10,
+    "DATA_DIR": "data",
+    "RESULTS_DIR": "experiments/run_6_diversity_focused",
+    "CHECKPOINTS_DIR": "experiments/run_6_diversity_focused/checkpoints",
+    "LOGS_DIR": "experiments/run_6_diversity_focused/logs",
+    "DB_PATH": "experiments/run_6_diversity_focused/integrator_results.db",
+    "ACCURACY_WEIGHT": 0.1,
+    "EFFICIENCY_WEIGHT": 0.1,
+    "STABILITY_WEIGHT": 0.8,
+    "DIVERSITY_PENALTY": 0.5,
+    "MIN_STABILITY_RADIUS": 3.0,
+    "MAX_STABILITY_RADIUS": 8.0,
+    "FORBIDDEN_STAGES": 4,
+    "STAGE_DIVERSITY_BONUS": 0.2
+  }
+}

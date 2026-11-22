@@ -1,0 +1,91 @@
+{
+  "epoch": 20,
+  "best_score": 1.0,
+  "best_table": {
+    "A": [
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        -0.250919762305275,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.9014286128198323,
+        0.4639878836228102,
+        0.0,
+        0.0
+      ],
+      [
+        0.1973169683940732,
+        -0.687962719115127,
+        -0.6880109593275947,
+        0.0
+      ]
+    ],
+    "b": [
+      0.014175094141077942,
+      0.4764367233203546,
+      0.21771965489880052,
+      0.29166852763976686
+    ],
+    "c": [
+      -1.9176620228167902,
+      1.8796394086479773,
+      1.329770563201687,
+      -1.1506435572868954
+    ],
+    "is_explicit": true,
+    "consistency_order": 1,
+    "stability_radius": 2.0
+  },
+  "training_history": [
+    {
+      "epoch": 10,
+      "n_valid_candidates": 15,
+      "best_score": 1.0,
+      "mean_score": 1.0,
+      "best_accuracy": 0.0,
+      "best_efficiency": 1.0,
+      "best_stability": 2.137628337798412,
+      "surrogate_loss": 0.0
+    }
+  ],
+  "config": {
+    "N_ODES": 1000,
+    "BATCH_SIZE": 100,
+    "N_STIFF_ODES": 300,
+    "N_NONSTIFF_ODES": 700,
+    "MIN_STAGES": 4,
+    "MAX_STAGES": 4,
+    "DEFAULT_STAGES": 4,
+    "T_START": 0.0,
+    "T_END": 1.0,
+    "REFERENCE_TOL": 1e-10,
+    "TEST_TOL": 1e-06,
+    "GENERATOR_HIDDEN_SIZE": 256,
+    "SURROGATE_HIDDEN_SIZE": 128,
+    "LEARNING_RATE": 0.001,
+    "BATCH_SIZE_ML": 32,
+    "N_EPOCHS": 100,
+    "N_CANDIDATES_PER_BATCH": 15,
+    "EVALUATION_FREQUENCY": 20,
+    "DATA_DIR": "data",
+    "RESULTS_DIR": "trials/trial_4stage_accuracy",
+    "TRIALS_DIR": "trials/trial_4stage_accuracy",
+    "LOGS_DIR": "logs",
+    "CHECKPOINTS_DIR": "trials/trial_4stage_accuracy/checkpoints",
+    "DB_PATH": "results/integrator_results.db",
+    "ACCURACY_WEIGHT": 0.9,
+    "EFFICIENCY_WEIGHT": 0.1,
+    "STABILITY_WEIGHT": 0.0,
+    "USE_VARIED_STEPS": true,
+    "C_MATRIX_CONSTRAINED": true,
+    "COMPLEXITY_LEVEL": 2
+  }
+}

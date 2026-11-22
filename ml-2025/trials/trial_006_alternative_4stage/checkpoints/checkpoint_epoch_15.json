@@ -1,0 +1,241 @@
+{
+  "epoch": 15,
+  "best_score": 1.0,
+  "best_table": {
+    "A": [
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        -0.250919762305275,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.9014286128198323,
+        0.4639878836228102,
+        0.0,
+        0.0
+      ],
+      [
+        0.1973169683940732,
+        -0.687962719115127,
+        -0.6880109593275947,
+        0.0
+      ]
+    ],
+    "b": [
+      0.014175094141077942,
+      0.4764367233203546,
+      0.21771965489880052,
+      0.29166852763976686
+    ],
+    "c": [
+      0.0,
+      -0.250919762305275,
+      1.3654164964426425,
+      -1.1786567100486485
+    ],
+    "is_explicit": true,
+    "consistency_order": 1,
+    "stability_radius": 2.0
+  },
+  "training_history": [
+    {
+      "epoch": 1,
+      "n_valid_candidates": 8,
+      "best_score": 1.0,
+      "mean_score": 1.0,
+      "best_accuracy": 0.0,
+      "best_efficiency": 1.0,
+      "best_stability": 1.8883936199976046,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 2,
+      "n_valid_candidates": 8,
+      "best_score": 1.0,
+      "mean_score": 1.0,
+      "best_accuracy": 0.0,
+      "best_efficiency": 1.0,
+      "best_stability": 2.266932099783854,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 3,
+      "n_valid_candidates": 8,
+      "best_score": 0.2230596954794859,
+      "mean_score": 0.21127367493720295,
+      "best_accuracy": 0.013123040697983514,
+      "best_efficiency": 1.0,
+      "best_stability": 0.0,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 4,
+      "n_valid_candidates": 8,
+      "best_score": 0.48546074571074643,
+      "mean_score": 0.47743950354906284,
+      "best_accuracy": 0.02934650351333264,
+      "best_efficiency": 1.0,
+      "best_stability": 0.0,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 5,
+      "n_valid_candidates": 8,
+      "best_score": 0.4092710682669324,
+      "mean_score": 0.3955223589609399,
+      "best_accuracy": 0.014848391839857977,
+      "best_efficiency": 1.0,
+      "best_stability": 0.0,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 6,
+      "n_valid_candidates": 8,
+      "best_score": 0.9230544296330115,
+      "mean_score": 0.9131207268672188,
+      "best_accuracy": 0.03024047273310347,
+      "best_efficiency": 1.0,
+      "best_stability": 1.266518078060063,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 7,
+      "n_valid_candidates": 8,
+      "best_score": 0.8224346801771001,
+      "mean_score": 0.8093140128908739,
+      "best_accuracy": 0.08082785663115898,
+      "best_efficiency": 1.0,
+      "best_stability": 0.8216702359465002,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 8,
+      "n_valid_candidates": 8,
+      "best_score": 0.8006359499637886,
+      "mean_score": 0.7919166178473505,
+      "best_accuracy": 0.025104072411250504,
+      "best_efficiency": 1.0,
+      "best_stability": 0.8251200226068569,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 9,
+      "n_valid_candidates": 8,
+      "best_score": 0.46987370218885954,
+      "mean_score": 0.45746921158214826,
+      "best_accuracy": 0.04916829839332716,
+      "best_efficiency": 1.0,
+      "best_stability": 0.0,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 10,
+      "n_valid_candidates": 8,
+      "best_score": 0.9054560579512022,
+      "mean_score": 0.8944415583519139,
+      "best_accuracy": 0.03705120406311999,
+      "best_efficiency": 1.0,
+      "best_stability": 0.7316278389223525,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 11,
+      "n_valid_candidates": 8,
+      "best_score": 1.0,
+      "mean_score": 1.0,
+      "best_accuracy": 0.0,
+      "best_efficiency": 1.0,
+      "best_stability": 2.3559080882809353,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 12,
+      "n_valid_candidates": 8,
+      "best_score": 0.2056548338730959,
+      "mean_score": 0.19449866281546835,
+      "best_accuracy": 0.010417621654392256,
+      "best_efficiency": 1.0,
+      "best_stability": 0.0,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 13,
+      "n_valid_candidates": 8,
+      "best_score": 0.8052686995584921,
+      "mean_score": 0.7928908533877936,
+      "best_accuracy": 0.028609636335250748,
+      "best_efficiency": 1.0,
+      "best_stability": 0.7927582729900337,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 14,
+      "n_valid_candidates": 8,
+      "best_score": 0.4215506178483461,
+      "mean_score": 0.41177194680373497,
+      "best_accuracy": 0.010420874483725731,
+      "best_efficiency": 1.0,
+      "best_stability": 0.0,
+      "surrogate_loss": 0.0
+    },
+    {
+      "epoch": 15,
+      "n_valid_candidates": 8,
+      "best_score": 1.0,
+      "mean_score": 1.0,
+      "best_accuracy": 0.09271781976955723,
+      "best_efficiency": 1.0,
+      "best_stability": 1.779058676361577,
+      "surrogate_loss": 0.0
+    }
+  ],
+  "config": {
+    "N_ODES": 600,
+    "BATCH_SIZE": 15,
+    "N_STIFF_ODES": 200,
+    "N_NONSTIFF_ODES": 400,
+    "MIN_STAGES": 4,
+    "MAX_STAGES": 4,
+    "DEFAULT_STAGES": 4,
+    "T_START": 0.0,
+    "T_END": 0.1,
+    "REFERENCE_TOL": 1e-08,
+    "TEST_TOL": 0.0001,
+    "GENERATOR_HIDDEN_SIZE": 384,
+    "SURROGATE_HIDDEN_SIZE": 192,
+    "LEARNING_RATE": 0.0008,
+    "BATCH_SIZE_ML": 48,
+    "N_EPOCHS": 150,
+    "N_CANDIDATES_PER_BATCH": 8,
+    "EVALUATION_FREQUENCY": 15,
+    "DATA_DIR": "data",
+    "RESULTS_DIR": "experiments/run_7_alternative_4stage",
+    "CHECKPOINTS_DIR": "experiments/run_7_alternative_4stage/checkpoints",
+    "LOGS_DIR": "experiments/run_7_alternative_4stage/logs",
+    "DB_PATH": "experiments/run_7_alternative_4stage/integrator_results.db",
+    "ACCURACY_WEIGHT": 0.4,
+    "EFFICIENCY_WEIGHT": 0.35,
+    "STABILITY_WEIGHT": 0.25,
+    "DIVERSITY_PENALTY": 0.3,
+    "FORBIDDEN_COEFFICIENTS": [
+      -0.250919762305275,
+      0.9014286128198323,
+      0.4639878836228102,
+      0.1973169683940732,
+      -0.687962719115127,
+      -0.6880109593275947,
+      1.3654164964426425,
+      -1.1786567100486485
+    ],
+    "COEFFICIENT_DIVERSITY_BONUS": 0.15,
+    "MIN_STABILITY_RADIUS": 1.0,
+    "MAX_STABILITY_RADIUS": 4.0
+  }
+}
