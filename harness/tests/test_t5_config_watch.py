@@ -809,6 +809,7 @@ def test_C48_under_wsl_the_watchdog_is_found_through_windows_powershell(monkeypa
     watch._cache.pop("watchdog", None)
 
 
+@pytest.mark.skipif(not CONFIGURE.exists(), reason="workspace configure.py not present")
 def test_C49_reasoning_effort_reaches_codex_only_where_it_should(tmp_path, monkeypatch):
     """run.llm_reasoning_effort flows config -> start.ps1 -> run.ps1 -> RK_LLM_EFFORT ->
     `codex exec -c model_reasoning_effort=...`. An unknown value is dropped, not passed on,
