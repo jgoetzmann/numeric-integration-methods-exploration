@@ -183,6 +183,8 @@ def check_gate_expression(harness: Path = HARNESS) -> tuple[bool, str]:
     """
     ep = (harness / "entrypoint.sh").read_text(encoding="utf-8", errors="replace")
     ci_path = harness / ".github" / "workflows" / "ci.yml"
+    if not ci_path.exists():  # since 2026-11-21 the harness lives in a subfolder of the merged repo
+        ci_path = harness.parent / ".github" / "workflows" / "harness-ci.yml"
     ci = ci_path.read_text(encoding="utf-8", errors="replace")
     ep_exprs = gate_expressions(ep)
     ci_exprs = gate_expressions(ci)

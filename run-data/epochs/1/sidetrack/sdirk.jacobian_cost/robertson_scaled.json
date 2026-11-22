@@ -1,0 +1,174 @@
+{
+  "arithmetic": "float64 only; no Q15 effects are included",
+  "closes": "EPOCH3-DESIGN: the optional analytic Jacobian field is unpriced because every side-track SDIRK number is costed with the finite difference",
+  "cycles": {
+    "analytic": {
+      "f_evals_per_step": 6,
+      "model": "m0plus_fast",
+      "n_states": 3,
+      "newton_iters": 3,
+      "terms": {
+        "combine_b": 30,
+        "fd_jacobian_arith": 0,
+        "form_m": 57,
+        "lu_factor": 148,
+        "newton_iterations": 342,
+        "stage_base": 21
+      },
+      "total": 598
+    },
+    "difference": 54,
+    "f_evals_per_step_analytic": 6,
+    "f_evals_per_step_finite_difference": 9,
+    "finite_difference": {
+      "f_evals_per_step": 9,
+      "model": "m0plus_fast",
+      "n_states": 3,
+      "newton_iters": 3,
+      "terms": {
+        "combine_b": 30,
+        "fd_jacobian_arith": 54,
+        "form_m": 57,
+        "lu_factor": 148,
+        "newton_iterations": 342,
+        "stage_base": 21
+      },
+      "total": 652
+    }
+  },
+  "job": "sdirk.jacobian_cost",
+  "key": "robertson_scaled",
+  "ladder": [
+    {
+      "analytic": null,
+      "analytic_status": "diverged",
+      "finite_difference": null,
+      "finite_difference_status": "diverged",
+      "n": 32
+    },
+    {
+      "analytic": null,
+      "analytic_status": "diverged",
+      "finite_difference": null,
+      "finite_difference_status": "diverged",
+      "n": 64
+    },
+    {
+      "analytic": null,
+      "analytic_status": "diverged",
+      "finite_difference": null,
+      "finite_difference_status": "diverged",
+      "n": 128
+    }
+  ],
+  "n_states": 3,
+  "note": "the analytic Jacobian evaluation is excluded from the cycle count by the same convention costmodel.cycle_count uses for rhs evaluations, since both are application-supplied code. The reported saving is therefore the finite-difference assembly arithmetic plus the n extra rhs evaluations per step that assembly needs.",
+  "params": {
+    "problem": "robertson_scaled"
+  },
+  "problem": "robertson_scaled",
+  "sample_steps": 1024,
+  "samples": [
+    {
+      "analytic": [
+        [
+          -0.04,
+          0.0,
+          0.0
+        ],
+        [
+          0.4,
+          -0.0,
+          -0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "at": "t0",
+      "finite_difference": [
+        [
+          -0.0400000000372529,
+          0.0,
+          0.0
+        ],
+        [
+          0.3999999985098839,
+          -3.725290298461914e-07,
+          0.0
+        ],
+        [
+          0.0,
+          3.725290298461914e-08,
+          0.0
+        ]
+      ],
+      "max_abs_diff": 3.725290298461914e-07,
+      "max_rel_diff": 3.725290298461914e-07,
+      "t": 0.0,
+      "y": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "analytic": [
+        [
+          -0.04,
+          0.9027942527338704,
+          0.04556178680369617
+        ],
+        [
+          0.4,
+          -10.166987197431109,
+          -0.4556178680369617
+        ],
+        [
+          0.0,
+          0.11390446700924042,
+          0.0
+        ]
+      ],
+      "at": "t_end_half",
+      "finite_difference": [
+        [
+          -0.0400000000372529,
+          0.9027942528482527,
+          0.045561786741018295
+        ],
+        [
+          0.40000000037252903,
+          -10.166987569769844,
+          -0.45561786741018295
+        ],
+        [
+          0.0,
+          0.11390450426551979,
+          0.0
+        ]
+      ],
+      "max_abs_diff": 3.723387358434138e-07,
+      "max_rel_diff": 3.7256279367126055e-08,
+      "t": 100.0,
+      "y": [
+        0.5463247842928799,
+        0.022780893401848086,
+        0.4513971263669352
+      ]
+    }
+  ],
+  "schema": "the analytic Jacobian and the one-sided finite difference, sampled as whole matrices at two fixed states, then the same fixed-step SDIRK2 run with each of them at three step counts, plus the per-step cycle estimate under both",
+  "summary": {
+    "best_error_analytic": null,
+    "best_error_finite_difference": null,
+    "cycles_analytic": 598,
+    "cycles_finite_difference": 652,
+    "cycles_saved": 54,
+    "f_evals_saved": 3,
+    "max_abs_diff": 3.725290298461914e-07,
+    "max_rel_diff": 3.725290298461914e-07
+  }
+}

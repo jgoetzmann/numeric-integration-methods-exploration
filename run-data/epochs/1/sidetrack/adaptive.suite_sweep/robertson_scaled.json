@@ -1,0 +1,87 @@
+{
+  "arithmetic": "float64 only; no Q15 effects are included",
+  "closes": "EPOCH2-DESIGN section 5: the scored tolerance ladder is unchosen, and the published curve covers 3 of the 8 validation problems",
+  "job": "adaptive.suite_sweep",
+  "key": "robertson_scaled",
+  "max_attempts": 200000,
+  "pair": "Bogacki-Shampine 3(2)",
+  "params": {
+    "problem": "robertson_scaled"
+  },
+  "points": [
+    {
+      "achieved_error": 0.0005975691306123592,
+      "n_accepted": 782,
+      "n_fevals": 2353,
+      "n_rejected": 2,
+      "problem": "robertson_scaled",
+      "status": "ok",
+      "tol": 0.001
+    },
+    {
+      "achieved_error": 3.2677715022463e-05,
+      "n_accepted": 787,
+      "n_fevals": 2380,
+      "n_rejected": 6,
+      "problem": "robertson_scaled",
+      "status": "ok",
+      "tol": 0.0001
+    },
+    {
+      "achieved_error": 8.161607435072128e-06,
+      "n_accepted": 801,
+      "n_fevals": 2425,
+      "n_rejected": 7,
+      "problem": "robertson_scaled",
+      "status": "ok",
+      "tol": 1e-05
+    },
+    {
+      "achieved_error": 5.66517121148571e-07,
+      "n_accepted": 838,
+      "n_fevals": 2536,
+      "n_rejected": 7,
+      "problem": "robertson_scaled",
+      "status": "ok",
+      "tol": 1e-06
+    },
+    {
+      "achieved_error": 8.940561940834772e-08,
+      "n_accepted": 943,
+      "n_fevals": 2857,
+      "n_rejected": 9,
+      "problem": "robertson_scaled",
+      "status": "ok",
+      "tol": 1e-07
+    },
+    {
+      "achieved_error": 3.8161095649207925e-09,
+      "n_accepted": 1239,
+      "n_fevals": 3883,
+      "n_rejected": 55,
+      "problem": "robertson_scaled",
+      "status": "ok",
+      "tol": 1e-08
+    }
+  ],
+  "problem": "robertson_scaled",
+  "schema": "one entry per tolerance: status, and when the run finished, the accepted/rejected step counts, the exact function-evaluation count (FSAL reuse included) and the final error under the T8 metric",
+  "summary": {
+    "fevals_max": 3883,
+    "fevals_min": 2353,
+    "finished": 6,
+    "points": 6,
+    "rejection_rate_max": 0.04250386398763524,
+    "statuses": [
+      "ok"
+    ]
+  },
+  "tolerances": [
+    0.001,
+    0.0001,
+    1e-05,
+    1e-06,
+    1e-07,
+    1e-08
+  ]
+}

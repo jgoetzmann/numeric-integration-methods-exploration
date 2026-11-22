@@ -1,0 +1,87 @@
+{
+  "arithmetic": "float64 only; no Q15 effects are included",
+  "closes": "EPOCH2-DESIGN section 5: the scored tolerance ladder is unchosen, and the published curve covers 3 of the 8 validation problems",
+  "job": "adaptive.suite_sweep",
+  "key": "enzyme_qssa",
+  "max_attempts": 200000,
+  "pair": "Bogacki-Shampine 3(2)",
+  "params": {
+    "problem": "enzyme_qssa"
+  },
+  "points": [
+    {
+      "achieved_error": 0.0006388558368007576,
+      "n_accepted": 385,
+      "n_fevals": 1165,
+      "n_rejected": 3,
+      "problem": "enzyme_qssa",
+      "status": "ok",
+      "tol": 0.001
+    },
+    {
+      "achieved_error": 1.796296190820284e-05,
+      "n_accepted": 385,
+      "n_fevals": 1162,
+      "n_rejected": 2,
+      "problem": "enzyme_qssa",
+      "status": "ok",
+      "tol": 0.0001
+    },
+    {
+      "achieved_error": 4.1798402192166403e-07,
+      "n_accepted": 386,
+      "n_fevals": 1165,
+      "n_rejected": 2,
+      "problem": "enzyme_qssa",
+      "status": "ok",
+      "tol": 1e-05
+    },
+    {
+      "achieved_error": 8.164112167804389e-07,
+      "n_accepted": 439,
+      "n_fevals": 1645,
+      "n_rejected": 109,
+      "problem": "enzyme_qssa",
+      "status": "ok",
+      "tol": 1e-06
+    },
+    {
+      "achieved_error": 1.6782283104566944e-08,
+      "n_accepted": 644,
+      "n_fevals": 1957,
+      "n_rejected": 8,
+      "problem": "enzyme_qssa",
+      "status": "ok",
+      "tol": 1e-07
+    },
+    {
+      "achieved_error": 2.385648088715906e-09,
+      "n_accepted": 1095,
+      "n_fevals": 3301,
+      "n_rejected": 5,
+      "problem": "enzyme_qssa",
+      "status": "ok",
+      "tol": 1e-08
+    }
+  ],
+  "problem": "enzyme_qssa",
+  "schema": "one entry per tolerance: status, and when the run finished, the accepted/rejected step counts, the exact function-evaluation count (FSAL reuse included) and the final error under the T8 metric",
+  "summary": {
+    "fevals_max": 3301,
+    "fevals_min": 1162,
+    "finished": 6,
+    "points": 6,
+    "rejection_rate_max": 0.1989051094890511,
+    "statuses": [
+      "ok"
+    ]
+  },
+  "tolerances": [
+    0.001,
+    0.0001,
+    1e-05,
+    1e-06,
+    1e-07,
+    1e-08
+  ]
+}

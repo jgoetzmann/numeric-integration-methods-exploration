@@ -1,0 +1,15 @@
+{
+ "epoch": 2,
+ "frozen_at": "2026-11-10T19:35:17.558727+00:00",
+ "reason": "The owner ended the run on 2026-11-10. No further cycles will run, so these numbers will not change.",
+ "metrics": {
+  "n_accepted": 358744,
+  "n_cells": 30,
+  "last_new_cell_ts": "2026-09-28T02:11:25+00:00",
+  "last_improvement_ts": "2026-10-24T04:10:56+00:00",
+  "last_verified_ts": "2026-09-28T16:56:29+00:00",
+  "last_progress_ts": "2026-10-24T04:10:56+00:00",
+  "last_progress_kind": "elite_improvement",
+  "last_event_ts": "2026-11-10T19:34:16+00:00"
+ }
+}

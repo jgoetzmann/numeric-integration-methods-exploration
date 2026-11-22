@@ -1,0 +1,101 @@
+{
+  "arithmetic": "float64 only; no Q15 effects are included",
+  "closes": "EPOCH3-DESIGN: three Newton iterations is the prototype's setting, not a ruling",
+  "dahlquist": {
+    "errors": [
+      7.2065852013187645e-06,
+      1.8216824151710584e-06,
+      4.532542161675502e-07,
+      1.127722158267191e-07
+    ],
+    "order_estimate": 2.0069,
+    "orders": [
+      1.984,
+      2.0069,
+      2.0069
+    ]
+  },
+  "job": "sdirk.newton_iters",
+  "key": "it1",
+  "newton_iters": 1,
+  "params": {
+    "newton_iters": 1
+  },
+  "question": "EPOCH3-DESIGN.md: three iterations is the prototype's setting, not a ruling; the count enters the pinned evaluator config at the epoch boundary, so it should be chosen on data",
+  "schema": "measured order on dahlquist plus stiff-suite error and per-step cycle estimate at a fixed modified-Newton iteration count",
+  "stiff": {
+    "enzyme_qssa": {
+      "best_error": 3.2158777034372732e-06,
+      "est_cycles_per_step": 236,
+      "points": [
+        {
+          "error": 5.1476483856590245e-05,
+          "n": 32,
+          "status": "ok"
+        },
+        {
+          "error": 1.2865428217188206e-05,
+          "n": 64,
+          "status": "ok"
+        },
+        {
+          "error": 3.2158777034372732e-06,
+          "n": 128,
+          "status": "ok"
+        }
+      ]
+    },
+    "robertson_scaled": {
+      "best_error": 4.061526665463726,
+      "est_cycles_per_step": 424,
+      "points": [
+        {
+          "error": 63.620347969878566,
+          "n": 32,
+          "status": "ok"
+        },
+        {
+          "error": 4.061526665463726,
+          "n": 64,
+          "status": "ok"
+        },
+        {
+          "error": 14.811401787978461,
+          "n": 128,
+          "status": "ok"
+        }
+      ]
+    },
+    "servo_load_step": {
+      "best_error": 3.4604768866613675e-06,
+      "est_cycles_per_step": 236,
+      "points": [
+        {
+          "error": 5.5895807785426805e-05,
+          "n": 32,
+          "status": "ok"
+        },
+        {
+          "error": 1.3886334486987121e-05,
+          "n": 64,
+          "status": "ok"
+        },
+        {
+          "error": 3.4604768866613675e-06,
+          "n": 128,
+          "status": "ok"
+        }
+      ]
+    }
+  },
+  "summary": {
+    "cycles_per_step_2_states": 236,
+    "newton_iters": 1,
+    "order_estimate": 2.0069,
+    "stiff_best_errors": {
+      "enzyme_qssa": 3.2158777034372732e-06,
+      "robertson_scaled": 4.061526665463726,
+      "servo_load_step": 3.4604768866613675e-06
+    }
+  }
+}

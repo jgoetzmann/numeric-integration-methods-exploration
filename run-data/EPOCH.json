@@ -1,0 +1,56 @@
+{
+ "decision": "D45",
+ "epoch": 2,
+ "frozen": [
+  {
+   "archive_manifest": "epochs/1/epochs1_archive.sha256",
+   "archive_manifest_sha256": "2aa8d81ca08909c0176fef20e99864171519984eae138861d1f9f7cfdaa73bd1",
+   "decision": "D45",
+   "epoch": 1,
+   "frozen_at": "2026-09-15T04:33:44.899417+00:00",
+   "manifest": "epochs/1/MANIFEST.json",
+   "manifest_sha256": "e94acae3a83785f63b889df09af7d36b2199d90b30ecef5f0a6fd0aab8487039",
+   "path": "epochs/1",
+   "records": {
+    "accepted_events": 141356,
+    "archive_days": 13,
+    "archive_records": 141364,
+    "occupied_cells": 18
+   },
+   "site": "epoch-1/",
+   "site_pages": [
+    "adaptive.html",
+    "cell-p1-s1-b0.html",
+    "cell-p2-s2-b0.html",
+    "cell-p2-s2-b1.html",
+    "cell-p2-s3-b1.html",
+    "cell-p2-s4-b1.html",
+    "cell-p2-s4-b2.html",
+    "cell-p2-s5-b2.html",
+    "cell-p2-s5-b3.html",
+    "cell-p2-s6-b3.html",
+    "cell-p3-s3-b1.html",
+    "cell-p3-s4-b2.html",
+    "cell-p3-s5-b2.html",
+    "cell-p3-s5-b3.html",
+    "cell-p3-s6-b2.html",
+    "cell-p3-s6-b3.html",
+    "cell-p4-s4-b2.html",
+    "cell-p4-s6-b2.html",
+    "cell-p4-s6-b3.html",
+    "explicit.html",
+    "hypotheses.html",
+    "implicit.html",
+    "index.html",
+    "methodology.html",
+    "validation.html"
+   ],
+   "tag": "epoch-1-final",
+   "trace_hash": "61f3a1bc02784f9ddfb3f5d171b2a96d4014ad24f730eb0d8e6249ef81d2b522",
+   "verifier_hash": "de5bec229ffa404a85b9172fdc808ef6035716c3df8b308c816e90ffb54fd6e9"
+  }
+ ],
+ "opened_at": "2026-09-15T04:33:44.899417+00:00",
+ "trace_hash": "61f3a1bc02784f9ddfb3f5d171b2a96d4014ad24f730eb0d8e6249ef81d2b522",
+ "verifier_hash": "2db0816c621c44aa5b4b8efbadfde3a37497780460be138cd8af5439ab176611"
+}

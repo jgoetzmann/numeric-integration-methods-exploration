@@ -26,9 +26,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 WS = ROOT.parent
-sys.path.insert(0, str(WS / "rk-harness"))
+sys.path.insert(0, str(WS / "harness"))
 # Set before rk_harness is imported, so every path it resolves points at the real run.
-os.environ.setdefault("RK_WORK_DIR", str(WS / "rk-work"))
+os.environ.setdefault("RK_WORK_DIR", str(WS / "run-data"))
 
 from rk_harness import archive, problems, simulate, tableau as tableau_mod  # noqa: E402
 from rk_harness.coeffrep import to_rep  # noqa: E402

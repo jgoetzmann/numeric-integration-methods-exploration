@@ -1,0 +1,397 @@
+{
+  "arithmetic": "tableau and stability algebra exact over Fractions; the measured order is float64",
+  "closes": "EPOCH3-DESIGN: L-stability is to be checked numerically for the snapped gamma, and the NOT_L_STABLE threshold is a placeholder",
+  "construction": "gamma is snapped to a dyadic, a21 is fixed at 1 - gamma so that c2 = 1, and b is solved from the two order conditions. Stiff accuracy and order 2 can only hold together at the irrational gamma, so order is the one kept.",
+  "denominator_exponent": 5,
+  "job": "sdirk.gamma_dyadic_scan",
+  "key": "s05",
+  "params": {
+    "s": 5
+  },
+  "rows": [
+    {
+      "a21": "31/32",
+      "a_stable": false,
+      "a_stable_exact": true,
+      "b": [
+        "16/31",
+        "15/31"
+      ],
+      "denominator_exponent": 5,
+      "gamma": "1/32",
+      "gamma_float": 0.03125,
+      "l_stable": false,
+      "measured_order": 2.1001,
+      "numerator": 1,
+      "order3_residuals": [
+        "29/192",
+        "-467/3072"
+      ],
+      "r_at_infinity": "449",
+      "r_at_infinity_float": 449.0,
+      "stiffly_accurate": false
+    },
+    {
+      "a21": "15/16",
+      "a_stable": false,
+      "a_stable_exact": true,
+      "b": [
+        "8/15",
+        "7/15"
+      ],
+      "denominator_exponent": 4,
+      "gamma": "1/16",
+      "gamma_float": 0.0625,
+      "l_stable": false,
+      "measured_order": 2.0912,
+      "numerator": 1,
+      "order3_residuals": [
+        "13/96",
+        "-107/768"
+      ],
+      "r_at_infinity": "97",
+      "r_at_infinity_float": 97.0,
+      "stiffly_accurate": false
+    },
+    {
+      "a21": "29/32",
+      "a_stable": false,
+      "a_stable_exact": true,
+      "b": [
+        "16/29",
+        "13/29"
+      ],
+      "denominator_exponent": 5,
+      "gamma": "3/32",
+      "gamma_float": 0.09375,
+      "l_stable": false,
+      "measured_order": 2.0835,
+      "numerator": 3,
+      "order3_residuals": [
+        "23/192",
+        "-395/3072"
+      ],
+      "r_at_infinity": "329/9",
+      "r_at_infinity_float": 36.55555555555556,
+      "stiffly_accurate": false
+    },
+    {
+      "a21": "7/8",
+      "a_stable": false,
+      "a_stable_exact": true,
+      "b": [
+        "4/7",
+        "3/7"
+      ],
+      "denominator_exponent": 3,
+      "gamma": "1/8",
+      "gamma_float": 0.125,
+      "l_stable": false,
+      "measured_order": 2.0779,
+      "numerator": 1,
+      "order3_residuals": [
+        "5/48",
+        "-23/192"
+      ],
+      "r_at_infinity": "17",
+      "r_at_infinity_float": 17.0,
+      "stiffly_accurate": false
+    },
+    {
+      "a21": "27/32",
+      "a_stable": false,
+      "a_stable_exact": true,
+      "b": [
+        "16/27",
+        "11/27"
+      ],
+      "denominator_exponent": 5,
+      "gamma": "5/32",
+      "gamma_float": 0.15625,
+      "l_stable": false,
+      "measured_order": 2.0769,
+      "numerator": 5,
+      "order3_residuals": [
+        "17/192",
+        "-347/3072"
+      ],
+      "r_at_infinity": "217/25",
+      "r_at_infinity_float": 8.68,
+      "stiffly_accurate": false
+    },
+    {
+      "a21": "13/16",
+      "a_stable": false,
+      "a_stable_exact": true,
+      "b": [
+        "8/13",
+        "5/13"
+      ],
+      "denominator_exponent": 4,
+      "gamma": "3/16",
+      "gamma_float": 0.1875,
+      "l_stable": false,
+      "measured_order": 2.096,
+      "numerator": 3,
+      "order3_residuals": [
+        "7/96",
+        "-83/768"
+      ],
+      "r_at_infinity": "41/9",
+      "r_at_infinity_float": 4.555555555555555,
+      "stiffly_accurate": false
+    },
+    {
+      "a21": "25/32",
+      "a_stable": false,
+      "a_stable_exact": true,
+      "b": [
+        "16/25",
+        "9/25"
+      ],
+      "denominator_exponent": 5,
+      "gamma": "7/32",
+      "gamma_float": 0.21875,
+      "l_stable": false,
+      "measured_order": 1.8356,
+      "numerator": 7,
+      "order3_residuals": [
+        "11/192",
+        "-323/3072"
+      ],
+      "r_at_infinity": "113/49",
+      "r_at_infinity_float": 2.306122448979592,
+      "stiffly_accurate": false
+    },
+    {
+      "a21": "3/4",
+      "a_stable": true,
+      "a_stable_exact": true,
+      "b": [
+        "2/3",
+        "1/3"
+      ],
+      "denominator_exponent": 2,
+      "gamma": "1/4",
+      "gamma_float": 0.25,
+      "l_stable": false,
+      "measured_order": 1.9982,
+      "numerator": 1,
+      "order3_residuals": [
+        "1/24",
+        "-5/48"
+      ],
+      "r_at_infinity": "1",
+      "r_at_infinity_float": 1.0,
+      "stiffly_accurate": false
+    },
+    {
+      "a21": "23/32",
+      "a_stable": true,
+      "a_stable_exact": true,
+      "b": [
+        "16/23",
+        "7/23"
+      ],
+      "denominator_exponent": 5,
+      "gamma": "9/32",
+      "gamma_float": 0.28125,
+      "l_stable": false,
+      "measured_order": 2.0066,
+      "numerator": 9,
+      "order3_residuals": [
+        "5/192",
+        "-323/3072"
+      ],
+      "r_at_infinity": "17/81",
+      "r_at_infinity_float": 0.20987654320987653,
+      "stiffly_accurate": false
+    },
+    {
+      "a21": "11/16",
+      "a_stable": true,
+      "a_stable_exact": true,
+      "b": [
+        "8/11",
+        "3/11"
+      ],
+      "denominator_exponent": 4,
+      "gamma": "5/16",
+      "gamma_float": 0.3125,
+      "l_stable": false,
+      "measured_order": 2.0062,
+      "numerator": 5,
+      "order3_residuals": [
+        "1/96",
+        "-83/768"
+      ],
+      "r_at_infinity": "-7/25",
+      "r_at_infinity_float": -0.28,
+      "stiffly_accurate": false
+    },
+    {
+      "a21": "21/32",
+      "a_stable": true,
+      "a_stable_exact": true,
+      "b": [
+        "16/21",
+        "5/21"
+      ],
+      "denominator_exponent": 5,
+      "gamma": "11/32",
+      "gamma_float": 0.34375,
+      "l_stable": false,
+      "measured_order": 2.0036,
+      "numerator": 11,
+      "order3_residuals": [
+        "-1/192",
+        "-347/3072"
+      ],
+      "r_at_infinity": "-71/121",
+      "r_at_infinity_float": -0.5867768595041323,
+      "stiffly_accurate": false
+    },
+    {
+      "a21": "5/8",
+      "a_stable": true,
+      "a_stable_exact": true,
+      "b": [
+        "4/5",
+        "1/5"
+      ],
+      "denominator_exponent": 3,
+      "gamma": "3/8",
+      "gamma_float": 0.375,
+      "l_stable": false,
+      "measured_order": 2.0005,
+      "numerator": 3,
+      "order3_residuals": [
+        "-1/48",
+        "-23/192"
+      ],
+      "r_at_infinity": "-7/9",
+      "r_at_infinity_float": -0.7777777777777778,
+      "stiffly_accurate": false
+    },
+    {
+      "a21": "19/32",
+      "a_stable": true,
+      "a_stable_exact": true,
+      "b": [
+        "16/19",
+        "3/19"
+      ],
+      "denominator_exponent": 5,
+      "gamma": "13/32",
+      "gamma_float": 0.40625,
+      "l_stable": false,
+      "measured_order": 1.9976,
+      "numerator": 13,
+      "order3_residuals": [
+        "-7/192",
+        "-395/3072"
+      ],
+      "r_at_infinity": "-151/169",
+      "r_at_infinity_float": -0.893491124260355,
+      "stiffly_accurate": false
+    },
+    {
+      "a21": "9/16",
+      "a_stable": true,
+      "a_stable_exact": true,
+      "b": [
+        "8/9",
+        "1/9"
+      ],
+      "denominator_exponent": 4,
+      "gamma": "7/16",
+      "gamma_float": 0.4375,
+      "l_stable": false,
+      "measured_order": 1.9952,
+      "numerator": 7,
+      "order3_residuals": [
+        "-5/96",
+        "-107/768"
+      ],
+      "r_at_infinity": "-47/49",
+      "r_at_infinity_float": -0.9591836734693877,
+      "stiffly_accurate": false
+    },
+    {
+      "a21": "17/32",
+      "a_stable": true,
+      "a_stable_exact": true,
+      "b": [
+        "16/17",
+        "1/17"
+      ],
+      "denominator_exponent": 5,
+      "gamma": "15/32",
+      "gamma_float": 0.46875,
+      "l_stable": false,
+      "measured_order": 1.9936,
+      "numerator": 15,
+      "order3_residuals": [
+        "-13/192",
+        "-467/3072"
+      ],
+      "r_at_infinity": "-223/225",
+      "r_at_infinity_float": -0.9911111111111112,
+      "stiffly_accurate": false
+    },
+    {
+      "a21": "1/2",
+      "a_stable": true,
+      "a_stable_exact": true,
+      "b": [
+        "1",
+        "0"
+      ],
+      "denominator_exponent": 1,
+      "gamma": "1/2",
+      "gamma_float": 0.5,
+      "l_stable": false,
+      "measured_order": 1.9929,
+      "numerator": 1,
+      "order3_residuals": [
+        "-1/12",
+        "-1/6"
+      ],
+      "r_at_infinity": "-1",
+      "r_at_infinity_float": -1.0,
+      "stiffly_accurate": false
+    },
+    {
+      "a21": "15/32",
+      "a_stable": true,
+      "a_stable_exact": true,
+      "b": [
+        "16/15",
+        "-1/15"
+      ],
+      "denominator_exponent": 5,
+      "gamma": "17/32",
+      "gamma_float": 0.53125,
+      "l_stable": false,
+      "measured_order": 1.9937,
+      "numerator": 17,
+      "order3_residuals": [
+        "-19/192",
+        "-563/3072"
+      ],
+      "r_at_infinity": "-287/289",
+      "r_at_infinity_float": -0.9930795847750865,
+      "stiffly_accurate": false
+    }
+  ],
+  "schema": "one row per dyadic gamma near 1 - sqrt(2)/2 at this denominator exponent: the exactly solved order-2 tableau, its L-stability margin |R(inf)|, whether it is A-stable, and its measured order on dahlquist",
+  "summary": {
+    "a_stable": 10,
+    "best_gamma": "9/32",
+    "best_measured_order": 2.0066,
+    "best_r_at_infinity": 0.20987654320987653,
+    "candidates": 17,
+    "l_stable": 0
+  },
+  "window": 8
+}

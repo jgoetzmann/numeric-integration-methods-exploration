@@ -1,0 +1,507 @@
+{
+  "label": "preliminary, float-only prototype (epoch 3 side track, off-archive)",
+  "generated_by": "rk_harness.prototypes.sdirk.main; not verifier-pinned, no Q15 arithmetic",
+  "method": {
+    "name": "sdirk2",
+    "gamma": 0.2928932188134524,
+    "newton_iters": 3,
+    "stages": 2,
+    "properties": "order 2, stiffly accurate, L-stable (Alexander 1977)"
+  },
+  "cost_model": "m0plus_fast",
+  "cost_note": "Cycle estimates exclude rhs and analytic-Jacobian evaluations, matching costmodel.cycle_count. On stiff_two_rate (2 states, m0plus_fast): rk4 costs 66 cycles/step but its real-axis stability interval of about 2.785 forces n >= 719 before any step is stable, a floor of about 47454 cycles at any accuracy. sdirk2 costs 348 cycles/step (estimate) and reaches error 1e-3 at n = 10 (about 3480 cycles). The implicit method pays several times more per step and still lands well under the explicit stability floor at loose and moderate tolerances; explicit methods only recover once the tolerance demands more steps than their stability floor already forces.",
+  "error_metric": "final-state L2 distance from the reference, over peak 1.0; 'diverged' = non-finite or > 1e3",
+  "problems": {
+    "rc_thermal": {
+      "source": "frozen scored problem (fixtures/problems.json), float64 physical form",
+      "n_states": 3,
+      "t_end": 4.0,
+      "stiffness_ratio": 70.137,
+      "methods": {
+        "euler": {
+          "est_cycles_per_step": 15,
+          "f_evals_per_step": 1,
+          "min_stable_n": 32,
+          "points": [
+            {
+              "n": 4,
+              "h": 1.0,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 6,
+              "h": 0.6666666666666666,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 8,
+              "h": 0.5,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 12,
+              "h": 0.3333333333333333,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 16,
+              "h": 0.25,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 24,
+              "h": 0.16666666666666666,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 32,
+              "h": 0.125,
+              "error": 0.8959708905698811,
+              "status": "ok"
+            },
+            {
+              "n": 48,
+              "h": 0.08333333333333333,
+              "error": 0.0013995694703969434,
+              "status": "ok"
+            },
+            {
+              "n": 64,
+              "h": 0.0625,
+              "error": 0.0010473828221699514,
+              "status": "ok"
+            },
+            {
+              "n": 96,
+              "h": 0.041666666666666664,
+              "error": 0.0006967263043431631,
+              "status": "ok"
+            },
+            {
+              "n": 128,
+              "h": 0.03125,
+              "error": 0.0005219714631896746,
+              "status": "ok"
+            },
+            {
+              "n": 192,
+              "h": 0.020833333333333332,
+              "error": 0.00034759880242023406,
+              "status": "ok"
+            },
+            {
+              "n": 256,
+              "h": 0.015625,
+              "error": 0.00026055578312754273,
+              "status": "ok"
+            }
+          ]
+        },
+        "rk4": {
+          "est_cycles_per_step": 99,
+          "f_evals_per_step": 4,
+          "min_stable_n": 24,
+          "points": [
+            {
+              "n": 4,
+              "h": 1.0,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 6,
+              "h": 0.6666666666666666,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 8,
+              "h": 0.5,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 12,
+              "h": 0.3333333333333333,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 16,
+              "h": 0.25,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 24,
+              "h": 0.16666666666666666,
+              "error": 0.013226833456421738,
+              "status": "ok"
+            },
+            {
+              "n": 32,
+              "h": 0.125,
+              "error": 1.0307680365290457e-08,
+              "status": "ok"
+            },
+            {
+              "n": 48,
+              "h": 0.08333333333333333,
+              "error": 1.848718021794976e-09,
+              "status": "ok"
+            },
+            {
+              "n": 64,
+              "h": 0.0625,
+              "error": 5.57557694479836e-10,
+              "status": "ok"
+            },
+            {
+              "n": 96,
+              "h": 0.041666666666666664,
+              "error": 1.0499158990861565e-10,
+              "status": "ok"
+            },
+            {
+              "n": 128,
+              "h": 0.03125,
+              "error": 3.2436225855107586e-11,
+              "status": "ok"
+            },
+            {
+              "n": 192,
+              "h": 0.020833333333333332,
+              "error": 6.256138464417148e-12,
+              "status": "ok"
+            },
+            {
+              "n": 256,
+              "h": 0.015625,
+              "error": 1.9560425828343755e-12,
+              "status": "ok"
+            }
+          ]
+        },
+        "sdirk2": {
+          "est_cycles_per_step": 598,
+          "f_evals_per_step": 6,
+          "min_stable_n": 4,
+          "points": [
+            {
+              "n": 4,
+              "h": 1.0,
+              "error": 0.0006684006301760652,
+              "status": "ok"
+            },
+            {
+              "n": 6,
+              "h": 0.6666666666666666,
+              "error": 0.00013400496242573425,
+              "status": "ok"
+            },
+            {
+              "n": 8,
+              "h": 0.5,
+              "error": 7.669360158535856e-05,
+              "status": "ok"
+            },
+            {
+              "n": 12,
+              "h": 0.3333333333333333,
+              "error": 3.41916610757168e-05,
+              "status": "ok"
+            },
+            {
+              "n": 16,
+              "h": 0.25,
+              "error": 1.9190866578252056e-05,
+              "status": "ok"
+            },
+            {
+              "n": 24,
+              "h": 0.16666666666666666,
+              "error": 8.512172317006925e-06,
+              "status": "ok"
+            },
+            {
+              "n": 32,
+              "h": 0.125,
+              "error": 4.7836095530298135e-06,
+              "status": "ok"
+            },
+            {
+              "n": 48,
+              "h": 0.08333333333333333,
+              "error": 2.124145675352402e-06,
+              "status": "ok"
+            },
+            {
+              "n": 64,
+              "h": 0.0625,
+              "error": 1.1943154737451913e-06,
+              "status": "ok"
+            },
+            {
+              "n": 96,
+              "h": 0.041666666666666664,
+              "error": 5.305827745188451e-07,
+              "status": "ok"
+            },
+            {
+              "n": 128,
+              "h": 0.03125,
+              "error": 2.983909140576226e-07,
+              "status": "ok"
+            },
+            {
+              "n": 192,
+              "h": 0.020833333333333332,
+              "error": 1.3259100659358644e-07,
+              "status": "ok"
+            },
+            {
+              "n": 256,
+              "h": 0.015625,
+              "error": 7.457486735482364e-08,
+              "status": "ok"
+            }
+          ]
+        }
+      }
+    },
+    "stiff_two_rate": {
+      "source": "defined locally in rk_harness/prototypes/sdirk.py",
+      "definition": "y1' = -1000 y1; y2' = y1 - y2; y0 = (1, 1); eigenvalues -1000, -1",
+      "n_states": 2,
+      "t_end": 2.0,
+      "stiffness_ratio": 1000.0,
+      "methods": {
+        "euler": {
+          "est_cycles_per_step": 10,
+          "f_evals_per_step": 1,
+          "min_stable_n": 1000,
+          "points": [
+            {
+              "n": 5,
+              "h": 0.4,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 10,
+              "h": 0.2,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 20,
+              "h": 0.1,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 50,
+              "h": 0.04,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 100,
+              "h": 0.02,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 200,
+              "h": 0.01,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 500,
+              "h": 0.004,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 720,
+              "h": 0.002777777777777778,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 1000,
+              "h": 0.002,
+              "error": 1.0000008090334238,
+              "status": "ok"
+            },
+            {
+              "n": 2000,
+              "h": 0.001,
+              "error": 0.0001354933324455576,
+              "status": "ok"
+            },
+            {
+              "n": 5000,
+              "h": 0.0004,
+              "error": 5.41919141503755e-05,
+              "status": "ok"
+            }
+          ]
+        },
+        "rk4": {
+          "est_cycles_per_step": 66,
+          "f_evals_per_step": 4,
+          "min_stable_n": 720,
+          "points": [
+            {
+              "n": 5,
+              "h": 0.4,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 10,
+              "h": 0.2,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 20,
+              "h": 0.1,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 50,
+              "h": 0.04,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 100,
+              "h": 0.02,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 200,
+              "h": 0.01,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 500,
+              "h": 0.004,
+              "error": null,
+              "status": "diverged"
+            },
+            {
+              "n": 720,
+              "h": 0.002777777777777778,
+              "error": 0.0002852252625787595,
+              "status": "ok"
+            },
+            {
+              "n": 1000,
+              "h": 0.002,
+              "error": 3.6193270602780103e-14,
+              "status": "ok"
+            },
+            {
+              "n": 2000,
+              "h": 0.001,
+              "error": 2.3869795029440866e-15,
+              "status": "ok"
+            },
+            {
+              "n": 5000,
+              "h": 0.0004,
+              "error": 1.6653345369377348e-16,
+              "status": "ok"
+            }
+          ]
+        },
+        "sdirk2": {
+          "est_cycles_per_step": 348,
+          "f_evals_per_step": 6,
+          "min_stable_n": 5,
+          "points": [
+            {
+              "n": 5,
+              "h": 0.4,
+              "error": 0.0018295327468563082,
+              "status": "ok"
+            },
+            {
+              "n": 10,
+              "h": 0.2,
+              "error": 0.0004470050330435682,
+              "status": "ok"
+            },
+            {
+              "n": 20,
+              "h": 0.1,
+              "error": 0.0001106120881846917,
+              "status": "ok"
+            },
+            {
+              "n": 50,
+              "h": 0.04,
+              "error": 1.7596019729587686e-05,
+              "status": "ok"
+            },
+            {
+              "n": 100,
+              "h": 0.02,
+              "error": 4.390810507653997e-06,
+              "status": "ok"
+            },
+            {
+              "n": 200,
+              "h": 0.01,
+              "error": 1.0966920544197567e-06,
+              "status": "ok"
+            },
+            {
+              "n": 500,
+              "h": 0.004,
+              "error": 1.7537441171500134e-07,
+              "status": "ok"
+            },
+            {
+              "n": 720,
+              "h": 0.002777777777777778,
+              "error": 8.456542002766021e-08,
+              "status": "ok"
+            },
+            {
+              "n": 1000,
+              "h": 0.002,
+              "error": 4.383560570087042e-08,
+              "status": "ok"
+            },
+            {
+              "n": 2000,
+              "h": 0.001,
+              "error": 1.0957902973895983e-08,
+              "status": "ok"
+            },
+            {
+              "n": 5000,
+              "h": 0.0004,
+              "error": 1.7531684437521733e-09,
+              "status": "ok"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

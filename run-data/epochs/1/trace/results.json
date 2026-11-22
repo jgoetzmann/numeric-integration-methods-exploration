@@ -1,0 +1,5699 @@
+{
+ "accuracy": {
+  "does_not_establish": [
+   "wall clock time on any physical part",
+   "memory system behaviour: flash wait states, bus contention, buffering",
+   "interrupt or RTOS overhead",
+   "anything about a chip other than the one the TRM table describes"
+  ],
+  "establishes": [
+   "the compiled Q15 step executes the instruction mix the analytic model assumes, or differs from it in a way this document names",
+   "whether dyadic coefficients compile to shifts and adds rather than to multiplies or library calls",
+   "relative ordering and ratios between methods under the TRM table",
+   "that the C agrees with the pinned Python evaluator bit for bit, including where the Q15 primitives raise"
+  ],
+  "statement": "The emulator is instruction accurate and NOT cycle accurate. It reports which instructions execute and in what order. Every cycle count here comes from applying the Cortex-M0+ TRM table to that instruction stream offline, under the assumptions below. No number here was measured on any physical part."
+ },
+ "assumptions": {
+  "bl_cycles": 4,
+  "branch_not_taken_cycles": 1,
+  "branch_taken_cycles": 3,
+  "bus": "no contention",
+  "data_processing_cycles": 1,
+  "flash": "zero wait state",
+  "interrupts": "none",
+  "load_cycles": 2,
+  "muls_cycles_fast_variant": 1,
+  "muls_cycles_small_variant": 32,
+  "multi_register_cycles": "1 + N for N registers, plus 2 more when the register list contains PC, which is the same pipeline refill that makes a taken branch cost 3",
+  "store_cycles": 2
+ },
+ "cases": {
+  "crosscheck": [
+   {
+    "id": "dahlquist_48",
+    "kind": "solve",
+    "problem": "dahlquist",
+    "steps": 48
+   },
+   {
+    "id": "dahlquist_96",
+    "kind": "solve",
+    "problem": "dahlquist",
+    "steps": 96
+   },
+   {
+    "id": "dahlquist_144",
+    "kind": "solve",
+    "problem": "dahlquist",
+    "steps": 144
+   },
+   {
+    "id": "damped_osc_48",
+    "kind": "solve",
+    "problem": "damped_osc",
+    "steps": 48
+   },
+   {
+    "id": "damped_osc_96",
+    "kind": "solve",
+    "problem": "damped_osc",
+    "steps": 96
+   },
+   {
+    "id": "damped_osc_144",
+    "kind": "solve",
+    "problem": "damped_osc",
+    "steps": 144
+   },
+   {
+    "id": "rc_thermal_48",
+    "kind": "solve",
+    "problem": "rc_thermal",
+    "steps": 48
+   },
+   {
+    "id": "rc_thermal_96",
+    "kind": "solve",
+    "problem": "rc_thermal",
+    "steps": 96
+   },
+   {
+    "id": "rc_thermal_144",
+    "kind": "solve",
+    "problem": "rc_thermal",
+    "steps": 144
+   },
+   {
+    "id": "quaternion_48",
+    "kind": "solve",
+    "problem": "quaternion",
+    "steps": 48
+   },
+   {
+    "id": "quaternion_96",
+    "kind": "solve",
+    "problem": "quaternion",
+    "steps": 96
+   },
+   {
+    "id": "quaternion_120",
+    "kind": "solve",
+    "problem": "quaternion",
+    "steps": 120
+   },
+   {
+    "h_q": 32767,
+    "id": "dahlquist_rail",
+    "kind": "overflow_probe",
+    "problem": "dahlquist",
+    "steps": 2,
+    "y0": [
+     32000
+    ]
+   },
+   {
+    "h_q": 32767,
+    "id": "damped_osc_rail",
+    "kind": "overflow_probe",
+    "problem": "damped_osc",
+    "steps": 2,
+    "y0": [
+     32000,
+     -32000
+    ]
+   },
+   {
+    "h_q": 32767,
+    "id": "rc_thermal_rail",
+    "kind": "overflow_probe",
+    "problem": "rc_thermal",
+    "steps": 2,
+    "y0": [
+     32000,
+     32000,
+     32000
+    ]
+   },
+   {
+    "h_q": 32767,
+    "id": "quaternion_rail",
+    "kind": "overflow_probe",
+    "problem": "quaternion",
+    "steps": 2,
+    "y0": [
+     32000,
+     -32000,
+     32000,
+     -32000
+    ]
+   }
+  ],
+  "linearity_steps": [
+   4,
+   12
+  ],
+  "trace": [
+   {
+    "h_q": 2048,
+    "id": "trace_n1",
+    "problem": "dahlquist",
+    "y0": [
+     1000
+    ]
+   },
+   {
+    "h_q": 2048,
+    "id": "trace_n2",
+    "problem": "damped_osc",
+    "y0": [
+     1000,
+     500
+    ]
+   },
+   {
+    "h_q": 2048,
+    "id": "trace_n3",
+    "problem": "rc_thermal",
+    "y0": [
+     1000,
+     500,
+     250
+    ]
+   },
+   {
+    "h_q": 2048,
+    "id": "trace_n4",
+    "problem": "quaternion",
+    "y0": [
+     1000,
+     500,
+     250,
+     125
+    ]
+   }
+  ]
+ },
+ "correlation": {
+  "inversions_fast": [
+   {
+    "analytic": {
+     "rk38": 36,
+     "rk4": 33
+    },
+    "cheaper_analytic": "rk4",
+    "cheaper_traced": "rk38",
+    "note": "the analytic model puts rk4 below rk38 and the trace puts rk38 below the other",
+    "pair": [
+     "rk4",
+     "rk38"
+    ],
+    "traced": {
+     "rk38": 130,
+     "rk4": 139
+    }
+   }
+  ],
+  "inversions_model_scope_fast": [
+   {
+    "analytic": {
+     "rk38": 36,
+     "rk4": 33
+    },
+    "cheaper_analytic": "rk4",
+    "cheaper_traced": "rk38",
+    "note": "the analytic model puts rk4 below rk38 and the trace puts rk38 below the other",
+    "pair": [
+     "rk4",
+     "rk38"
+    ],
+    "traced": {
+     "rk38": 59,
+     "rk4": 67
+    }
+   }
+  ],
+  "inversions_slow": [
+   {
+    "analytic": {
+     "11e898cb": 29,
+     "ralston2": 30
+    },
+    "cheaper_analytic": "11e898cb",
+    "cheaper_traced": "ralston2",
+    "note": "the analytic model puts 11e898cb below ralston2 and the trace puts ralston2 below the other",
+    "pair": [
+     "ralston2",
+     "11e898cb"
+    ],
+    "traced": {
+     "11e898cb": 179,
+     "ralston2": 128
+    }
+   },
+   {
+    "analytic": {
+     "kutta3": 65,
+     "rk38": 64
+    },
+    "cheaper_analytic": "rk38",
+    "cheaper_traced": "kutta3",
+    "note": "the analytic model puts rk38 below kutta3 and the trace puts kutta3 below the other",
+    "pair": [
+     "kutta3",
+     "rk38"
+    ],
+    "traced": {
+     "kutta3": 195,
+     "rk38": 254
+    }
+   }
+  ],
+  "n_methods": 9,
+  "spearman_analytic_vs_traced_fast": 0.9833333333333332,
+  "spearman_analytic_vs_traced_model_scope_fast": 0.9833333333333332,
+  "spearman_analytic_vs_traced_slow": 0.9666666666666666
+ },
+ "cost_models": {
+  "m0plus_fast": {
+   "add": 1,
+   "load": 2,
+   "mul": 1,
+   "shift": 1,
+   "store": 2
+  },
+  "m0plus_slow": {
+   "add": 1,
+   "load": 2,
+   "mul": 32,
+   "shift": 1,
+   "store": 2
+  }
+ },
+ "generated_from": {
+  "emitter": "rk_harness.costmodel.emit_c, used verbatim and never edited",
+  "methods": [
+   "euler",
+   "midpoint",
+   "heun2",
+   "ralston2",
+   "11e898cb",
+   "heun3",
+   "kutta3",
+   "rk4",
+   "rk38"
+  ],
+  "n_states": 1,
+  "script": "rk_harness/tracecheck.py",
+  "state_counts": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "trace_hash": "61f3a1bc02784f9ddfb3f5d171b2a96d4014ad24f730eb0d8e6249ef81d2b522",
+  "trace_hash_pinned": "61f3a1bc02784f9ddfb3f5d171b2a96d4014ad24f730eb0d8e6249ef81d2b522",
+  "verifier_hash": "de5bec229ffa404a85b9172fdc808ef6035716c3df8b308c816e90ffb54fd6e9"
+ },
+ "methods": [
+  {
+   "c_sha256": {
+    "n1": {
+     "driver": "15c357bdaa1f1566685dbdf0072093d4dd438ece2ae23d383103d16cba571545",
+     "step": "ea8db0f7dc268e9585bb9db326e23a1cc5d5805342c8cc0a22b51111118fc4f9"
+    },
+    "n2": {
+     "driver": "e80ae46708b5025fd9c0da3f17336fe00bf3612ffcbc7421316bac17930d1c03",
+     "step": "ed78b766019d56a4f11ea24eb97b3c2e8328a7c36b220ae4e03b58ea89db1a59"
+    },
+    "n3": {
+     "driver": "891f0b88513adeea1bcc78d6ea4b371ed074e048b2826d8f6243294d183d6c7b",
+     "step": "ea9b33426c15be943537ffbe16db4f6dac83e22252a00a676a5b11244c33550f"
+    },
+    "n4": {
+     "driver": "75c1d0b77b8d22eb5fe8f6cda2825427fa2f8eabb47cf036547ecc8d5344380b",
+     "step": "613d5b3ab8d738713f9bb77d0044c876e3ea60bb20229b33ad59bb9db62f9c32"
+    }
+   },
+   "coefficient_applications": 1,
+   "crosscheck": {
+    "cases": 16,
+    "comparable": 16,
+    "matched": 16,
+    "not_comparable": 0,
+    "overflow_cases": 5,
+    "trap_index_matched": 5
+   },
+   "crosscheck_cases": [
+    {
+     "c_checked_final": [
+      0
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      0
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_48",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      0
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      0
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      0
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_96",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      0
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      0
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      0
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_144",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      0
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      0
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      0
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_rail",
+     "kind": "overflow_probe",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      0
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -11453,
+      28049
+     ],
+     "c_checked_trap_op": 42,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "damped_osc_48",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 42,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      23703,
+      -26993
+     ],
+     "c_checked_trap_op": 204,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "damped_osc_96",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 204,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -15641,
+      30137
+     ],
+     "c_checked_trap_op": 780,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "damped_osc_144",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 780,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "damped_osc_rail",
+     "kind": "overflow_probe",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      667,
+      719,
+      813
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      667,
+      719,
+      813
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_48",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      667,
+      719,
+      813
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      644,
+      695,
+      785
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      644,
+      695,
+      785
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_96",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      644,
+      695,
+      785
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      640,
+      690,
+      780
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      640,
+      690,
+      780
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_144",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      640,
+      690,
+      780
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      29499,
+      29500,
+      32000
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      29499,
+      29500,
+      32000
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_rail",
+     "kind": "overflow_probe",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      29499,
+      29500,
+      32000
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -18810,
+      2726,
+      1820,
+      4546
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -18810,
+      2726,
+      1820,
+      4546
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_48",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -18810,
+      2726,
+      1820,
+      4546
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -12476,
+      1251,
+      849,
+      2124
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -12476,
+      1251,
+      849,
+      2124
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_96",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -12476,
+      1251,
+      849,
+      2124
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -11443,
+      1094,
+      742,
+      1839
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -11443,
+      1094,
+      742,
+      1839
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_120",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -11443,
+      1094,
+      742,
+      1839
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 120,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000,
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "quaternion_rail",
+     "kind": "overflow_probe",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    }
+   ],
+   "cycles_analytic": {
+    "m0plus_fast": 5,
+    "m0plus_slow": 5
+   },
+   "cycles_by_region": {
+    "m0plus_fast": {
+     "frame": 16,
+     "hscale": 5,
+     "rhs_call": 6,
+     "store": 5
+    },
+    "m0plus_slow": {
+     "frame": 16,
+     "hscale": 36,
+     "rhs_call": 6,
+     "store": 5
+    }
+   },
+   "cycles_traced": {
+    "m0plus_fast": 32,
+    "m0plus_slow": 63
+   },
+   "cycles_traced_model_scope": {
+    "m0plus_fast": 5,
+    "m0plus_slow": 5
+   },
+   "instructions_by_region": {
+    "frame": 6,
+    "hscale": 4,
+    "rhs_call": 3,
+    "store": 3
+   },
+   "instructions_per_step": 16,
+   "muls_in_model_scope": 0,
+   "muls_per_step": 1,
+   "name": "euler",
+   "opcode_histogram": {
+    "add": 2,
+    "adds": 1,
+    "asrs": 1,
+    "bl": 1,
+    "ldrh": 1,
+    "ldrsh": 1,
+    "movs": 4,
+    "muls": 1,
+    "pop": 1,
+    "push": 1,
+    "strh": 1,
+    "sub": 1
+   },
+   "opcode_histogram_model_scope": {
+    "adds": 1,
+    "ldrh": 1,
+    "strh": 1
+   },
+   "origin": "classical",
+   "ratio": {
+    "m0plus_fast": 6.4,
+    "m0plus_slow": 12.6
+   },
+   "ratio_model_scope": {
+    "m0plus_fast": 1.0,
+    "m0plus_slow": 1.0
+   },
+   "relative_gap": {
+    "m0plus_fast": 0.84375,
+    "m0plus_slow": 0.9206349206349206
+   },
+   "relative_gap_model_scope": {
+    "m0plus_fast": 0.0,
+    "m0plus_slow": 0.0
+   },
+   "stages": 1,
+   "state_scaling": {
+    "n1": {
+     "cycles_analytic": {
+      "m0plus_fast": 5,
+      "m0plus_slow": 5
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 32,
+      "m0plus_slow": 63
+     },
+     "instructions_per_step": 16
+    },
+    "n2": {
+     "cycles_analytic": {
+      "m0plus_fast": 10,
+      "m0plus_slow": 10
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 41,
+      "m0plus_slow": 103
+     },
+     "instructions_per_step": 24
+    },
+    "n3": {
+     "cycles_analytic": {
+      "m0plus_fast": 15,
+      "m0plus_slow": 15
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 52,
+      "m0plus_slow": 145
+     },
+     "instructions_per_step": 32
+    },
+    "n4": {
+     "cycles_analytic": {
+      "m0plus_fast": 20,
+      "m0plus_slow": 20
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 129,
+      "m0plus_slow": 253
+     },
+     "instructions_per_step": 82
+    }
+   },
+   "tableau_hash": "ff5d6ff6768ca543f76e1311813e3f39263a2e4c630c0b5980e14def29e3021b"
+  },
+  {
+   "c_sha256": {
+    "n1": {
+     "driver": "cb3de3571b11955fc52606e6d5475cc773ed989b437bba1363cc328c591bfd79",
+     "step": "dd8f1dc83c541d17efa0a0a31d337a0558f16e5671b1131f43bbd46fa96ba8b7"
+    },
+    "n2": {
+     "driver": "9ba1b1f344ec9f2e75a3a90754fb7031a549dbc0ef8d42d82f844fbd0747452e",
+     "step": "0cfdb127032480c2d744f8a8befb621aba290036257722dc80f6721e717f6442"
+    },
+    "n3": {
+     "driver": "1010d335dab35da1ccfa7850b8f7ea9c2feba20bda61375a31c912e84e57b440",
+     "step": "740ae403b431c358bc99fbfb5d8ea009fdb560e39654a31e675ec24fd62f5508"
+    },
+    "n4": {
+     "driver": "53f99fd253cd065069250e7c61d17d469dda9caa959a25d17945ce8d058f42ac",
+     "step": "336e8eab98e26f9135a8ad14e0abaacafe14cdb2df96e404ea66ab051b608aed"
+    }
+   },
+   "coefficient_applications": 2,
+   "crosscheck": {
+    "cases": 16,
+    "comparable": 16,
+    "matched": 16,
+    "not_comparable": 0,
+    "overflow_cases": 2,
+    "trap_index_matched": 2
+   },
+   "crosscheck_cases": [
+    {
+     "c_checked_final": [
+      1
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      1
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_48",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      1
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      1
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      1
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_96",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      1
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      1
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      1
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_144",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      1
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      8000
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      8000
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_rail",
+     "kind": "overflow_probe",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      8000
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      842,
+      -227
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      842,
+      -227
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_48",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      842,
+      -227
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -154,
+      23
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -154,
+      23
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_96",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -154,
+      23
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -118,
+      -71
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -118,
+      -71
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_144",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -118,
+      -71
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "damped_osc_rail",
+     "kind": "overflow_probe",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      674,
+      726,
+      821
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      674,
+      726,
+      821
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_48",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      674,
+      726,
+      821
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      648,
+      699,
+      790
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      648,
+      699,
+      790
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_96",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      648,
+      699,
+      790
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      642,
+      693,
+      783
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      642,
+      693,
+      783
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_144",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      642,
+      693,
+      783
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      29645,
+      29628,
+      31746
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      29645,
+      29628,
+      31746
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_rail",
+     "kind": "overflow_probe",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      29645,
+      29628,
+      31746
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8195,
+      483,
+      325,
+      810
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8195,
+      483,
+      325,
+      810
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_48",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8195,
+      483,
+      325,
+      810
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8080,
+      641,
+      435,
+      1078
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8080,
+      641,
+      435,
+      1078
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_96",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8080,
+      641,
+      435,
+      1078
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8066,
+      661,
+      448,
+      1110
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8066,
+      661,
+      448,
+      1110
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_120",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8066,
+      661,
+      448,
+      1110
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 120,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000,
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "quaternion_rail",
+     "kind": "overflow_probe",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    }
+   ],
+   "cycles_analytic": {
+    "m0plus_fast": 11,
+    "m0plus_slow": 11
+   },
+   "cycles_by_region": {
+    "m0plus_fast": {
+     "coeff": 3,
+     "frame": 14,
+     "hscale": 11,
+     "load": 3,
+     "rhs_call": 11,
+     "store": 8
+    },
+    "m0plus_slow": {
+     "coeff": 3,
+     "frame": 14,
+     "hscale": 73,
+     "load": 3,
+     "rhs_call": 11,
+     "store": 8
+    }
+   },
+   "cycles_traced": {
+    "m0plus_fast": 50,
+    "m0plus_slow": 112
+   },
+   "cycles_traced_model_scope": {
+    "m0plus_fast": 14,
+    "m0plus_slow": 14
+   },
+   "instructions_by_region": {
+    "coeff": 3,
+    "frame": 6,
+    "hscale": 9,
+    "load": 2,
+    "rhs_call": 5,
+    "store": 5
+   },
+   "instructions_per_step": 30,
+   "muls_in_model_scope": 0,
+   "muls_per_step": 2,
+   "name": "midpoint",
+   "opcode_histogram": {
+    "add": 3,
+    "adds": 2,
+    "asrs": 2,
+    "bl": 2,
+    "ldrh": 1,
+    "ldrsh": 3,
+    "lsls": 1,
+    "mov": 4,
+    "movs": 5,
+    "muls": 2,
+    "pop": 1,
+    "push": 1,
+    "strh": 2,
+    "sub": 1
+   },
+   "opcode_histogram_model_scope": {
+    "adds": 2,
+    "asrs": 1,
+    "ldrh": 1,
+    "ldrsh": 1,
+    "lsls": 1,
+    "mov": 1,
+    "movs": 1,
+    "strh": 2
+   },
+   "origin": "classical",
+   "ratio": {
+    "m0plus_fast": 4.545454545454546,
+    "m0plus_slow": 10.181818181818182
+   },
+   "ratio_model_scope": {
+    "m0plus_fast": 1.2727272727272727,
+    "m0plus_slow": 1.2727272727272727
+   },
+   "relative_gap": {
+    "m0plus_fast": 0.78,
+    "m0plus_slow": 0.9017857142857143
+   },
+   "relative_gap_model_scope": {
+    "m0plus_fast": 0.21428571428571427,
+    "m0plus_slow": 0.21428571428571427
+   },
+   "stages": 2,
+   "state_scaling": {
+    "n1": {
+     "cycles_analytic": {
+      "m0plus_fast": 11,
+      "m0plus_slow": 11
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 50,
+      "m0plus_slow": 112
+     },
+     "instructions_per_step": 30
+    },
+    "n2": {
+     "cycles_analytic": {
+      "m0plus_fast": 22,
+      "m0plus_slow": 22
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 74,
+      "m0plus_slow": 198
+     },
+     "instructions_per_step": 46
+    },
+    "n3": {
+     "cycles_analytic": {
+      "m0plus_fast": 33,
+      "m0plus_slow": 33
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 144,
+      "m0plus_slow": 330
+     },
+     "instructions_per_step": 96
+    },
+    "n4": {
+     "cycles_analytic": {
+      "m0plus_fast": 44,
+      "m0plus_slow": 44
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 296,
+      "m0plus_slow": 544
+     },
+     "instructions_per_step": 206
+    }
+   },
+   "tableau_hash": "5bbff5a88c0924e50f2e32401966c76205b2dae85d282a78ec50eac38408c896"
+  },
+  {
+   "c_sha256": {
+    "n1": {
+     "driver": "0d574e5fda39da5c764f659e0b16962cb518cb04443ea265884cb653cc3d0a29",
+     "step": "e9d11174dd25015a0f83d6d3ac72aef38fdc8a43aaa9a170396a122c8db34ec6"
+    },
+    "n2": {
+     "driver": "4a8bc0d94989a2ae83387ac95d23dc6c31baca5094f131f88845fbfa219ca42b",
+     "step": "59f8564bbc7c785019db1f1b1052f64f71c18475e1f7aa8b7cd3c3b69428e029"
+    },
+    "n3": {
+     "driver": "a591bee90b2b65cef9bffed7556fceaf8afb17e7efa6e8d38a1d99f5519175e5",
+     "step": "60efc40eec15d2d3e361b3a34cb8007f8900d99a0786bc9ec5b13db34948133b"
+    },
+    "n4": {
+     "driver": "fe0b159900700d3fe49a2addf5369f81647b7f6fd34385e1d0b60eceb694dbc9",
+     "step": "b04ab24e75c868c72eef31f88f232bb5e1e4fab52ad7e097393b7a9f539e5e0f"
+    }
+   },
+   "coefficient_applications": 3,
+   "crosscheck": {
+    "cases": 16,
+    "comparable": 16,
+    "matched": 16,
+    "not_comparable": 0,
+    "overflow_cases": 2,
+    "trap_index_matched": 2
+   },
+   "crosscheck_cases": [
+    {
+     "c_checked_final": [
+      0
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      0
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_48",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      0
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      0
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      0
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_96",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      0
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      0
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      0
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_144",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      0
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      8000
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      8000
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_rail",
+     "kind": "overflow_probe",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      8000
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      839,
+      -233
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      839,
+      -233
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_48",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      839,
+      -233
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -157,
+      24
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -157,
+      24
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_96",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -157,
+      24
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -121,
+      -68
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -121,
+      -68
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_144",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -121,
+      -68
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "damped_osc_rail",
+     "kind": "overflow_probe",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      664,
+      715,
+      808
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      664,
+      715,
+      808
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_48",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      664,
+      715,
+      808
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      623,
+      671,
+      764
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      623,
+      671,
+      764
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_96",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      623,
+      671,
+      764
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      598,
+      644,
+      740
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      598,
+      644,
+      740
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_144",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      598,
+      644,
+      740
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      29644,
+      29626,
+      31746
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      29644,
+      29626,
+      31746
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_rail",
+     "kind": "overflow_probe",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      29644,
+      29626,
+      31746
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8183,
+      473,
+      326,
+      808
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8183,
+      473,
+      326,
+      808
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_48",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8183,
+      473,
+      326,
+      808
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8065,
+      633,
+      435,
+      1068
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8065,
+      633,
+      435,
+      1068
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_96",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8065,
+      633,
+      435,
+      1068
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8038,
+      648,
+      443,
+      1107
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8038,
+      648,
+      443,
+      1107
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_120",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8038,
+      648,
+      443,
+      1107
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 120,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000,
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "quaternion_rail",
+     "kind": "overflow_probe",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    }
+   ],
+   "cycles_analytic": {
+    "m0plus_fast": 13,
+    "m0plus_slow": 13
+   },
+   "cycles_by_region": {
+    "m0plus_fast": {
+     "coeff": 6,
+     "frame": 16,
+     "hscale": 11,
+     "load": 3,
+     "rhs_call": 11,
+     "store": 8
+    },
+    "m0plus_slow": {
+     "coeff": 6,
+     "frame": 16,
+     "hscale": 73,
+     "load": 3,
+     "rhs_call": 11,
+     "store": 8
+    }
+   },
+   "cycles_traced": {
+    "m0plus_fast": 55,
+    "m0plus_slow": 117
+   },
+   "cycles_traced_model_scope": {
+    "m0plus_fast": 17,
+    "m0plus_slow": 17
+   },
+   "instructions_by_region": {
+    "coeff": 6,
+    "frame": 6,
+    "hscale": 9,
+    "load": 2,
+    "rhs_call": 5,
+    "store": 5
+   },
+   "instructions_per_step": 33,
+   "muls_in_model_scope": 0,
+   "muls_per_step": 2,
+   "name": "heun2",
+   "opcode_histogram": {
+    "add": 3,
+    "adds": 3,
+    "asrs": 3,
+    "bl": 2,
+    "ldrh": 1,
+    "ldrsh": 3,
+    "lsls": 1,
+    "mov": 4,
+    "movs": 5,
+    "muls": 2,
+    "pop": 1,
+    "push": 1,
+    "strh": 2,
+    "sub": 1,
+    "sxth": 1
+   },
+   "opcode_histogram_model_scope": {
+    "adds": 3,
+    "asrs": 2,
+    "ldrh": 1,
+    "ldrsh": 1,
+    "lsls": 1,
+    "mov": 1,
+    "movs": 1,
+    "strh": 2,
+    "sxth": 1
+   },
+   "origin": "classical",
+   "ratio": {
+    "m0plus_fast": 4.230769230769231,
+    "m0plus_slow": 9.0
+   },
+   "ratio_model_scope": {
+    "m0plus_fast": 1.3076923076923077,
+    "m0plus_slow": 1.3076923076923077
+   },
+   "relative_gap": {
+    "m0plus_fast": 0.7636363636363637,
+    "m0plus_slow": 0.8888888888888888
+   },
+   "relative_gap_model_scope": {
+    "m0plus_fast": 0.23529411764705882,
+    "m0plus_slow": 0.23529411764705882
+   },
+   "stages": 2,
+   "state_scaling": {
+    "n1": {
+     "cycles_analytic": {
+      "m0plus_fast": 13,
+      "m0plus_slow": 13
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 55,
+      "m0plus_slow": 117
+     },
+     "instructions_per_step": 33
+    },
+    "n2": {
+     "cycles_analytic": {
+      "m0plus_fast": 26,
+      "m0plus_slow": 26
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 92,
+      "m0plus_slow": 216
+     },
+     "instructions_per_step": 60
+    },
+    "n3": {
+     "cycles_analytic": {
+      "m0plus_fast": 39,
+      "m0plus_slow": 39
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 160,
+      "m0plus_slow": 346
+     },
+     "instructions_per_step": 106
+    },
+    "n4": {
+     "cycles_analytic": {
+      "m0plus_fast": 52,
+      "m0plus_slow": 52
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 305,
+      "m0plus_slow": 553
+     },
+     "instructions_per_step": 215
+    }
+   },
+   "tableau_hash": "205fa13b1cf02de0b783c05ca2fa47967a78ed39a2bfa7358f4c586e59b2d003"
+  },
+  {
+   "c_sha256": {
+    "n1": {
+     "driver": "0589fe599af4502da8eda9d28240af28b56631e5e05d10365d54f82b5ca17759",
+     "step": "a83047a35ebed596c614c9093c60500fae74baceb93d4aa6d19f62c6d2118aeb"
+    },
+    "n2": {
+     "driver": "8d4bb655d2f0b99eb971491f72423d282e8f310ef6423f499ac22556dac29686",
+     "step": "43ff9fbf26b77ec3ed3331783598782d52cddfed4f298df4f39011a25f9c9046"
+    },
+    "n3": {
+     "driver": "9af87bf644a9ef79d3a12499b867b318cfdcf7004de932693d749213a40cec0f",
+     "step": "26d17167d8bbc330392ac53bc712049c52c83ebc779ed55de27af11617873838"
+    },
+    "n4": {
+     "driver": "5f673bf60f173ab62f150715ea822a05fabd682a3108941b1080b9d640058ab6",
+     "step": "4db35ca22ee190661c921c48e216cbe46da47bf176c9e55ac41e3860a63955ef"
+    }
+   },
+   "coefficient_applications": 3,
+   "crosscheck": {
+    "cases": 16,
+    "comparable": 16,
+    "matched": 16,
+    "not_comparable": 0,
+    "overflow_cases": 2,
+    "trap_index_matched": 2
+   },
+   "crosscheck_cases": [
+    {
+     "c_checked_final": [
+      0
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      0
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_48",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      0
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      0
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      0
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_96",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      0
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      0
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      0
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_144",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      0
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      8000
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      8000
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_rail",
+     "kind": "overflow_probe",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      8000
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      840,
+      -230
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      840,
+      -230
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_48",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      840,
+      -230
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -158,
+      23
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -158,
+      23
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_96",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -158,
+      23
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -123,
+      -69
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -123,
+      -69
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_144",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -123,
+      -69
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "damped_osc_rail",
+     "kind": "overflow_probe",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      655,
+      706,
+      801
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      655,
+      706,
+      801
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_48",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      655,
+      706,
+      801
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      606,
+      653,
+      746
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      606,
+      653,
+      746
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_96",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      606,
+      653,
+      746
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      571,
+      615,
+      697
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      571,
+      615,
+      697
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_144",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      571,
+      615,
+      697
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      29644,
+      29626,
+      31744
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      29644,
+      29626,
+      31744
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_rail",
+     "kind": "overflow_probe",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      29644,
+      29626,
+      31744
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8187,
+      477,
+      328,
+      797
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8187,
+      477,
+      328,
+      797
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_48",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8187,
+      477,
+      328,
+      797
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8056,
+      626,
+      435,
+      1060
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8056,
+      626,
+      435,
+      1060
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_96",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8056,
+      626,
+      435,
+      1060
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8032,
+      638,
+      447,
+      1096
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8032,
+      638,
+      447,
+      1096
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_120",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8032,
+      638,
+      447,
+      1096
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 120,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000,
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "quaternion_rail",
+     "kind": "overflow_probe",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    }
+   ],
+   "cycles_analytic": {
+    "m0plus_fast": 16,
+    "m0plus_slow": 30
+   },
+   "cycles_by_region": {
+    "m0plus_fast": {
+     "coeff": 16,
+     "frame": 16,
+     "hscale": 12,
+     "load": 6,
+     "rhs_call": 11,
+     "store": 5
+    },
+    "m0plus_slow": {
+     "coeff": 16,
+     "frame": 16,
+     "hscale": 74,
+     "load": 6,
+     "rhs_call": 11,
+     "store": 5
+    }
+   },
+   "cycles_traced": {
+    "m0plus_fast": 66,
+    "m0plus_slow": 128
+   },
+   "cycles_traced_model_scope": {
+    "m0plus_fast": 27,
+    "m0plus_slow": 27
+   },
+   "instructions_by_region": {
+    "coeff": 16,
+    "frame": 6,
+    "hscale": 10,
+    "load": 4,
+    "rhs_call": 5,
+    "store": 3
+   },
+   "instructions_per_step": 44,
+   "muls_in_model_scope": 0,
+   "muls_per_step": 2,
+   "name": "ralston2",
+   "opcode_histogram": {
+    "add": 3,
+    "adds": 7,
+    "asrs": 5,
+    "bl": 2,
+    "ldrsh": 4,
+    "lsls": 4,
+    "mov": 4,
+    "movs": 6,
+    "muls": 2,
+    "pop": 1,
+    "push": 1,
+    "strh": 2,
+    "sub": 1,
+    "sxth": 2
+   },
+   "opcode_histogram_model_scope": {
+    "adds": 7,
+    "asrs": 3,
+    "ldrsh": 2,
+    "lsls": 4,
+    "mov": 1,
+    "movs": 2,
+    "strh": 2,
+    "sxth": 2
+   },
+   "origin": "classical",
+   "ratio": {
+    "m0plus_fast": 4.125,
+    "m0plus_slow": 4.266666666666667
+   },
+   "ratio_model_scope": {
+    "m0plus_fast": 1.6875,
+    "m0plus_slow": 0.9
+   },
+   "relative_gap": {
+    "m0plus_fast": 0.7575757575757576,
+    "m0plus_slow": 0.765625
+   },
+   "relative_gap_model_scope": {
+    "m0plus_fast": 0.4074074074074074,
+    "m0plus_slow": 0.1111111111111111
+   },
+   "stages": 2,
+   "state_scaling": {
+    "n1": {
+     "cycles_analytic": {
+      "m0plus_fast": 16,
+      "m0plus_slow": 30
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 66,
+      "m0plus_slow": 128
+     },
+     "instructions_per_step": 44
+    },
+    "n2": {
+     "cycles_analytic": {
+      "m0plus_fast": 32,
+      "m0plus_slow": 60
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 116,
+      "m0plus_slow": 240
+     },
+     "instructions_per_step": 84
+    },
+    "n3": {
+     "cycles_analytic": {
+      "m0plus_fast": 48,
+      "m0plus_slow": 90
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 264,
+      "m0plus_slow": 450
+     },
+     "instructions_per_step": 197
+    },
+    "n4": {
+     "cycles_analytic": {
+      "m0plus_fast": 64,
+      "m0plus_slow": 120
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 362,
+      "m0plus_slow": 610
+     },
+     "instructions_per_step": 270
+    }
+   },
+   "tableau_hash": "790fd510596624b6228630dbed114e38c2037a4a320d9926f8d32e4cdee79e5f"
+  },
+  {
+   "c_sha256": {
+    "n1": {
+     "driver": "e0625a1b9726ba8461b6e1e622ad39ed5155d0d9b170bf182818225ce4429943",
+     "step": "d6e6d89d7529152d988acd6f3107449022b1bca8a757f42517d9930cd2c71c23"
+    },
+    "n2": {
+     "driver": "5852cb840cdd7cb53f764d5f1928b99ff0503f11ce00531adb632d70380e0667",
+     "step": "d1d11bd1d84a0ecb84b158eaf6f8fa4aa3573083d7ca40b6285cb64cefad281b"
+    },
+    "n3": {
+     "driver": "10435c2cc83dc6b0155367b053d1798ade72818d27069fc088f337224b2f78c5",
+     "step": "3b52296938e3e65e0467579d9b44372806bc76a7560b61c58ed65c3d344dab37"
+    },
+    "n4": {
+     "driver": "f7de42a955be7a16a6ba7efd223cc4a158e963499d4bb2c3c754d416ca4748fa",
+     "step": "e84f6482072b0b00267264a58ebf9e9ea2a5376619290621542f26bbc6f6723c"
+    }
+   },
+   "coefficient_applications": 4,
+   "crosscheck": {
+    "cases": 16,
+    "comparable": 16,
+    "matched": 16,
+    "not_comparable": 0,
+    "overflow_cases": 2,
+    "trap_index_matched": 2
+   },
+   "crosscheck_cases": [
+    {
+     "c_checked_final": [
+      2
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      2
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_48",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      2
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      2
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      2
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_96",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      2
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      2
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      2
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_144",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      2
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      1560
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      1560
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_rail",
+     "kind": "overflow_probe",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      1560
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      8,
+      9
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      8,
+      9
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_48",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      8,
+      9
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      47,
+      -112
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      47,
+      -112
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_96",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      47,
+      -112
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -11,
+      -142
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -11,
+      -142
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_144",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -11,
+      -142
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "damped_osc_rail",
+     "kind": "overflow_probe",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      672,
+      724,
+      818
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      672,
+      724,
+      818
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_48",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      672,
+      724,
+      818
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      648,
+      699,
+      789
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      648,
+      699,
+      789
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_96",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      648,
+      699,
+      789
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      641,
+      691,
+      782
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      641,
+      691,
+      782
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_144",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      641,
+      691,
+      782
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      30338,
+      29244,
+      31851
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      30338,
+      29244,
+      31851
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_rail",
+     "kind": "overflow_probe",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      30338,
+      29244,
+      31851
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -7909,
+      839,
+      563,
+      1410
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -7909,
+      839,
+      563,
+      1410
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_48",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -7909,
+      839,
+      563,
+      1410
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8020,
+      733,
+      495,
+      1231
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8020,
+      733,
+      495,
+      1231
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_96",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8020,
+      733,
+      495,
+      1231
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8033,
+      725,
+      489,
+      1213
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8033,
+      725,
+      489,
+      1213
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_120",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8033,
+      725,
+      489,
+      1213
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 120,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000,
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "quaternion_rail",
+     "kind": "overflow_probe",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    }
+   ],
+   "cycles_analytic": {
+    "m0plus_fast": 22,
+    "m0plus_slow": 29
+   },
+   "cycles_by_region": {
+    "m0plus_fast": {
+     "coeff": 18,
+     "frame": 16,
+     "hscale": 18,
+     "load": 6,
+     "rhs_call": 17,
+     "store": 11
+    },
+    "m0plus_slow": {
+     "coeff": 18,
+     "frame": 16,
+     "hscale": 111,
+     "load": 6,
+     "rhs_call": 17,
+     "store": 11
+    }
+   },
+   "cycles_traced": {
+    "m0plus_fast": 86,
+    "m0plus_slow": 179
+   },
+   "cycles_traced_model_scope": {
+    "m0plus_fast": 35,
+    "m0plus_slow": 35
+   },
+   "instructions_by_region": {
+    "coeff": 18,
+    "frame": 6,
+    "hscale": 15,
+    "load": 4,
+    "rhs_call": 8,
+    "store": 7
+   },
+   "instructions_per_step": 58,
+   "muls_in_model_scope": 0,
+   "muls_per_step": 3,
+   "name": "11e898cb",
+   "opcode_histogram": {
+    "add": 4,
+    "adds": 9,
+    "asrs": 6,
+    "bl": 3,
+    "ldrh": 1,
+    "ldrsh": 5,
+    "lsls": 5,
+    "mov": 7,
+    "movs": 7,
+    "muls": 3,
+    "pop": 1,
+    "push": 1,
+    "strh": 3,
+    "sub": 1,
+    "sxth": 2
+   },
+   "opcode_histogram_model_scope": {
+    "adds": 9,
+    "asrs": 3,
+    "ldrh": 1,
+    "ldrsh": 2,
+    "lsls": 5,
+    "mov": 2,
+    "movs": 2,
+    "strh": 3,
+    "sxth": 2
+   },
+   "origin": "discovered",
+   "ratio": {
+    "m0plus_fast": 3.909090909090909,
+    "m0plus_slow": 6.172413793103448
+   },
+   "ratio_model_scope": {
+    "m0plus_fast": 1.5909090909090908,
+    "m0plus_slow": 1.206896551724138
+   },
+   "relative_gap": {
+    "m0plus_fast": 0.7441860465116279,
+    "m0plus_slow": 0.8379888268156425
+   },
+   "relative_gap_model_scope": {
+    "m0plus_fast": 0.37142857142857144,
+    "m0plus_slow": 0.17142857142857143
+   },
+   "stages": 3,
+   "state_scaling": {
+    "n1": {
+     "cycles_analytic": {
+      "m0plus_fast": 22,
+      "m0plus_slow": 29
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 86,
+      "m0plus_slow": 179
+     },
+     "instructions_per_step": 58
+    },
+    "n2": {
+     "cycles_analytic": {
+      "m0plus_fast": 44,
+      "m0plus_slow": 58
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 144,
+      "m0plus_slow": 330
+     },
+     "instructions_per_step": 103
+    },
+    "n3": {
+     "cycles_analytic": {
+      "m0plus_fast": 66,
+      "m0plus_slow": 87
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 297,
+      "m0plus_slow": 576
+     },
+     "instructions_per_step": 216
+    },
+    "n4": {
+     "cycles_analytic": {
+      "m0plus_fast": 88,
+      "m0plus_slow": 116
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 490,
+      "m0plus_slow": 862
+     },
+     "instructions_per_step": 359
+    }
+   },
+   "tableau_hash": "11e898cbab591a7f432670d4040b788f4c00cc646a005d4f967505578e2c0033"
+  },
+  {
+   "c_sha256": {
+    "n1": {
+     "driver": "e9d17a600bcac940a9dd80f3040f492c7c4766e166a4fcfcb17f30a738bc25c9",
+     "step": "393d35e351f271e6a83ffdc12045292e953366ce5d0b06a926f97aeac1e47a6b"
+    },
+    "n2": {
+     "driver": "203ed80e33fb26bb5be858b67fcbf92416c05ae5fa3242c8f30643bef1fb59f9",
+     "step": "d51b94f0efad0c756367c4831c60762749cf67991fc3c0bd32f036ae5e5d7f82"
+    },
+    "n3": {
+     "driver": "37098c05a1d53b74363a5efbeb6a00eca0e59679c1f1993ac5d541849fddec9d",
+     "step": "63d6358d67443425a9520b105bfee9ae570b000fefa184cfcc888016fc590ee5"
+    },
+    "n4": {
+     "driver": "b7161ed97373ee22a2e5b1dea3451e9251d2cb612f179ab44669522fec549940",
+     "step": "f901430fe03384cb26ee7c2ee071665fdfac963cb7dccb7a610b1e7e8ebade86"
+    }
+   },
+   "coefficient_applications": 4,
+   "crosscheck": {
+    "cases": 16,
+    "comparable": 16,
+    "matched": 16,
+    "not_comparable": 0,
+    "overflow_cases": 2,
+    "trap_index_matched": 2
+   },
+   "crosscheck_cases": [
+    {
+     "c_checked_final": [
+      0
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      0
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_48",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      0
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -1
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -1
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_96",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      -1
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      0
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      0
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_144",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      0
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      3554
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      3554
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_rail",
+     "kind": "overflow_probe",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      3554
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -39,
+      -36
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -39,
+      -36
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_48",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -39,
+      -36
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -59,
+      -115
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -59,
+      -115
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_96",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -59,
+      -115
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -62,
+      -126
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -62,
+      -126
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_144",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -62,
+      -126
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "damped_osc_rail",
+     "kind": "overflow_probe",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      655,
+      706,
+      801
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      655,
+      706,
+      801
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_48",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      655,
+      706,
+      801
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      605,
+      652,
+      745
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      605,
+      652,
+      745
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_96",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      605,
+      652,
+      745
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      571,
+      615,
+      696
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      571,
+      615,
+      696
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_144",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      571,
+      615,
+      696
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      28448,
+      30210,
+      31692
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      28448,
+      30210,
+      31692
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_rail",
+     "kind": "overflow_probe",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      28448,
+      30210,
+      31692
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8031,
+      691,
+      467,
+      1161
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8031,
+      691,
+      467,
+      1161
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_48",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8031,
+      691,
+      467,
+      1161
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8029,
+      690,
+      470,
+      1154
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8029,
+      690,
+      470,
+      1154
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_96",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8029,
+      690,
+      470,
+      1154
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8011,
+      678,
+      469,
+      1149
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8011,
+      678,
+      469,
+      1149
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_120",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8011,
+      678,
+      469,
+      1149
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 120,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000,
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "quaternion_rail",
+     "kind": "overflow_probe",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    }
+   ],
+   "cycles_analytic": {
+    "m0plus_fast": 23,
+    "m0plus_slow": 50
+   },
+   "cycles_by_region": {
+    "m0plus_fast": {
+     "coeff": 25,
+     "frame": 16,
+     "hscale": 18,
+     "load": 9,
+     "rhs_call": 17,
+     "store": 8
+    },
+    "m0plus_slow": {
+     "coeff": 25,
+     "frame": 16,
+     "hscale": 111,
+     "load": 9,
+     "rhs_call": 17,
+     "store": 8
+    }
+   },
+   "cycles_traced": {
+    "m0plus_fast": 93,
+    "m0plus_slow": 186
+   },
+   "cycles_traced_model_scope": {
+    "m0plus_fast": 42,
+    "m0plus_slow": 42
+   },
+   "instructions_by_region": {
+    "coeff": 25,
+    "frame": 6,
+    "hscale": 15,
+    "load": 6,
+    "rhs_call": 8,
+    "store": 5
+   },
+   "instructions_per_step": 65,
+   "muls_in_model_scope": 0,
+   "muls_per_step": 3,
+   "name": "heun3",
+   "opcode_histogram": {
+    "add": 4,
+    "adds": 11,
+    "asrs": 7,
+    "bl": 3,
+    "ldrsh": 6,
+    "lsls": 7,
+    "mov": 7,
+    "movs": 8,
+    "muls": 3,
+    "pop": 1,
+    "push": 1,
+    "strh": 3,
+    "sub": 1,
+    "sxth": 3
+   },
+   "opcode_histogram_model_scope": {
+    "adds": 11,
+    "asrs": 4,
+    "ldrsh": 3,
+    "lsls": 7,
+    "mov": 2,
+    "movs": 3,
+    "strh": 3,
+    "sxth": 3
+   },
+   "origin": "classical",
+   "ratio": {
+    "m0plus_fast": 4.043478260869565,
+    "m0plus_slow": 3.72
+   },
+   "ratio_model_scope": {
+    "m0plus_fast": 1.826086956521739,
+    "m0plus_slow": 0.84
+   },
+   "relative_gap": {
+    "m0plus_fast": 0.7526881720430108,
+    "m0plus_slow": 0.7311827956989247
+   },
+   "relative_gap_model_scope": {
+    "m0plus_fast": 0.4523809523809524,
+    "m0plus_slow": 0.19047619047619047
+   },
+   "stages": 3,
+   "state_scaling": {
+    "n1": {
+     "cycles_analytic": {
+      "m0plus_fast": 23,
+      "m0plus_slow": 50
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 93,
+      "m0plus_slow": 186
+     },
+     "instructions_per_step": 65
+    },
+    "n2": {
+     "cycles_analytic": {
+      "m0plus_fast": 46,
+      "m0plus_slow": 100
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 164,
+      "m0plus_slow": 350
+     },
+     "instructions_per_step": 123
+    },
+    "n3": {
+     "cycles_analytic": {
+      "m0plus_fast": 69,
+      "m0plus_slow": 150
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 363,
+      "m0plus_slow": 642
+     },
+     "instructions_per_step": 267
+    },
+    "n4": {
+     "cycles_analytic": {
+      "m0plus_fast": 92,
+      "m0plus_slow": 200
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 543,
+      "m0plus_slow": 915
+     },
+     "instructions_per_step": 401
+    }
+   },
+   "tableau_hash": "387f8c5072d25e82b8770c60028a88171622058cb3cf5f1104a7f119f8f72bfe"
+  },
+  {
+   "c_sha256": {
+    "n1": {
+     "driver": "fee5bf8478adf2c5b2bc4ffe50c6b72a18bbaa3b2c09e67fa07d981c9e1d16db",
+     "step": "cbac5808e0011d1afea5a49f3b89b53195f3f7b5647fadddf79b1eb7aad35397"
+    },
+    "n2": {
+     "driver": "67a6581aaa6f0cb40d57e98541b75f3c6375f2156200f5369c2cea6fa2ed4761",
+     "step": "5baa370668b39eefb525ff0cd95514e32f901c65f3c4ffb96b6a36b0464f4b10"
+    },
+    "n3": {
+     "driver": "dd2eebb8c353e1f248eefcda7bb8c1c5efd7c3497ef9ac4c7f68bdd3d4fa90dd",
+     "step": "d15b06074cca6e8f8c1caaf92db976c80f8c8e1d3112c2f401c13044a1c5af28"
+    },
+    "n4": {
+     "driver": "c49928e2a75bedeaea4326acc9df06abb7cdebac2de59b24d2f48f977b9fd8a2",
+     "step": "a09fff2ea6d0075e03478edfe61c2d12fa2a720900c3df769bb441ebe4558423"
+    }
+   },
+   "coefficient_applications": 6,
+   "crosscheck": {
+    "cases": 16,
+    "comparable": 16,
+    "matched": 16,
+    "not_comparable": 0,
+    "overflow_cases": 4,
+    "trap_index_matched": 4
+   },
+   "crosscheck_cases": [
+    {
+     "c_checked_final": [
+      0
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      0
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_48",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      0
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -1
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -1
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_96",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      -1
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -1
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -1
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_144",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      -1
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "dahlquist_rail",
+     "kind": "overflow_probe",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -37,
+      -42
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -37,
+      -42
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_48",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -37,
+      -42
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -53,
+      -116
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -53,
+      -116
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_96",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -53,
+      -116
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -53,
+      -123
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -53,
+      -123
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_144",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -53,
+      -123
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "damped_osc_rail",
+     "kind": "overflow_probe",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      638,
+      688,
+      782
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      638,
+      688,
+      782
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_48",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      638,
+      688,
+      782
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      576,
+      621,
+      704
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      576,
+      621,
+      704
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_96",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      576,
+      621,
+      704
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      553,
+      597,
+      689
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      553,
+      597,
+      689
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_144",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      553,
+      597,
+      689
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      32000,
+      32000
+     ],
+     "c_checked_trap_op": 14,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "rc_thermal_rail",
+     "kind": "overflow_probe",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 14,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8006,
+      693,
+      483,
+      1166
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8006,
+      693,
+      483,
+      1166
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_48",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8006,
+      693,
+      483,
+      1166
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -7993,
+      687,
+      488,
+      1186
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -7993,
+      687,
+      488,
+      1186
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_96",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -7993,
+      687,
+      488,
+      1186
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -7964,
+      683,
+      498,
+      1187
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -7964,
+      683,
+      498,
+      1187
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_120",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -7964,
+      683,
+      498,
+      1187
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 120,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000,
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "quaternion_rail",
+     "kind": "overflow_probe",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    }
+   ],
+   "cycles_analytic": {
+    "m0plus_fast": 26,
+    "m0plus_slow": 65
+   },
+   "cycles_by_region": {
+    "m0plus_fast": {
+     "coeff": 32,
+     "frame": 18,
+     "hscale": 18,
+     "load": 9,
+     "rhs_call": 17,
+     "store": 8
+    },
+    "m0plus_slow": {
+     "coeff": 32,
+     "frame": 18,
+     "hscale": 111,
+     "load": 9,
+     "rhs_call": 17,
+     "store": 8
+    }
+   },
+   "cycles_traced": {
+    "m0plus_fast": 102,
+    "m0plus_slow": 195
+   },
+   "cycles_traced_model_scope": {
+    "m0plus_fast": 49,
+    "m0plus_slow": 49
+   },
+   "instructions_by_region": {
+    "coeff": 32,
+    "frame": 6,
+    "hscale": 15,
+    "load": 6,
+    "rhs_call": 8,
+    "store": 5
+   },
+   "instructions_per_step": 72,
+   "muls_in_model_scope": 0,
+   "muls_per_step": 3,
+   "name": "kutta3",
+   "opcode_histogram": {
+    "add": 4,
+    "adds": 14,
+    "asrs": 7,
+    "bl": 3,
+    "ldrsh": 6,
+    "lsls": 10,
+    "mov": 7,
+    "movs": 8,
+    "muls": 3,
+    "pop": 1,
+    "push": 1,
+    "strh": 3,
+    "sub": 1,
+    "subs": 1,
+    "sxth": 3
+   },
+   "opcode_histogram_model_scope": {
+    "adds": 14,
+    "asrs": 4,
+    "ldrsh": 3,
+    "lsls": 10,
+    "mov": 2,
+    "movs": 3,
+    "strh": 3,
+    "subs": 1,
+    "sxth": 3
+   },
+   "origin": "classical",
+   "ratio": {
+    "m0plus_fast": 3.923076923076923,
+    "m0plus_slow": 3.0
+   },
+   "ratio_model_scope": {
+    "m0plus_fast": 1.8846153846153846,
+    "m0plus_slow": 0.7538461538461538
+   },
+   "relative_gap": {
+    "m0plus_fast": 0.7450980392156863,
+    "m0plus_slow": 0.6666666666666666
+   },
+   "relative_gap_model_scope": {
+    "m0plus_fast": 0.46938775510204084,
+    "m0plus_slow": 0.32653061224489793
+   },
+   "stages": 3,
+   "state_scaling": {
+    "n1": {
+     "cycles_analytic": {
+      "m0plus_fast": 26,
+      "m0plus_slow": 65
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 102,
+      "m0plus_slow": 195
+     },
+     "instructions_per_step": 72
+    },
+    "n2": {
+     "cycles_analytic": {
+      "m0plus_fast": 52,
+      "m0plus_slow": 130
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 187,
+      "m0plus_slow": 373
+     },
+     "instructions_per_step": 142
+    },
+    "n3": {
+     "cycles_analytic": {
+      "m0plus_fast": 78,
+      "m0plus_slow": 195
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 419,
+      "m0plus_slow": 698
+     },
+     "instructions_per_step": 314
+    },
+    "n4": {
+     "cycles_analytic": {
+      "m0plus_fast": 104,
+      "m0plus_slow": 260
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 582,
+      "m0plus_slow": 954
+     },
+     "instructions_per_step": 445
+    }
+   },
+   "tableau_hash": "7ec1ae0bd3c9dab28388eb7ed4247cb1ec1ed840c894e11752255a64d5ec8585"
+  },
+  {
+   "c_sha256": {
+    "n1": {
+     "driver": "ec63562892071d0026b3c1001e3f4e613a8ef0df0097bdb20cc368ca2f3aff09",
+     "step": "0eed444e9060e69e73feed680752c3d079da1c69d3052ffc97d07ba9403cca4a"
+    },
+    "n2": {
+     "driver": "319ec41f1de60e3960bd6413240e732252c6c3c618ed88f658f2eed3ee1a4514",
+     "step": "c45947b65a255f0ea2b047aec1603a7abec695d18176b251dead3399cc8bf6e8"
+    },
+    "n3": {
+     "driver": "1470e0ff637a75f9f81c8b1be764d56953a2d7a45b9adc2cb58fa9edd2833615",
+     "step": "85a7e176f2e99589c4d462d2ecbc34d6e616b1644ded461203650c2d0f8a0e97"
+    },
+    "n4": {
+     "driver": "1fe45f1c7c6e22f87917bc035486a3d195081ff838c96a4ab578ae7af5936380",
+     "step": "2556255e17b1c9780bb88f6824bdd30c3b1596b4fca587ec97e685304794c275"
+    }
+   },
+   "coefficient_applications": 7,
+   "crosscheck": {
+    "cases": 16,
+    "comparable": 16,
+    "matched": 16,
+    "not_comparable": 0,
+    "overflow_cases": 2,
+    "trap_index_matched": 2
+   },
+   "crosscheck_cases": [
+    {
+     "c_checked_final": [
+      -1
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -1
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_48",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      -1
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -1
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -1
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_96",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      -1
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -1
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -1
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_144",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      -1
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      4498
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      4498
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_rail",
+     "kind": "overflow_probe",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      4498
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -35,
+      -137
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -35,
+      -137
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_48",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -35,
+      -137
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -53,
+      -131
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -53,
+      -131
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_96",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -53,
+      -131
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -52,
+      -133
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -52,
+      -133
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_144",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -52,
+      -133
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "damped_osc_rail",
+     "kind": "overflow_probe",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      629,
+      677,
+      769
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      629,
+      677,
+      769
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_48",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      629,
+      677,
+      769
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      563,
+      607,
+      688
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      563,
+      607,
+      688
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_96",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      563,
+      607,
+      688
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      517,
+      559,
+      660
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      517,
+      559,
+      660
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_144",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      517,
+      559,
+      660
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      28445,
+      30211,
+      31689
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      28445,
+      30211,
+      31689
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_rail",
+     "kind": "overflow_probe",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      28445,
+      30211,
+      31689
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8009,
+      696,
+      483,
+      1179
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8009,
+      696,
+      483,
+      1179
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_48",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8009,
+      696,
+      483,
+      1179
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -7977,
+      689,
+      506,
+      1192
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -7977,
+      689,
+      506,
+      1192
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_96",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -7977,
+      689,
+      506,
+      1192
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -7941,
+      684,
+      509,
+      1195
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -7941,
+      684,
+      509,
+      1195
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_120",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -7941,
+      684,
+      509,
+      1195
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 120,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000,
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "quaternion_rail",
+     "kind": "overflow_probe",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    }
+   ],
+   "cycles_analytic": {
+    "m0plus_fast": 33,
+    "m0plus_slow": 85
+   },
+   "cycles_by_region": {
+    "m0plus_fast": {
+     "coeff": 44,
+     "frame": 28,
+     "hscale": 20,
+     "load": 9,
+     "rhs_call": 24,
+     "store": 14
+    },
+    "m0plus_slow": {
+     "coeff": 44,
+     "frame": 28,
+     "hscale": 144,
+     "load": 9,
+     "rhs_call": 24,
+     "store": 14
+    }
+   },
+   "cycles_traced": {
+    "m0plus_fast": 139,
+    "m0plus_slow": 263
+   },
+   "cycles_traced_model_scope": {
+    "m0plus_fast": 67,
+    "m0plus_slow": 67
+   },
+   "instructions_by_region": {
+    "coeff": 44,
+    "frame": 12,
+    "hscale": 16,
+    "load": 6,
+    "rhs_call": 12,
+    "store": 9
+   },
+   "instructions_per_step": 99,
+   "muls_in_model_scope": 0,
+   "muls_per_step": 4,
+   "name": "rk4",
+   "opcode_histogram": {
+    "add": 4,
+    "adds": 17,
+    "asrs": 10,
+    "bl": 4,
+    "ldrh": 1,
+    "ldrsh": 7,
+    "lsls": 12,
+    "mov": 14,
+    "movs": 13,
+    "muls": 4,
+    "pop": 2,
+    "push": 2,
+    "strh": 4,
+    "sub": 1,
+    "sxth": 4
+   },
+   "opcode_histogram_model_scope": {
+    "add": 2,
+    "adds": 17,
+    "asrs": 6,
+    "ldrh": 1,
+    "ldrsh": 3,
+    "lsls": 12,
+    "mov": 7,
+    "movs": 3,
+    "strh": 4,
+    "sxth": 4
+   },
+   "origin": "classical",
+   "ratio": {
+    "m0plus_fast": 4.212121212121212,
+    "m0plus_slow": 3.0941176470588236
+   },
+   "ratio_model_scope": {
+    "m0plus_fast": 2.0303030303030303,
+    "m0plus_slow": 0.788235294117647
+   },
+   "relative_gap": {
+    "m0plus_fast": 0.762589928057554,
+    "m0plus_slow": 0.6768060836501901
+   },
+   "relative_gap_model_scope": {
+    "m0plus_fast": 0.5074626865671642,
+    "m0plus_slow": 0.26865671641791045
+   },
+   "stages": 4,
+   "state_scaling": {
+    "n1": {
+     "cycles_analytic": {
+      "m0plus_fast": 33,
+      "m0plus_slow": 85
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 139,
+      "m0plus_slow": 263
+     },
+     "instructions_per_step": 99
+    },
+    "n2": {
+     "cycles_analytic": {
+      "m0plus_fast": 66,
+      "m0plus_slow": 170
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 256,
+      "m0plus_slow": 504
+     },
+     "instructions_per_step": 190
+    },
+    "n3": {
+     "cycles_analytic": {
+      "m0plus_fast": 99,
+      "m0plus_slow": 255
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 478,
+      "m0plus_slow": 850
+     },
+     "instructions_per_step": 358
+    },
+    "n4": {
+     "cycles_analytic": {
+      "m0plus_fast": 132,
+      "m0plus_slow": 340
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 716,
+      "m0plus_slow": 1212
+     },
+     "instructions_per_step": 544
+    }
+   },
+   "tableau_hash": "9e77874726d61a21f880b9c5caca1634c0c9c5fbb445b114e80a8ad0cb5e0f13"
+  },
+  {
+   "c_sha256": {
+    "n1": {
+     "driver": "60d74dc10c6285db3d980eb79dce9dc079031fb563065bc032c9a3bd78b63e44",
+     "step": "5bb4dd713866afd7821aa36b14debb999f3473560db45f519018302149ad9990"
+    },
+    "n2": {
+     "driver": "907de992ab9a7abac549c8a6b54fb29dd6c7c457db1bc4726ef235addd16ce1c",
+     "step": "187c19ef08298286af20555490ca46c142cd5824cce892333144a62158a3aa81"
+    },
+    "n3": {
+     "driver": "7bce7d0f2513dd3982ac10b7e850a1bfd746300f1e218731a2266e35775ce1b9",
+     "step": "e481a8963971cc5737fbcee56d7107c2c32afc4e1d376c61dbc761e3333af69d"
+    },
+    "n4": {
+     "driver": "14748227df2101eaa31fde547acd82418c803db060f07524157ed0f92cde6622",
+     "step": "d62321a82ca869bf3fef26c4741185e552bff3a1d9ffb5fbd4242de0872f7ba3"
+    }
+   },
+   "coefficient_applications": 10,
+   "crosscheck": {
+    "cases": 16,
+    "comparable": 16,
+    "matched": 16,
+    "not_comparable": 0,
+    "overflow_cases": 4,
+    "trap_index_matched": 4
+   },
+   "crosscheck_cases": [
+    {
+     "c_checked_final": [
+      -1
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -1
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_48",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      -1
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -1
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -1
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_96",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      -1
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -1
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -1
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "dahlquist_144",
+     "kind": "solve",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": [
+      -1
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "dahlquist_rail",
+     "kind": "overflow_probe",
+     "problem": "dahlquist",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -44,
+      -135
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -44,
+      -135
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_48",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -44,
+      -135
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -67,
+      -128
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -67,
+      -128
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_96",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -67,
+      -128
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -76,
+      -123
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -76,
+      -123
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "damped_osc_144",
+     "kind": "solve",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": [
+      -76,
+      -123
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "damped_osc_rail",
+     "kind": "overflow_probe",
+     "problem": "damped_osc",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      628,
+      677,
+      771
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      628,
+      677,
+      771
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_48",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      628,
+      677,
+      771
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      557,
+      601,
+      693
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      557,
+      601,
+      693
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_96",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      557,
+      601,
+      693
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      517,
+      562,
+      652
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      517,
+      562,
+      652
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "rc_thermal_144",
+     "kind": "solve",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": [
+      517,
+      562,
+      652
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 144,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      32000,
+      32000
+     ],
+     "c_checked_trap_op": 14,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "rc_thermal_rail",
+     "kind": "overflow_probe",
+     "problem": "rc_thermal",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 14,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8030,
+      682,
+      468,
+      1152
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8030,
+      682,
+      468,
+      1152
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_48",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8030,
+      682,
+      468,
+      1152
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 48,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -8003,
+      649,
+      467,
+      1156
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -8003,
+      649,
+      467,
+      1156
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_96",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -8003,
+      649,
+      467,
+      1156
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 96,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      -7980,
+      647,
+      462,
+      1138
+     ],
+     "c_checked_trap_op": 0,
+     "c_plain_final": [
+      -7980,
+      647,
+      462,
+      1138
+     ],
+     "c_plain_stage_input_mismatch": 0,
+     "case": "quaternion_120",
+     "kind": "solve",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": [
+      -7980,
+      647,
+      462,
+      1138
+     ],
+     "python_status": "ok",
+     "python_trap_op": 0,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 120,
+     "verdict": "match"
+    },
+    {
+     "c_checked_final": [
+      32000,
+      -32000,
+      32000,
+      -32000
+     ],
+     "c_checked_trap_op": 6,
+     "c_plain_note": "the reference C from emit_c has no range check, so it cannot report this condition; its int32 intermediate truncates at the store and a value comes back",
+     "c_plain_trapped": false,
+     "case": "quaternion_rail",
+     "kind": "overflow_probe",
+     "problem": "quaternion",
+     "problems": [],
+     "python_final": null,
+     "python_status": "overflow",
+     "python_trap_op": 6,
+     "shift_is_arithmetic": true,
+     "stage_input_mismatch": 0,
+     "steps": 2,
+     "verdict": "match"
+    }
+   ],
+   "cycles_analytic": {
+    "m0plus_fast": 36,
+    "m0plus_slow": 64
+   },
+   "cycles_by_region": {
+    "m0plus_fast": {
+     "coeff": 36,
+     "frame": 28,
+     "hscale": 19,
+     "load": 12,
+     "rhs_call": 24,
+     "store": 11
+    },
+    "m0plus_slow": {
+     "coeff": 36,
+     "frame": 28,
+     "hscale": 143,
+     "load": 12,
+     "rhs_call": 24,
+     "store": 11
+    }
+   },
+   "cycles_traced": {
+    "m0plus_fast": 130,
+    "m0plus_slow": 254
+   },
+   "cycles_traced_model_scope": {
+    "m0plus_fast": 59,
+    "m0plus_slow": 59
+   },
+   "instructions_by_region": {
+    "coeff": 36,
+    "frame": 12,
+    "hscale": 15,
+    "load": 8,
+    "rhs_call": 12,
+    "store": 7
+   },
+   "instructions_per_step": 90,
+   "muls_in_model_scope": 0,
+   "muls_per_step": 4,
+   "name": "rk38",
+   "opcode_histogram": {
+    "add": 6,
+    "adds": 10,
+    "asrs": 9,
+    "bl": 4,
+    "ldrsh": 8,
+    "lsls": 6,
+    "mov": 15,
+    "movs": 14,
+    "muls": 4,
+    "negs": 1,
+    "pop": 2,
+    "push": 2,
+    "strh": 4,
+    "sub": 1,
+    "subs": 1,
+    "sxth": 3
+   },
+   "opcode_histogram_model_scope": {
+    "add": 4,
+    "adds": 10,
+    "asrs": 6,
+    "ldrsh": 4,
+    "lsls": 6,
+    "mov": 8,
+    "movs": 4,
+    "negs": 1,
+    "strh": 4,
+    "subs": 1,
+    "sxth": 3
+   },
+   "origin": "classical",
+   "ratio": {
+    "m0plus_fast": 3.611111111111111,
+    "m0plus_slow": 3.96875
+   },
+   "ratio_model_scope": {
+    "m0plus_fast": 1.6388888888888888,
+    "m0plus_slow": 0.921875
+   },
+   "relative_gap": {
+    "m0plus_fast": 0.7230769230769231,
+    "m0plus_slow": 0.7480314960629921
+   },
+   "relative_gap_model_scope": {
+    "m0plus_fast": 0.3898305084745763,
+    "m0plus_slow": 0.0847457627118644
+   },
+   "stages": 4,
+   "state_scaling": {
+    "n1": {
+     "cycles_analytic": {
+      "m0plus_fast": 36,
+      "m0plus_slow": 64
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 130,
+      "m0plus_slow": 254
+     },
+     "instructions_per_step": 90
+    },
+    "n2": {
+     "cycles_analytic": {
+      "m0plus_fast": 72,
+      "m0plus_slow": 128
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 235,
+      "m0plus_slow": 483
+     },
+     "instructions_per_step": 177
+    },
+    "n3": {
+     "cycles_analytic": {
+      "m0plus_fast": 108,
+      "m0plus_slow": 192
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 532,
+      "m0plus_slow": 904
+     },
+     "instructions_per_step": 402
+    },
+    "n4": {
+     "cycles_analytic": {
+      "m0plus_fast": 144,
+      "m0plus_slow": 256
+     },
+     "cycles_per_step": {
+      "m0plus_fast": 785,
+      "m0plus_slow": 1281
+     },
+     "instructions_per_step": 597
+    }
+   },
+   "tableau_hash": "05ef8dc28c8266b20b2ee188b8fc4628c6bfd6db0c076f32cdc4a33ee80447ea"
+  }
+ ],
+ "mnemonic_class": {
+  "from_cost_model": {
+   "ADDS": "add",
+   "ASRS": "shift",
+   "LDR": "load",
+   "LSLS": "shift",
+   "LSRS": "shift",
+   "MULS": "mul",
+   "STR": "store",
+   "SUBS": "add"
+  },
+  "note": "The five classes the cost model prices are taken from it unchanged, so load, store, mul, shift and add cost the same on both sides. The extension covers mnemonics a compiler emits that the pinned ten-line fixture does not contain; alu is one cycle, branch and multi-register transfers follow the assumptions block.",
+  "trace_extension": {
+   "ADCS": "alu",
+   "ADD": "alu",
+   "ADR": "alu",
+   "ANDS": "alu",
+   "ASR": "alu",
+   "B": "branch",
+   "BICS": "alu",
+   "BL": "call",
+   "BLX": "call",
+   "BX": "branch",
+   "CMN": "alu",
+   "CMP": "alu",
+   "EORS": "alu",
+   "LDM": "multi",
+   "LDMIA": "multi",
+   "LDRB": "load",
+   "LDRH": "load",
+   "LDRSB": "load",
+   "LDRSH": "load",
+   "LSL": "alu",
+   "LSR": "alu",
+   "MOV": "alu",
+   "MOVS": "alu",
+   "MULS.W": "mul",
+   "MVNS": "alu",
+   "NEGS": "alu",
+   "NOP": "alu",
+   "ORRS": "alu",
+   "POP": "multi",
+   "PUSH": "multi",
+   "RORS": "alu",
+   "RSBS": "alu",
+   "SBCS": "alu",
+   "STM": "multi",
+   "STMIA": "multi",
+   "STRB": "store",
+   "STRH": "store",
+   "SUB": "alu",
+   "SXTB": "alu",
+   "SXTH": "alu",
+   "TST": "alu",
+   "UXTB": "alu",
+   "UXTH": "alu"
+  }
+ },
+ "schema": {
+  "crosscheck": "agreement with the pinned Python evaluator: exact final int16 state, every stage input, and the operation index at which an overflow trapped",
+  "cycles_analytic": "costmodel.cycle_count for this tableau at n_states = 1, unchanged",
+  "cycles_traced": "TRM-priced cycles for every instruction executed inside rk_step in one step, excluding the derivative routine's own body",
+  "cycles_traced_model_scope": "the same pricing restricted to the instructions the analytic model prices: the load, the coefficient terms, the adds and the store",
+  "instructions_by_region": "executed instructions per step by what the source line does: load, coeff, store are the model's scope; hscale is the h times k product the model excludes; rhs_call is the call to the derivative; loop is loop control; frame is the stack frame",
+  "muls_in_model_scope": "of those, the ones applying a tableau coefficient",
+  "muls_per_step": "MULS instructions executed per step inside rk_step",
+  "opcode_histogram": "executed mnemonics per step inside rk_step",
+  "ratio": "cycles_traced / cycles_analytic",
+  "ratio_model_scope": "cycles_traced_model_scope / cycles_analytic",
+  "relative_gap": "|cycles_analytic - cycles_traced| / cycles_traced",
+  "state_scaling": "the same counts at each state count the scored problem set uses, one through four, so the model's linear scaling in state dimension can be read rather than assumed. cycles_per_step is the whole rk_step at that state count, on the same scope as cycles_traced and so excluding the derivative routine's own body; cycles_analytic beside it is costmodel.cycle_count at the same state count"
+ },
+ "toolchain": {
+  "access": "wsl.exe bridge to arm-none-eabi-gcc",
+  "compiler": "arm-none-eabi-gcc (15:13.2.rel1-2) 13.2.1 20231009",
+  "debug_flag_note": "-g adds a line table and no instructions; the region attribution reads it",
+  "emulator": "unicorn 2.1.4",
+  "flags": [
+   "-mcpu=cortex-m0plus",
+   "-mthumb",
+   "-O2",
+   "-ffreestanding",
+   "-nostdlib",
+   "-g"
+  ],
+  "linker_script": "text, data and bss placed contiguously from 0x0; a flat image",
+  "objdump": "GNU objdump (2.42-1ubuntu1+23) 2.42"
+ },
+ "verdicts": {
+  "crosscheck": "144 of 144 comparable cases agree with the pinned Python evaluator on the exact final int16 state and on every stage input. 25 of them are cases where the Q15 primitives raise, and on those the checked C traps at the same operation index. The reference C from emit_c keeps int32 intermediates and truncates at the store, so it returns a value instead of trapping; that is why a checked entry point exists and why the comparison reads the overflow verdict and not only the state.",
+  "inversions": [
+   {
+    "analytic": {
+     "rk38": 36,
+     "rk4": 33
+    },
+    "cheaper_analytic": "rk4",
+    "cheaper_traced": "rk38",
+    "note": "the analytic model puts rk4 below rk38 and the trace puts rk38 below the other",
+    "pair": [
+     "rk4",
+     "rk38"
+    ],
+    "traced": {
+     "rk38": 130,
+     "rk4": 139
+    }
+   }
+  ],
+  "ordering": "Spearman rank correlation between the analytic and the traced cycles per step across 9 methods is 0.9833 under m0plus_fast. 1 pair(s) rank differently: rk4 against rk38, analytic 33 and 36, traced 139 and 130.",
+  "ratio_range_fast": [
+   3.611111111111111,
+   6.4
+  ],
+  "ratio_range_model_scope_fast": [
+   1.0,
+   2.0303030303030303
+  ],
+  "ratio_range_model_scope_slow": [
+   0.7538461538461538,
+   1.3076923076923077
+  ],
+  "scope": "The analytic model prices the stage and b combinations only. It prices no derivative call, no h times k product, no loop control and no stack frame, so the whole-step traced number is larger by construction. Both are published: ratio is whole step, ratio_model_scope is the matched scope.",
+  "widest_model_scope_gap": {
+   "method": "rk4",
+   "relative_gap": 0.5074626865671642
+  }
+ }
+}

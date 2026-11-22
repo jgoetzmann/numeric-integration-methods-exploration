@@ -44,11 +44,11 @@ import os
 import sys
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent          # rk-overview/tools
+HERE = Path(__file__).resolve().parent          # analysis/tools
 WS = HERE.parent.parent                          # workspace root
-os.environ.setdefault("RK_WORK_DIR", str(WS / "rk-work"))
-os.environ.setdefault("RK_FINDINGS_DIR", str(WS / "rk-findings"))
-sys.path.insert(0, str(WS / "rk-harness"))
+os.environ.setdefault("RK_WORK_DIR", str(WS / "run-data"))
+os.environ.setdefault("RK_FINDINGS_DIR", str(WS / "findings"))
+sys.path.insert(0, str(WS / "harness"))
 
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
@@ -182,7 +182,7 @@ def _saturation_state() -> dict:
     Read tolerantly: the file appears only once the orchestrator has run a check, and a
     missing one must leave the analysis buildable rather than stop it.
     """
-    path = WS / "rk-work" / "saturation_state.json"
+    path = WS / "run-data" / "saturation_state.json"
     try:
         d = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -197,7 +197,7 @@ def _saturation_state() -> dict:
 
 def load_inputs():
     state, records = archive.cached_view()
-    fals = json.loads((WS / "rk-work" / "falsification.json").read_text(encoding="utf-8"))
+    fals = json.loads((WS / "run-data" / "falsification.json").read_text(encoding="utf-8"))
     fr = json.loads((HERE / "floor_round.json").read_text(encoding="utf-8"))
     return state, records, fals, fr
 

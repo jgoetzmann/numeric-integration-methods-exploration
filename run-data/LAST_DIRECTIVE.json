@@ -1,0 +1,20 @@
+{
+ "directive_id": "D-2587",
+ "hypothesis_id": "H-030",
+ "target_order": 4,
+ "stages": [
+  4
+ ],
+ "constraints": {
+  "dyadic_denominator_max": 32,
+  "c_fixed": {
+   "1": "1/2",
+   "2": "1/2",
+   "3": "1"
+  },
+  "b_nonneg": true
+ },
+ "islands": 6,
+ "budget_minutes": 45,
+ "rationale": "The order-4 four-stage cell has only five samples and held-out error 0.06949. Dyadic nodes at 1/2, 1/2, and 1 include a known feasible fourth-order structure; sampling this sparse cell also informs H-030."
+}

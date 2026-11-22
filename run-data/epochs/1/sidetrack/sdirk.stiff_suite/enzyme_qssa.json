@@ -1,0 +1,224 @@
+{
+  "arithmetic": "float64 only; no Q15 effects are included",
+  "closes": "EPOCH3-DESIGN: the stiff case rests on rc_thermal and a synthetic two-rate system, while the suite now has three purpose-built stiff problems",
+  "divergence_bound": 1000000.0,
+  "job": "sdirk.stiff_suite",
+  "key": "enzyme_qssa",
+  "ladder": [
+    8,
+    16,
+    32,
+    64,
+    128,
+    256
+  ],
+  "methods": {
+    "euler": {
+      "best_error": null,
+      "est_cycles_per_step": 10,
+      "f_evals_per_step": 1,
+      "min_stable_n": null,
+      "points": [
+        {
+          "error": null,
+          "n": 8,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 16,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 32,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 64,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 128,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 256,
+          "status": "diverged"
+        }
+      ]
+    },
+    "heun2": {
+      "best_error": null,
+      "est_cycles_per_step": 26,
+      "f_evals_per_step": 2,
+      "min_stable_n": null,
+      "points": [
+        {
+          "error": null,
+          "n": 8,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 16,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 32,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 64,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 128,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 256,
+          "status": "diverged"
+        }
+      ]
+    },
+    "midpoint": {
+      "best_error": null,
+      "est_cycles_per_step": 22,
+      "f_evals_per_step": 2,
+      "min_stable_n": null,
+      "points": [
+        {
+          "error": null,
+          "n": 8,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 16,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 32,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 64,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 128,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 256,
+          "status": "diverged"
+        }
+      ]
+    },
+    "rk4": {
+      "best_error": null,
+      "est_cycles_per_step": 66,
+      "f_evals_per_step": 4,
+      "min_stable_n": null,
+      "points": [
+        {
+          "error": null,
+          "n": 8,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 16,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 32,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 64,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 128,
+          "status": "diverged"
+        },
+        {
+          "error": null,
+          "n": 256,
+          "status": "diverged"
+        }
+      ]
+    },
+    "sdirk2": {
+      "best_error": 6.892173414138139e-07,
+      "est_cycles_per_step": 372,
+      "f_evals_per_step": 8,
+      "min_stable_n": 8,
+      "points": [
+        {
+          "error": 0.0007464019139447134,
+          "n": 8,
+          "status": "ok"
+        },
+        {
+          "error": 0.00018139319537710104,
+          "n": 16,
+          "status": "ok"
+        },
+        {
+          "error": 4.4698878329945774e-05,
+          "n": 32,
+          "status": "ok"
+        },
+        {
+          "error": 1.1092246778143952e-05,
+          "n": 64,
+          "status": "ok"
+        },
+        {
+          "error": 2.762413997770417e-06,
+          "n": 128,
+          "status": "ok"
+        },
+        {
+          "error": 6.892173414138139e-07,
+          "n": 256,
+          "status": "ok"
+        }
+      ]
+    }
+  },
+  "n_states": 2,
+  "note": "cycle estimates exclude rhs and Jacobian evaluations, matching costmodel.cycle_count; SDIRK2 is priced with a finite-difference Jacobian because the validation problems supply no analytic one",
+  "params": {
+    "problem": "enzyme_qssa"
+  },
+  "problem": "enzyme_qssa",
+  "schema": "step count vs error for the explicit anchors and SDIRK2 on one stiff member of the T8 validation suite; a diverged entry is a result, not a gap",
+  "stiffness_ratio": 1030.0,
+  "summary": {
+    "explicit_finishers": [],
+    "finishers": [
+      "sdirk2"
+    ],
+    "rk4_min_stable_n": null,
+    "sdirk2_best_error": 6.892173414138139e-07,
+    "sdirk2_min_stable_n": 8
+  }
+}

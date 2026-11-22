@@ -1,0 +1,278 @@
+{
+  "arithmetic": "float64 only; no Q15 effects are included",
+  "budget_cycles": 65536,
+  "budget_ladder": [
+    "1/4",
+    "1/2",
+    "1/1",
+    "2/1",
+    "4/1"
+  ],
+  "closes": "EPOCH3-DESIGN: the stiff ladder in J3 stops at 256 steps while the harness scores at a matched cycle budget, where the cheap explicit methods take thousands of steps",
+  "divergence_bound": 1000000.0,
+  "job": "sdirk.stiff_suite_budget",
+  "key": "robertson_scaled",
+  "methods": {
+    "euler": {
+      "error_at_budget": 8.809464110678245e-05,
+      "est_cycles_per_step": 15,
+      "f_evals_per_step": 1,
+      "ladder": [
+        1092,
+        2184,
+        4369,
+        8738,
+        17476
+      ],
+      "points": [
+        {
+          "analytic_cycles": 16380,
+          "error": 0.0003538439288030174,
+          "n": 1092,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 32760,
+          "error": 0.00017645083147274112,
+          "n": 2184,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 65535,
+          "error": 8.809464110678245e-05,
+          "n": 4369,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 131070,
+          "error": 4.402034398674207e-05,
+          "n": 8738,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 262140,
+          "error": 2.2003499694037266e-05,
+          "n": 17476,
+          "status": "ok"
+        }
+      ],
+      "status_at_budget": "ok",
+      "steps_at_budget": 4369
+    },
+    "heun2": {
+      "error_at_budget": 3.8128853367659713e-07,
+      "est_cycles_per_step": 39,
+      "f_evals_per_step": 2,
+      "ladder": [
+        420,
+        840,
+        1680,
+        3360,
+        6720
+      ],
+      "points": [
+        {
+          "analytic_cycles": 16380,
+          "error": null,
+          "n": 420,
+          "status": "diverged"
+        },
+        {
+          "analytic_cycles": 32760,
+          "error": null,
+          "n": 840,
+          "status": "diverged"
+        },
+        {
+          "analytic_cycles": 65520,
+          "error": 3.8128853367659713e-07,
+          "n": 1680,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 131040,
+          "error": 1.0777381303207014e-07,
+          "n": 3360,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 262080,
+          "error": 2.7892369646521198e-08,
+          "n": 6720,
+          "status": "ok"
+        }
+      ],
+      "status_at_budget": "ok",
+      "steps_at_budget": 1680
+    },
+    "midpoint": {
+      "error_at_budget": 3.165234793693018e-07,
+      "est_cycles_per_step": 33,
+      "f_evals_per_step": 2,
+      "ladder": [
+        496,
+        992,
+        1985,
+        3970,
+        7940
+      ],
+      "points": [
+        {
+          "analytic_cycles": 16368,
+          "error": null,
+          "n": 496,
+          "status": "diverged"
+        },
+        {
+          "analytic_cycles": 32736,
+          "error": null,
+          "n": 992,
+          "status": "diverged"
+        },
+        {
+          "analytic_cycles": 65505,
+          "error": 3.165234793693018e-07,
+          "n": 1985,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 131010,
+          "error": 8.711326851613491e-08,
+          "n": 3970,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 262020,
+          "error": 2.248479669342927e-08,
+          "n": 7940,
+          "status": "ok"
+        }
+      ],
+      "status_at_budget": "ok",
+      "steps_at_budget": 1985
+    },
+    "rk4": {
+      "error_at_budget": null,
+      "est_cycles_per_step": 99,
+      "f_evals_per_step": 4,
+      "ladder": [
+        165,
+        330,
+        661,
+        1322,
+        2644
+      ],
+      "points": [
+        {
+          "analytic_cycles": 16335,
+          "error": null,
+          "n": 165,
+          "status": "diverged"
+        },
+        {
+          "analytic_cycles": 32670,
+          "error": null,
+          "n": 330,
+          "status": "diverged"
+        },
+        {
+          "analytic_cycles": 65439,
+          "error": null,
+          "n": 661,
+          "status": "diverged"
+        },
+        {
+          "analytic_cycles": 130878,
+          "error": 1.4925146146964862e-08,
+          "n": 1322,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 261756,
+          "error": 7.56394519907773e-10,
+          "n": 2644,
+          "status": "ok"
+        }
+      ],
+      "status_at_budget": "diverged",
+      "steps_at_budget": 661
+    },
+    "sdirk2": {
+      "error_at_budget": null,
+      "est_cycles_per_step": 652,
+      "f_evals_per_step": 9,
+      "ladder": [
+        25,
+        50,
+        100,
+        200,
+        400
+      ],
+      "points": [
+        {
+          "analytic_cycles": 16300,
+          "error": null,
+          "n": 25,
+          "status": "diverged"
+        },
+        {
+          "analytic_cycles": 32600,
+          "error": null,
+          "n": 50,
+          "status": "diverged"
+        },
+        {
+          "analytic_cycles": 65200,
+          "error": null,
+          "n": 100,
+          "status": "diverged"
+        },
+        {
+          "analytic_cycles": 130400,
+          "error": null,
+          "n": 200,
+          "status": "diverged"
+        },
+        {
+          "analytic_cycles": 260800,
+          "error": 4.9952858856416814e-06,
+          "n": 400,
+          "status": "ok"
+        }
+      ],
+      "status_at_budget": "diverged",
+      "steps_at_budget": 100
+    }
+  },
+  "n_states": 3,
+  "note": "cycle estimates exclude rhs and Jacobian evaluations, matching costmodel.cycle_count; SDIRK2 is priced with a finite-difference Jacobian because that is how every other side-track SDIRK number is costed. The budget is not read from any results file: an artifact that depended on host state would stop being reproducible.",
+  "params": {
+    "problem": "robertson_scaled"
+  },
+  "problem": "robertson_scaled",
+  "schema": "per method, the step count that BUDGET_CYCLES buys on this problem, the error there, and a ladder of a quarter, a half, one, two and four times that count with the analytic cycles each rung would cost; a diverged rung is a result, not a gap",
+  "stiffness_ratio": 292.0,
+  "summary": {
+    "budget_cycles": 65536,
+    "error_at_budget": {
+      "euler": 8.809464110678245e-05,
+      "heun2": 3.8128853367659713e-07,
+      "midpoint": 3.165234793693018e-07,
+      "rk4": null,
+      "sdirk2": null
+    },
+    "finishers_at_budget": [
+      "euler",
+      "heun2",
+      "midpoint"
+    ],
+    "sdirk2_error_at_budget": null,
+    "steps_at_budget": {
+      "euler": 4369,
+      "heun2": 1680,
+      "midpoint": 1985,
+      "rk4": 661,
+      "sdirk2": 100
+    }
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "arithmetic": "float64 only; no Q15 effects are included",
+  "closes": "EPOCH2-DESIGN section 5: the scored tolerance ladder is unchosen, and the published curve covers 3 of the 8 validation problems",
+  "job": "adaptive.suite_sweep",
+  "key": "battery_2rc",
+  "max_attempts": 200000,
+  "pair": "Bogacki-Shampine 3(2)",
+  "params": {
+    "problem": "battery_2rc"
+  },
+  "points": [
+    {
+      "achieved_error": 0.003439577484221585,
+      "n_accepted": 9,
+      "n_fevals": 28,
+      "n_rejected": 0,
+      "problem": "battery_2rc",
+      "status": "ok",
+      "tol": 0.001
+    },
+    {
+      "achieved_error": 0.0006734356764587318,
+      "n_accepted": 12,
+      "n_fevals": 37,
+      "n_rejected": 0,
+      "problem": "battery_2rc",
+      "status": "ok",
+      "tol": 0.0001
+    },
+    {
+      "achieved_error": 0.0001009451934016909,
+      "n_accepted": 18,
+      "n_fevals": 55,
+      "n_rejected": 0,
+      "problem": "battery_2rc",
+      "status": "ok",
+      "tol": 1e-05
+    },
+    {
+      "achieved_error": 1.2282376197917199e-05,
+      "n_accepted": 32,
+      "n_fevals": 97,
+      "n_rejected": 0,
+      "problem": "battery_2rc",
+      "status": "ok",
+      "tol": 1e-06
+    },
+    {
+      "achieved_error": 1.4450095245008774e-06,
+      "n_accepted": 65,
+      "n_fevals": 199,
+      "n_rejected": 1,
+      "problem": "battery_2rc",
+      "status": "ok",
+      "tol": 1e-07
+    },
+    {
+      "achieved_error": 1.527188213110541e-07,
+      "n_accepted": 138,
+      "n_fevals": 421,
+      "n_rejected": 2,
+      "problem": "battery_2rc",
+      "status": "ok",
+      "tol": 1e-08
+    }
+  ],
+  "problem": "battery_2rc",
+  "schema": "one entry per tolerance: status, and when the run finished, the accepted/rejected step counts, the exact function-evaluation count (FSAL reuse included) and the final error under the T8 metric",
+  "summary": {
+    "fevals_max": 421,
+    "fevals_min": 28,
+    "finished": 6,
+    "points": 6,
+    "rejection_rate_max": 0.015151515151515152,
+    "statuses": [
+      "ok"
+    ]
+  },
+  "tolerances": [
+    0.001,
+    0.0001,
+    1e-05,
+    1e-06,
+    1e-07,
+    1e-08
+  ]
+}

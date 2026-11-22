@@ -1,0 +1,43 @@
+/* Reference C for the analytic cost model (HANDOFF 4.5). Never executed by the harness. */
+#include <stdint.h>
+
+#define N_STATES 1
+#define N_STAGES 2
+
+/* Q15 derivative dy = f(y), supplied by the application. */
+extern void rk_rhs(const int16_t *y, int16_t *dy);
+
+void rk_step(int16_t *y, int16_t h_q)
+{
+    int16_t hk[N_STAGES][N_STATES];
+    int16_t acc[N_STATES];
+    int16_t k[N_STATES];
+    int32_t tmp;
+    int m;
+
+    /* stage 0: c = 0/1 */
+    /* row of A is all zero: stage input is y itself */
+    rk_rhs(y, k);
+    for (m = 0; m < N_STATES; m++) {
+        hk[0][m] = (int16_t)(((int32_t)k[m] * (int32_t)h_q) >> 15);
+    }
+
+    /* stage 1: c = 1/2 */
+    for (m = 0; m < N_STATES; m++) {
+        tmp = (int32_t)y[m];                     /* load */
+        /* 1/2 ~ 1 / 2^1 (exact, csd weight 1) */
+        tmp += ((int32_t)hk[0][m] * (int32_t)1) >> 1;
+        acc[m] = (int16_t)tmp;                   /* store */
+    }
+    rk_rhs(acc, k);
+    for (m = 0; m < N_STATES; m++) {
+        hk[1][m] = (int16_t)(((int32_t)k[m] * (int32_t)h_q) >> 15);
+    }
+
+    /* final combination over b */
+    for (m = 0; m < N_STATES; m++) {
+        tmp = (int32_t)y[m];                     /* load */
+        tmp += (int32_t)hk[1][m];
+        y[m] = (int16_t)tmp;                     /* store */
+    }
+}

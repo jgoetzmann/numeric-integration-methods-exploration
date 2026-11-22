@@ -1,0 +1,623 @@
+{
+  "a21_denominator_exponent": 12,
+  "a21_window": 32,
+  "arithmetic": "tableau and stability algebra exact over Fractions; the measured order is float64",
+  "closes": "EPOCH3-DESIGN: the L-stability window in J4 is 17 candidates wide and nothing pins that width, and the second free parameter of the 2-stage SDIRK is never varied",
+  "construction": "A = [[gamma, 0], [a21, gamma]], c is the row sum, b is solved from the two order-2 conditions, so b2 = (1/2 - gamma) / a21. The numerator of R(z) works out to (1, 1 - 2 gamma, 1/2 - 2 gamma + gamma^2) whatever a21 is, so |R(inf)|, A-stability and L-stability are functions of gamma alone. The a21 axis moves the order-3 residuals, stiff accuracy, the exactness of b, its CSD cost and the measured order.",
+  "gamma_denominator_exponent": 10,
+  "gamma_window": 32,
+  "job": "sdirk.gamma_a21_scan",
+  "key": "s10_t12",
+  "params": {
+    "s": 10,
+    "t": 12
+  },
+  "rows": [
+    {
+      "a_stable": true,
+      "a_stable_exact": true,
+      "best_a21": {
+        "a21": "179/256",
+        "a21_float": 0.69921875,
+        "b": [
+          "497/716",
+          "219/716"
+        ],
+        "b_csd_weight": 14,
+        "b_exact": false,
+        "c2": "1009/1024",
+        "order3_residual_sum_float": 0.12593968709309897,
+        "order3_residuals": [
+          "64385/3145728",
+          "-331787/3145728"
+        ],
+        "stiffly_accurate": false
+      },
+      "den": [
+        "1",
+        "-293/512",
+        "85849/1048576"
+      ],
+      "gamma": "293/1024",
+      "gamma_float": 0.2861328125,
+      "l_stable": false,
+      "measured_order": 2.0068,
+      "num": [
+        "1",
+        "219/512",
+        "10073/1048576"
+      ],
+      "r_at_infinity": "10073/85849",
+      "r_at_infinity_float": 0.11733392351687265
+    },
+    {
+      "a_stable": true,
+      "a_stable_exact": true,
+      "best_a21": {
+        "a21": "179/256",
+        "a21_float": 0.69921875,
+        "b": [
+          "249/358",
+          "109/358"
+        ],
+        "b_csd_weight": 11,
+        "b_exact": false,
+        "c2": "505/512",
+        "order3_residual_sum_float": 0.1257451375325521,
+        "order3_residuals": [
+          "15887/786432",
+          "-83003/786432"
+        ],
+        "stiffly_accurate": false
+      },
+      "den": [
+        "1",
+        "-147/256",
+        "21609/262144"
+      ],
+      "gamma": "147/512",
+      "gamma_float": 0.287109375,
+      "l_stable": false,
+      "measured_order": 2.0069,
+      "num": [
+        "1",
+        "109/256",
+        "2153/262144"
+      ],
+      "r_at_infinity": "2153/21609",
+      "r_at_infinity_float": 0.09963441158776436
+    },
+    {
+      "a_stable": true,
+      "a_stable_exact": true,
+      "best_a21": {
+        "a21": "179/256",
+        "a21_float": 0.69921875,
+        "b": [
+          "499/716",
+          "217/716"
+        ],
+        "b_csd_weight": 15,
+        "b_exact": false,
+        "c2": "1011/1024",
+        "order3_residual_sum_float": 0.12555058797200522,
+        "order3_residuals": [
+          "62705/3145728",
+          "-332243/3145728"
+        ],
+        "stiffly_accurate": false
+      },
+      "den": [
+        "1",
+        "-295/512",
+        "87025/1048576"
+      ],
+      "gamma": "295/1024",
+      "gamma_float": 0.2880859375,
+      "l_stable": false,
+      "measured_order": 2.0069,
+      "num": [
+        "1",
+        "217/512",
+        "7153/1048576"
+      ],
+      "r_at_infinity": "7153/87025",
+      "r_at_infinity_float": 0.08219477161735134
+    },
+    {
+      "a_stable": true,
+      "a_stable_exact": true,
+      "best_a21": {
+        "a21": "179/256",
+        "a21_float": 0.69921875,
+        "b": [
+          "125/179",
+          "54/179"
+        ],
+        "b_csd_weight": 15,
+        "b_exact": false,
+        "c2": "253/256",
+        "order3_residual_sum_float": 0.12535603841145834,
+        "order3_residuals": [
+          "1933/98304",
+          "-5195/49152"
+        ],
+        "stiffly_accurate": false
+      },
+      "den": [
+        "1",
+        "-37/64",
+        "1369/16384"
+      ],
+      "gamma": "37/128",
+      "gamma_float": 0.2890625,
+      "l_stable": false,
+      "measured_order": 2.0069,
+      "num": [
+        "1",
+        "27/64",
+        "89/16384"
+      ],
+      "r_at_infinity": "89/1369",
+      "r_at_infinity_float": 0.06501095690284879
+    },
+    {
+      "a_stable": true,
+      "a_stable_exact": true,
+      "best_a21": {
+        "a21": "179/256",
+        "a21_float": 0.69921875,
+        "b": [
+          "501/716",
+          "215/716"
+        ],
+        "b_csd_weight": 12,
+        "b_exact": false,
+        "c2": "1013/1024",
+        "order3_residual_sum_float": 0.12516148885091147,
+        "order3_residuals": [
+          "61001/3145728",
+          "-332723/3145728"
+        ],
+        "stiffly_accurate": false
+      },
+      "den": [
+        "1",
+        "-297/512",
+        "88209/1048576"
+      ],
+      "gamma": "297/1024",
+      "gamma_float": 0.2900390625,
+      "l_stable": false,
+      "measured_order": 2.0069,
+      "num": [
+        "1",
+        "215/512",
+        "4241/1048576"
+      ],
+      "r_at_infinity": "4241/88209",
+      "r_at_infinity_float": 0.04807899420694033
+    },
+    {
+      "a_stable": true,
+      "a_stable_exact": true,
+      "best_a21": {
+        "a21": "179/256",
+        "a21_float": 0.69921875,
+        "b": [
+          "251/358",
+          "107/358"
+        ],
+        "b_csd_weight": 11,
+        "b_exact": false,
+        "c2": "507/512",
+        "order3_residual_sum_float": 0.12496693929036458,
+        "order3_residuals": [
+          "15035/786432",
+          "-83243/786432"
+        ],
+        "stiffly_accurate": false
+      },
+      "den": [
+        "1",
+        "-149/256",
+        "22201/262144"
+      ],
+      "gamma": "149/512",
+      "gamma_float": 0.291015625,
+      "l_stable": false,
+      "measured_order": 2.0069,
+      "num": [
+        "1",
+        "107/256",
+        "697/262144"
+      ],
+      "r_at_infinity": "697/22201",
+      "r_at_infinity_float": 0.03139498220800865
+    },
+    {
+      "a_stable": true,
+      "a_stable_exact": true,
+      "best_a21": {
+        "a21": "179/256",
+        "a21_float": 0.69921875,
+        "b": [
+          "503/716",
+          "213/716"
+        ],
+        "b_csd_weight": 11,
+        "b_exact": false,
+        "c2": "1015/1024",
+        "order3_residual_sum_float": 0.1247723897298177,
+        "order3_residuals": [
+          "59273/3145728",
+          "-333227/3145728"
+        ],
+        "stiffly_accurate": false
+      },
+      "den": [
+        "1",
+        "-299/512",
+        "89401/1048576"
+      ],
+      "gamma": "299/1024",
+      "gamma_float": 0.2919921875,
+      "l_stable": false,
+      "measured_order": 2.0069,
+      "num": [
+        "1",
+        "213/512",
+        "1337/1048576"
+      ],
+      "r_at_infinity": "1337/89401",
+      "r_at_infinity_float": 0.014955089987807743
+    },
+    {
+      "a_stable": true,
+      "a_stable_exact": true,
+      "best_a21": {
+        "a21": "179/256",
+        "a21_float": 0.69921875,
+        "b": [
+          "126/179",
+          "53/179"
+        ],
+        "b_csd_weight": 14,
+        "b_exact": false,
+        "c2": "127/128",
+        "order3_residual_sum_float": 0.12457784016927083,
+        "order3_residuals": [
+          "1825/98304",
+          "-20843/196608"
+        ],
+        "stiffly_accurate": false
+      },
+      "den": [
+        "1",
+        "-75/128",
+        "5625/65536"
+      ],
+      "gamma": "75/256",
+      "gamma_float": 0.29296875,
+      "l_stable": false,
+      "measured_order": 2.0069,
+      "num": [
+        "1",
+        "53/128",
+        "-7/65536"
+      ],
+      "r_at_infinity": "-7/5625",
+      "r_at_infinity_float": -0.0012444444444444445
+    },
+    {
+      "a_stable": true,
+      "a_stable_exact": true,
+      "best_a21": {
+        "a21": "179/256",
+        "a21_float": 0.69921875,
+        "b": [
+          "505/716",
+          "211/716"
+        ],
+        "b_csd_weight": 12,
+        "b_exact": false,
+        "c2": "1017/1024",
+        "order3_residual_sum_float": 0.12438329060872395,
+        "order3_residuals": [
+          "57521/3145728",
+          "-333755/3145728"
+        ],
+        "stiffly_accurate": false
+      },
+      "den": [
+        "1",
+        "-301/512",
+        "90601/1048576"
+      ],
+      "gamma": "301/1024",
+      "gamma_float": 0.2939453125,
+      "l_stable": false,
+      "measured_order": 2.0069,
+      "num": [
+        "1",
+        "211/512",
+        "-1559/1048576"
+      ],
+      "r_at_infinity": "-1559/90601",
+      "r_at_infinity_float": -0.01720731559254313
+    },
+    {
+      "a_stable": true,
+      "a_stable_exact": true,
+      "best_a21": {
+        "a21": "179/256",
+        "a21_float": 0.69921875,
+        "b": [
+          "253/358",
+          "105/358"
+        ],
+        "b_csd_weight": 15,
+        "b_exact": false,
+        "c2": "509/512",
+        "order3_residual_sum_float": 0.12418874104817708,
+        "order3_residuals": [
+          "14159/786432",
+          "-83507/786432"
+        ],
+        "stiffly_accurate": false
+      },
+      "den": [
+        "1",
+        "-151/256",
+        "22801/262144"
+      ],
+      "gamma": "151/512",
+      "gamma_float": 0.294921875,
+      "l_stable": false,
+      "measured_order": 2.0069,
+      "num": [
+        "1",
+        "105/256",
+        "-751/262144"
+      ],
+      "r_at_infinity": "-751/22801",
+      "r_at_infinity_float": -0.03293715187930354
+    },
+    {
+      "a_stable": true,
+      "a_stable_exact": true,
+      "best_a21": {
+        "a21": "179/256",
+        "a21_float": 0.69921875,
+        "b": [
+          "507/716",
+          "209/716"
+        ],
+        "b_csd_weight": 15,
+        "b_exact": false,
+        "c2": "1019/1024",
+        "order3_residual_sum_float": 0.1239941914876302,
+        "order3_residuals": [
+          "55745/3145728",
+          "-334307/3145728"
+        ],
+        "stiffly_accurate": false
+      },
+      "den": [
+        "1",
+        "-303/512",
+        "91809/1048576"
+      ],
+      "gamma": "303/1024",
+      "gamma_float": 0.2958984375,
+      "l_stable": false,
+      "measured_order": 2.0069,
+      "num": [
+        "1",
+        "209/512",
+        "-4447/1048576"
+      ],
+      "r_at_infinity": "-4447/91809",
+      "r_at_infinity_float": -0.04843751701902863
+    },
+    {
+      "a_stable": true,
+      "a_stable_exact": true,
+      "best_a21": {
+        "a21": "179/256",
+        "a21_float": 0.69921875,
+        "b": [
+          "127/179",
+          "52/179"
+        ],
+        "b_csd_weight": 13,
+        "b_exact": false,
+        "c2": "255/256",
+        "order3_residual_sum_float": 0.12379964192708333,
+        "order3_residuals": [
+          "857/49152",
+          "-1307/12288"
+        ],
+        "stiffly_accurate": false
+      },
+      "den": [
+        "1",
+        "-19/32",
+        "361/4096"
+      ],
+      "gamma": "19/64",
+      "gamma_float": 0.296875,
+      "l_stable": false,
+      "measured_order": 2.0069,
+      "num": [
+        "1",
+        "13/32",
+        "-23/4096"
+      ],
+      "r_at_infinity": "-23/361",
+      "r_at_infinity_float": -0.06371191135734072
+    },
+    {
+      "a_stable": true,
+      "a_stable_exact": true,
+      "best_a21": {
+        "a21": "179/256",
+        "a21_float": 0.69921875,
+        "b": [
+          "509/716",
+          "207/716"
+        ],
+        "b_csd_weight": 10,
+        "b_exact": false,
+        "c2": "1021/1024",
+        "order3_residual_sum_float": 0.12360509236653645,
+        "order3_residuals": [
+          "53945/3145728",
+          "-334883/3145728"
+        ],
+        "stiffly_accurate": false
+      },
+      "den": [
+        "1",
+        "-305/512",
+        "93025/1048576"
+      ],
+      "gamma": "305/1024",
+      "gamma_float": 0.2978515625,
+      "l_stable": false,
+      "measured_order": 2.0068,
+      "num": [
+        "1",
+        "207/512",
+        "-7327/1048576"
+      ],
+      "r_at_infinity": "-7327/93025",
+      "r_at_infinity_float": -0.07876377317925289
+    },
+    {
+      "a_stable": true,
+      "a_stable_exact": true,
+      "best_a21": {
+        "a21": "179/256",
+        "a21_float": 0.69921875,
+        "b": [
+          "255/358",
+          "103/358"
+        ],
+        "b_csd_weight": 14,
+        "b_exact": false,
+        "c2": "511/512",
+        "order3_residual_sum_float": 0.12341054280598958,
+        "order3_residuals": [
+          "13259/786432",
+          "-83795/786432"
+        ],
+        "stiffly_accurate": false
+      },
+      "den": [
+        "1",
+        "-153/256",
+        "23409/262144"
+      ],
+      "gamma": "153/512",
+      "gamma_float": 0.298828125,
+      "l_stable": false,
+      "measured_order": 2.0068,
+      "num": [
+        "1",
+        "103/256",
+        "-2191/262144"
+      ],
+      "r_at_infinity": "-2191/23409",
+      "r_at_infinity_float": -0.09359647998633004
+    },
+    {
+      "a_stable": true,
+      "a_stable_exact": true,
+      "best_a21": {
+        "a21": "179/256",
+        "a21_float": 0.69921875,
+        "b": [
+          "511/716",
+          "205/716"
+        ],
+        "b_csd_weight": 13,
+        "b_exact": false,
+        "c2": "1023/1024",
+        "order3_residual_sum_float": 0.1232159932454427,
+        "order3_residuals": [
+          "52121/3145728",
+          "-335483/3145728"
+        ],
+        "stiffly_accurate": false
+      },
+      "den": [
+        "1",
+        "-307/512",
+        "94249/1048576"
+      ],
+      "gamma": "307/1024",
+      "gamma_float": 0.2998046875,
+      "l_stable": false,
+      "measured_order": 2.0068,
+      "num": [
+        "1",
+        "205/512",
+        "-10199/1048576"
+      ],
+      "r_at_infinity": "-10199/94249",
+      "r_at_infinity_float": -0.10821334974376386
+    },
+    {
+      "a_stable": true,
+      "a_stable_exact": true,
+      "best_a21": {
+        "a21": "179/256",
+        "a21_float": 0.69921875,
+        "b": [
+          "128/179",
+          "51/179"
+        ],
+        "b_csd_weight": 9,
+        "b_exact": false,
+        "c2": "1",
+        "order3_residual_sum_float": 0.12302144368489583,
+        "order3_residuals": [
+          "25/1536",
+          "-20987/196608"
+        ],
+        "stiffly_accurate": false
+      },
+      "den": [
+        "1",
+        "-77/128",
+        "5929/65536"
+      ],
+      "gamma": "77/256",
+      "gamma_float": 0.30078125,
+      "l_stable": false,
+      "measured_order": 2.0067,
+      "num": [
+        "1",
+        "51/128",
+        "-727/65536"
+      ],
+      "r_at_infinity": "-727/5929",
+      "r_at_infinity_float": -0.12261764209816158
+    }
+  ],
+  "rows_kept": 16,
+  "schema": "one row per kept gamma at this denominator exponent: the exact stability data, which belongs to gamma alone, and the a21 from the second axis with the smallest order-3 residual, with its b, the exactness and CSD weight of that b, stiff accuracy and the measured order on dahlquist",
+  "summary": {
+    "a21_values": 65,
+    "a_stable_gammas": 65,
+    "b_exact_pairs": 5,
+    "gammas": 65,
+    "l_stable_gammas": 0,
+    "min_abs_r_inf": 0.0012444444444444445,
+    "min_order3_residual": 0.11835225423177083,
+    "pairs": 4225,
+    "r_inf_a21_invariant": true,
+    "stiffly_accurate_pairs": 0
+  }
+}

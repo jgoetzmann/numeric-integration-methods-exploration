@@ -1,0 +1,193 @@
+{
+  "arithmetic": "float64 only; no Q15 effects are included",
+  "caveats": [
+    "float-only prototype; Q15 quantization, floor bias, and the controller's table realization are not modeled",
+    "single literature pair (Bogacki-Shampine 3(2)); no discovered pairs",
+    "n_fevals counts right-hand-side calls, not cycles; the analytic cycle model for pairs lands with epoch 2",
+    "controller gains are the dyadic values intended for the Q15 port, not the classical optimum"
+  ],
+  "controller": {
+    "alpha": 0.25,
+    "beta": 0.125,
+    "error_norm": "RMS of per-state error / (atol + rtol * max(|y|, |y_new|))",
+    "factor_max": 2.0,
+    "factor_min": 0.25,
+    "h0": "t_end / 64",
+    "safety": 0.875,
+    "type": "PI"
+  },
+  "generated_by": "python -m rk_harness.prototypes.adaptive",
+  "pair": {
+    "citation": "P. Bogacki, L. F. Shampine, A 3(2) pair of Runge-Kutta formulas, Applied Mathematics Letters 2(4):321-325, 1989",
+    "embedded_order": 2,
+    "fsal": true,
+    "name": "bogacki_shampine_32",
+    "order": 3,
+    "stages": 4
+  },
+  "points": [
+    {
+      "achieved_error": 0.0015149660979899586,
+      "n_accepted": 30,
+      "n_fevals": 91,
+      "n_rejected": 0,
+      "problem": "buck_converter",
+      "tol": 0.001
+    },
+    {
+      "achieved_error": 0.0004476591822766733,
+      "n_accepted": 59,
+      "n_fevals": 181,
+      "n_rejected": 1,
+      "problem": "buck_converter",
+      "tol": 0.0001
+    },
+    {
+      "achieved_error": 7.389937196660051e-05,
+      "n_accepted": 123,
+      "n_fevals": 376,
+      "n_rejected": 2,
+      "problem": "buck_converter",
+      "tol": 1e-05
+    },
+    {
+      "achieved_error": 8.241924515270566e-06,
+      "n_accepted": 259,
+      "n_fevals": 787,
+      "n_rejected": 3,
+      "problem": "buck_converter",
+      "tol": 1e-06
+    },
+    {
+      "achieved_error": 8.87061825814186e-07,
+      "n_accepted": 552,
+      "n_fevals": 1666,
+      "n_rejected": 3,
+      "problem": "buck_converter",
+      "tol": 1e-07
+    },
+    {
+      "achieved_error": 9.10891067532255e-08,
+      "n_accepted": 1186,
+      "n_fevals": 3571,
+      "n_rejected": 4,
+      "problem": "buck_converter",
+      "tol": 1e-08
+    },
+    {
+      "achieved_error": 0.0007461239203995544,
+      "n_accepted": 17,
+      "n_fevals": 52,
+      "n_rejected": 0,
+      "problem": "pll_lock",
+      "tol": 0.001
+    },
+    {
+      "achieved_error": 0.00014596834680672335,
+      "n_accepted": 28,
+      "n_fevals": 85,
+      "n_rejected": 0,
+      "problem": "pll_lock",
+      "tol": 0.0001
+    },
+    {
+      "achieved_error": 2.6040157795797108e-05,
+      "n_accepted": 56,
+      "n_fevals": 175,
+      "n_rejected": 2,
+      "problem": "pll_lock",
+      "tol": 1e-05
+    },
+    {
+      "achieved_error": 3.166605150149034e-06,
+      "n_accepted": 117,
+      "n_fevals": 358,
+      "n_rejected": 2,
+      "problem": "pll_lock",
+      "tol": 1e-06
+    },
+    {
+      "achieved_error": 3.5271190710724996e-07,
+      "n_accepted": 249,
+      "n_fevals": 757,
+      "n_rejected": 3,
+      "problem": "pll_lock",
+      "tol": 1e-07
+    },
+    {
+      "achieved_error": 3.678433413266544e-08,
+      "n_accepted": 531,
+      "n_fevals": 1603,
+      "n_rejected": 3,
+      "problem": "pll_lock",
+      "tol": 1e-08
+    },
+    {
+      "achieved_error": 0.000325491454231368,
+      "n_accepted": 16,
+      "n_fevals": 49,
+      "n_rejected": 0,
+      "problem": "glucose_minimal",
+      "tol": 0.001
+    },
+    {
+      "achieved_error": 4.035458521152468e-05,
+      "n_accepted": 29,
+      "n_fevals": 88,
+      "n_rejected": 0,
+      "problem": "glucose_minimal",
+      "tol": 0.0001
+    },
+    {
+      "achieved_error": 5.195596264405336e-06,
+      "n_accepted": 58,
+      "n_fevals": 181,
+      "n_rejected": 2,
+      "problem": "glucose_minimal",
+      "tol": 1e-05
+    },
+    {
+      "achieved_error": 5.34464837709029e-07,
+      "n_accepted": 122,
+      "n_fevals": 373,
+      "n_rejected": 2,
+      "problem": "glucose_minimal",
+      "tol": 1e-06
+    },
+    {
+      "achieved_error": 5.582260144782873e-08,
+      "n_accepted": 259,
+      "n_fevals": 787,
+      "n_rejected": 3,
+      "problem": "glucose_minimal",
+      "tol": 1e-07
+    },
+    {
+      "achieved_error": 5.631898046299697e-09,
+      "n_accepted": 555,
+      "n_fevals": 1675,
+      "n_rejected": 3,
+      "problem": "glucose_minimal",
+      "tol": 1e-08
+    }
+  ],
+  "problems": [
+    "buck_converter",
+    "pll_lock",
+    "glucose_minimal"
+  ],
+  "schema": {
+    "controller": "PI controller constants (all dyadic)",
+    "pair": "the embedded pair used for every point",
+    "points": "one entry per (problem, tol): n_accepted / n_rejected steps, n_fevals (exact count, FSAL reuse included), achieved_error (L2 final-state error against the reference divided by the problem PEAK, the T8 metric)"
+  },
+  "status": "preliminary",
+  "tolerances": [
+    0.001,
+    0.0001,
+    1e-05,
+    1e-06,
+    1e-07,
+    1e-08
+  ]
+}

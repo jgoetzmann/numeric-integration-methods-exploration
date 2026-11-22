@@ -1,0 +1,15 @@
+{
+ "epoch": 1,
+ "frozen_at": "2026-09-15T04:33:44.899417+00:00",
+ "reason": "Frozen for a correction to the coefficient cost rule (DECISIONS D45). Every number on these pages was scored under verifier hash de5bec22 and keeps that meaning.",
+ "metrics": {
+  "n_accepted": 141356,
+  "n_cells": 16,
+  "last_new_cell_ts": "2026-09-05T03:56:23+00:00",
+  "last_improvement_ts": "2026-09-09T03:30:23+00:00",
+  "last_verified_ts": "2026-09-09T03:30:23+00:00",
+  "last_progress_ts": "2026-09-09T03:30:23+00:00",
+  "last_progress_kind": "heldout_verified",
+  "last_event_ts": "2026-09-10T14:58:14+00:00"
+ }
+}

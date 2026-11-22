@@ -57,12 +57,12 @@ import statistics
 import sys
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent          # rk-overview/tools
+HERE = Path(__file__).resolve().parent          # analysis/tools
 WS = HERE.parent.parent                          # workspace root
-os.environ.setdefault("RK_WORK_DIR", str(WS / "rk-work"))
-os.environ.setdefault("RK_FINDINGS_DIR", str(WS / "rk-findings"))
-if str(WS / "rk-harness") not in sys.path:
-    sys.path.insert(0, str(WS / "rk-harness"))
+os.environ.setdefault("RK_WORK_DIR", str(WS / "run-data"))
+os.environ.setdefault("RK_FINDINGS_DIR", str(WS / "findings"))
+if str(WS / "harness") not in sys.path:
+    sys.path.insert(0, str(WS / "harness"))
 
 from rk_harness import trace_hash, verifier_hash                  # noqa: E402
 from rk_harness.costmodel import COST_MODELS, cycle_count         # noqa: E402

@@ -1,0 +1,633 @@
+{
+  "arithmetic": "Q15 fixed point throughout, on the pinned primitives in rk_harness.fixedpoint, with floor multiply; the reference float mode used to reproduce the frozen curve is float64",
+  "base_scale": 0.25,
+  "bias_rule": "the median, over the ladder rungs that finished, of the four-term mean floor bias of one estimate. The pooled figure in floor_statistics is not the same number and is not the one to compare against a per-estimate claim: a rung that stalls at the 1-LSB step contributes tens of thousands of estimates whose terms underflow to zero, where the discarded quantity is a small fraction of an LSB and the whole term is lost instead.",
+  "closes": "EPOCH2-DESIGN section 3: the roughly 2 LSB floor-bias figure for the Q15 error estimate is an estimate, and section 5 needs the scored tolerance ladder to sit above whatever that floor turns out to be",
+  "encoding": {
+    "factor_max": "32767/16384",
+    "factor_min": "1/4",
+    "factor_q_bits": 14,
+    "safety": "7/8",
+    "why": "a factor of 1.0 is 32768 in Q15 and 2.0 is 65536, both outside int16, so fixedpoint.q15_mul cannot carry the table the design specifies; the update is (h_q * f) >> 14 with an int16 range check"
+  },
+  "error_weights": {
+    "d": [
+      "-5/72",
+      "1/12",
+      "1/9",
+      "-1/8"
+    ],
+    "reps": [
+      {
+        "csd_weight": 5,
+        "exact": false,
+        "m": -4551,
+        "s": 16
+      },
+      {
+        "csd_weight": 8,
+        "exact": false,
+        "m": 21845,
+        "s": 18
+      },
+      {
+        "csd_weight": 6,
+        "exact": false,
+        "m": 29127,
+        "s": 18
+      },
+      {
+        "csd_weight": 1,
+        "exact": true,
+        "m": -1,
+        "s": 3
+      }
+    ]
+  },
+  "flattening_rule": "the largest tol_q on the ladder for which halving tol_q improves the achieved error by less than 10 percent; null when the curve is still improving at the tightest rung",
+  "floor_statistics": {
+    "counts": [
+      216762,
+      216762,
+      216762,
+      216762
+    ],
+    "histogram_note": "16 buckets of the discarded remainder over 2**s, so bucket k covers a floor loss in [k/16, (k+1)/16) of one LSB",
+    "histograms": [
+      [
+        211315,
+        1568,
+        52,
+        47,
+        35,
+        24,
+        52,
+        47,
+        44,
+        50,
+        52,
+        47,
+        49,
+        46,
+        3299,
+        35
+      ],
+      [
+        211288,
+        3317,
+        63,
+        55,
+        12,
+        52,
+        59,
+        34,
+        29,
+        49,
+        73,
+        33,
+        26,
+        59,
+        1594,
+        19
+      ],
+      [
+        211298,
+        3326,
+        0,
+        101,
+        0,
+        75,
+        0,
+        80,
+        67,
+        0,
+        89,
+        0,
+        91,
+        0,
+        1603,
+        32
+      ],
+      [
+        211353,
+        0,
+        1626,
+        0,
+        95,
+        0,
+        94,
+        0,
+        91,
+        0,
+        106,
+        0,
+        78,
+        0,
+        3319,
+        0
+      ]
+    ],
+    "mean_bias_lsb": [
+      -0.016109667422603585,
+      -0.00935513763747324,
+      -0.00958080916320647,
+      -0.015393034757014605
+    ],
+    "mean_bias_lsb_total": -0.0504386489802979,
+    "remainder_sums": [
+      228849335,
+      531585655,
+      544408956,
+      26693
+    ],
+    "shifts": [
+      16,
+      18,
+      18,
+      3
+    ]
+  },
+  "job": "adaptive.q15_estimate_floor",
+  "key": "buck_converter_s1",
+  "max_attempts": 50000,
+  "n_states": 2,
+  "note": "the bit scan is booked at its worst case and its branches cannot be priced by the pinned cost model, so the sequence figure is an upper bound rather than an exact count. The factor table is held in Q14 because a Q15 table cannot represent a factor of 1.0 at all; the encoding is an open item in EPOCH2-DESIGN section 4.",
+  "pair": {
+    "b": [
+      "2/9",
+      "1/3",
+      "4/9",
+      "0"
+    ],
+    "b_hat": [
+      "7/24",
+      "1/4",
+      "1/3",
+      "1/8"
+    ],
+    "c": [
+      "0",
+      "1/2",
+      "3/4",
+      "1"
+    ],
+    "name": "bogacki_shampine_32"
+  },
+  "params": {
+    "problem": "buck_converter",
+    "scale_factor": [
+      1,
+      1
+    ]
+  },
+  "problem": "buck_converter",
+  "scale": 0.25,
+  "scale_factor": "1/1",
+  "schema": "one document per (validation problem, scale factor): the exact error weights and their fixed-point representation, a tolerance ladder in LSB of the scaled state run under both controller tables, the measured floor statistics of the estimate, the Q31 time register terms, and the ARMv6-M reference sequence priced under all three cost models",
+  "sequence_costs": {
+    "branch_allowance": {
+      "conditional_branches": 47,
+      "consequence": "the analytic per-attempt figure is an upper bound rather than an exact count, which is a stated change to what a published cycle number means",
+      "what": "one conditional branch per bit-scan iteration, worst case, plus the acceptance test; costmodel prices no branch class, so this is stated beside the cycle count and is not folded into it"
+    },
+    "lines": 118,
+    "per_section": {
+      "bit_scan": {
+        "avr_approx": 460,
+        "m0plus_fast": 92,
+        "m0plus_slow": 92
+      },
+      "compare": {
+        "avr_approx": 2,
+        "m0plus_fast": 1,
+        "m0plus_slow": 1
+      },
+      "estimate": {
+        "avr_approx": 112,
+        "m0plus_fast": 28,
+        "m0plus_slow": 152
+      },
+      "step_update": {
+        "avr_approx": 24,
+        "m0plus_fast": 4,
+        "m0plus_slow": 35
+      },
+      "table_load": {
+        "avr_approx": 10,
+        "m0plus_fast": 3,
+        "m0plus_slow": 3
+      }
+    },
+    "total": {
+      "avr_approx": 608,
+      "m0plus_fast": 128,
+      "m0plus_slow": 283
+    }
+  },
+  "summary": {
+    "finished": 8,
+    "flattening_tol_lsb": 512,
+    "mean_bias_lsb_pooled": -0.0504386489802979,
+    "mean_bias_lsb_total": -1.811897881301768,
+    "overflow_rejected": 0,
+    "points": 10,
+    "statuses": [
+      "attempt_cap",
+      "ok"
+    ],
+    "tables_agree": false
+  },
+  "t_end": 25.0,
+  "tables": {
+    "ftab33": {
+      "entries": [
+        4096,
+        4096,
+        4262,
+        4648,
+        5069,
+        5527,
+        6028,
+        6573,
+        7168,
+        7817,
+        8524,
+        9296,
+        10137,
+        11055,
+        12055,
+        13146,
+        14336,
+        15634,
+        17048,
+        18591,
+        20274,
+        22109,
+        24110,
+        26292,
+        28672,
+        31267,
+        32767,
+        32767,
+        32767,
+        32767,
+        32767,
+        32767,
+        32767
+      ],
+      "flattening_tol_lsb": 512,
+      "points": [
+        {
+          "achieved_error": null,
+          "attempts": 50000,
+          "final_register": 155747165,
+          "h_q_clamped_high": 0,
+          "h_q_final": 1,
+          "max_abs_state": 1752,
+          "mean_bias_lsb_total": -0.0008494351577758789,
+          "n_accepted": 49977,
+          "n_fevals": 150001,
+          "n_rejected": 23,
+          "overflow_rejected": 0,
+          "status": "attempt_cap",
+          "tol_q": 1
+        },
+        {
+          "achieved_error": null,
+          "attempts": 50000,
+          "final_register": 382640614,
+          "h_q_clamped_high": 0,
+          "h_q_final": 1,
+          "max_abs_state": 4775,
+          "mean_bias_lsb_total": -0.03241555839538574,
+          "n_accepted": 49993,
+          "n_fevals": 150001,
+          "n_rejected": 7,
+          "overflow_rejected": 0,
+          "status": "attempt_cap",
+          "tol_q": 2
+        },
+        {
+          "achieved_error": 0.08509178390501194,
+          "attempts": 8172,
+          "final_register": 2147483647,
+          "h_q_clamped_high": 0,
+          "h_q_final": 73,
+          "max_abs_state": 4917,
+          "mean_bias_lsb_total": -0.4183441961272581,
+          "n_accepted": 8172,
+          "n_fevals": 24517,
+          "n_rejected": 0,
+          "overflow_rejected": 0,
+          "status": "ok",
+          "tol_q": 4
+        },
+        {
+          "achieved_error": 0.0008279358072139243,
+          "attempts": 39,
+          "final_register": 2147483647,
+          "h_q_clamped_high": 9,
+          "h_q_final": 32767,
+          "max_abs_state": 4927,
+          "mean_bias_lsb_total": -1.8447437775440705,
+          "n_accepted": 39,
+          "n_fevals": 118,
+          "n_rejected": 0,
+          "overflow_rejected": 0,
+          "status": "ok",
+          "tol_q": 8
+        },
+        {
+          "achieved_error": 0.0010604839813346835,
+          "attempts": 32,
+          "final_register": 2147483647,
+          "h_q_clamped_high": 13,
+          "h_q_final": 32767,
+          "max_abs_state": 4954,
+          "mean_bias_lsb_total": -1.8550552725791931,
+          "n_accepted": 32,
+          "n_fevals": 97,
+          "n_rejected": 0,
+          "overflow_rejected": 0,
+          "status": "ok",
+          "tol_q": 16
+        },
+        {
+          "achieved_error": 0.0012235807845221067,
+          "attempts": 29,
+          "final_register": 2147483647,
+          "h_q_clamped_high": 17,
+          "h_q_final": 32767,
+          "max_abs_state": 4967,
+          "mean_bias_lsb_total": -1.9004126581652412,
+          "n_accepted": 29,
+          "n_fevals": 88,
+          "n_rejected": 0,
+          "overflow_rejected": 0,
+          "status": "ok",
+          "tol_q": 32
+        },
+        {
+          "achieved_error": 0.0018581617533718544,
+          "attempts": 28,
+          "final_register": 2147483647,
+          "h_q_clamped_high": 20,
+          "h_q_final": 32767,
+          "max_abs_state": 4897,
+          "mean_bias_lsb_total": -1.7790519850594657,
+          "n_accepted": 28,
+          "n_fevals": 85,
+          "n_rejected": 0,
+          "overflow_rejected": 0,
+          "status": "ok",
+          "tol_q": 64
+        },
+        {
+          "achieved_error": 0.0011268294502679028,
+          "attempts": 27,
+          "final_register": 2147483647,
+          "h_q_clamped_high": 22,
+          "h_q_final": 32767,
+          "max_abs_state": 4929,
+          "mean_bias_lsb_total": -1.9825637252242476,
+          "n_accepted": 27,
+          "n_fevals": 82,
+          "n_rejected": 0,
+          "overflow_rejected": 0,
+          "status": "ok",
+          "tol_q": 128
+        },
+        {
+          "achieved_error": 0.0018581617533718544,
+          "attempts": 27,
+          "final_register": 2147483647,
+          "h_q_clamped_high": 24,
+          "h_q_final": 32767,
+          "max_abs_state": 4987,
+          "mean_bias_lsb_total": -1.7469733202898943,
+          "n_accepted": 27,
+          "n_fevals": 82,
+          "n_rejected": 0,
+          "overflow_rejected": 0,
+          "status": "ok",
+          "tol_q": 256
+        },
+        {
+          "achieved_error": 0.0018581617533718544,
+          "attempts": 27,
+          "final_register": 2147483647,
+          "h_q_clamped_high": 25,
+          "h_q_final": 32767,
+          "max_abs_state": 4990,
+          "mean_bias_lsb_total": -1.7667802881311487,
+          "n_accepted": 27,
+          "n_fevals": 82,
+          "n_rejected": 0,
+          "overflow_rejected": 0,
+          "status": "ok",
+          "tol_q": 512
+        }
+      ],
+      "q_bits": 14,
+      "step_eighths": 1
+    },
+    "ftab9": {
+      "entries": [
+        4096,
+        5069,
+        7168,
+        10137,
+        14336,
+        20274,
+        28672,
+        32767,
+        32767
+      ],
+      "flattening_tol_lsb": 128,
+      "points": [
+        {
+          "achieved_error": null,
+          "attempts": 50000,
+          "final_register": 210657116,
+          "h_q_clamped_high": 0,
+          "h_q_final": 1,
+          "max_abs_state": 3177,
+          "mean_bias_lsb_total": -0.001963048629760742,
+          "n_accepted": 49955,
+          "n_fevals": 150001,
+          "n_rejected": 45,
+          "overflow_rejected": 0,
+          "status": "attempt_cap",
+          "tol_q": 1
+        },
+        {
+          "achieved_error": null,
+          "attempts": 50000,
+          "final_register": 350650453,
+          "h_q_clamped_high": 0,
+          "h_q_final": 1,
+          "max_abs_state": 4459,
+          "mean_bias_lsb_total": -0.030516394577026366,
+          "n_accepted": 49989,
+          "n_fevals": 150001,
+          "n_rejected": 11,
+          "overflow_rejected": 0,
+          "status": "attempt_cap",
+          "tol_q": 2
+        },
+        {
+          "achieved_error": null,
+          "attempts": 50000,
+          "final_register": 478681885,
+          "h_q_clamped_high": 0,
+          "h_q_final": 1,
+          "max_abs_state": 4905,
+          "mean_bias_lsb_total": -0.03469805957794189,
+          "n_accepted": 49999,
+          "n_fevals": 150001,
+          "n_rejected": 1,
+          "overflow_rejected": 0,
+          "status": "attempt_cap",
+          "tol_q": 4
+        },
+        {
+          "achieved_error": 0.0009452128757994725,
+          "attempts": 36,
+          "final_register": 2147483647,
+          "h_q_clamped_high": 12,
+          "h_q_final": 32767,
+          "max_abs_state": 4919,
+          "mean_bias_lsb_total": -1.7750888400607638,
+          "n_accepted": 36,
+          "n_fevals": 109,
+          "n_rejected": 0,
+          "overflow_rejected": 0,
+          "status": "ok",
+          "tol_q": 8
+        },
+        {
+          "achieved_error": 0.0012235807845221067,
+          "attempts": 32,
+          "final_register": 2147483647,
+          "h_q_clamped_high": 16,
+          "h_q_final": 32767,
+          "max_abs_state": 4900,
+          "mean_bias_lsb_total": -1.889993965625763,
+          "n_accepted": 31,
+          "n_fevals": 97,
+          "n_rejected": 1,
+          "overflow_rejected": 0,
+          "status": "ok",
+          "tol_q": 16
+        },
+        {
+          "achieved_error": 0.0012235807845221067,
+          "attempts": 28,
+          "final_register": 2147483647,
+          "h_q_clamped_high": 19,
+          "h_q_final": 32767,
+          "max_abs_state": 4959,
+          "mean_bias_lsb_total": -1.8894177164350237,
+          "n_accepted": 28,
+          "n_fevals": 85,
+          "n_rejected": 0,
+          "overflow_rejected": 0,
+          "status": "ok",
+          "tol_q": 32
+        },
+        {
+          "achieved_error": 0.0012235807845221067,
+          "attempts": 27,
+          "final_register": 2147483647,
+          "h_q_clamped_high": 22,
+          "h_q_final": 32767,
+          "max_abs_state": 4854,
+          "mean_bias_lsb_total": -1.7824478149414062,
+          "n_accepted": 27,
+          "n_fevals": 82,
+          "n_rejected": 0,
+          "overflow_rejected": 0,
+          "status": "ok",
+          "tol_q": 64
+        },
+        {
+          "achieved_error": 0.0009452128757994725,
+          "attempts": 27,
+          "final_register": 2147483647,
+          "h_q_clamped_high": 23,
+          "h_q_final": 32767,
+          "max_abs_state": 4951,
+          "mean_bias_lsb_total": -1.7917248761212385,
+          "n_accepted": 27,
+          "n_fevals": 82,
+          "n_rejected": 0,
+          "overflow_rejected": 0,
+          "status": "ok",
+          "tol_q": 128
+        },
+        {
+          "achieved_error": 0.0011268294502679028,
+          "attempts": 27,
+          "final_register": 2147483647,
+          "h_q_clamped_high": 24,
+          "h_q_final": 32767,
+          "max_abs_state": 4951,
+          "mean_bias_lsb_total": -1.8488220638699002,
+          "n_accepted": 27,
+          "n_fevals": 82,
+          "n_rejected": 0,
+          "overflow_rejected": 0,
+          "status": "ok",
+          "tol_q": 256
+        },
+        {
+          "achieved_error": 0.0018581617533718544,
+          "attempts": 27,
+          "final_register": 2147483647,
+          "h_q_clamped_high": 25,
+          "h_q_final": 32767,
+          "max_abs_state": 4990,
+          "mean_bias_lsb_total": -1.7667802881311487,
+          "n_accepted": 27,
+          "n_fevals": 82,
+          "n_rejected": 0,
+          "overflow_rejected": 0,
+          "status": "ok",
+          "tol_q": 512
+        }
+      ],
+      "q_bits": 14,
+      "step_eighths": 4
+    }
+  },
+  "time_register": {
+    "final_register": 0,
+    "final_t": 0.0,
+    "register_bits": 31,
+    "t_end": 25.0,
+    "unit_coefficient": "2**16 / 25",
+    "unit_rep": {
+      "csd_weight": 5,
+      "exact": false,
+      "m": 5243,
+      "s": 1
+    },
+    "unpriced_terms": [
+      "one int32 add per accepted step",
+      "one coefficient application (mul plus shift) to convert h_q into register units",
+      "converting the register back to a float argument, for the one validation problem whose rhs reads t"
+    ]
+  },
+  "tolerance_ladder_lsb": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64,
+    128,
+    256,
+    512
+  ]
+}

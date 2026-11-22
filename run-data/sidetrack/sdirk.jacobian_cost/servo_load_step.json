@@ -1,0 +1,144 @@
+{
+  "arithmetic": "float64 only; no Q15 effects are included",
+  "closes": "EPOCH3-DESIGN: the optional analytic Jacobian field is unpriced because every side-track SDIRK number is costed with the finite difference",
+  "cycles": {
+    "analytic": {
+      "f_evals_per_step": 6,
+      "model": "m0plus_fast",
+      "n_states": 2,
+      "newton_iters": 3,
+      "terms": {
+        "combine_b": 20,
+        "fd_jacobian_arith": 0,
+        "form_m": 26,
+        "lu_factor": 84,
+        "newton_iterations": 204,
+        "stage_base": 14
+      },
+      "total": 348
+    },
+    "difference": 24,
+    "f_evals_per_step_analytic": 6,
+    "f_evals_per_step_finite_difference": 8,
+    "finite_difference": {
+      "f_evals_per_step": 8,
+      "model": "m0plus_fast",
+      "n_states": 2,
+      "newton_iters": 3,
+      "terms": {
+        "combine_b": 20,
+        "fd_jacobian_arith": 24,
+        "form_m": 26,
+        "lu_factor": 84,
+        "newton_iterations": 204,
+        "stage_base": 14
+      },
+      "total": 372
+    }
+  },
+  "job": "sdirk.jacobian_cost",
+  "key": "servo_load_step",
+  "ladder": [
+    {
+      "analytic": 5.589580725999992e-05,
+      "analytic_status": "ok",
+      "finite_difference": 5.589580726009319e-05,
+      "finite_difference_status": "ok",
+      "n": 32
+    },
+    {
+      "analytic": 1.3886334141968505e-05,
+      "analytic_status": "ok",
+      "finite_difference": 1.3886334141968505e-05,
+      "finite_difference_status": "ok",
+      "n": 64
+    },
+    {
+      "analytic": 3.4604768400607145e-06,
+      "analytic_status": "ok",
+      "finite_difference": 3.4604768399674405e-06,
+      "finite_difference_status": "ok",
+      "n": 128
+    }
+  ],
+  "n_states": 2,
+  "note": "the analytic Jacobian evaluation is excluded from the cycle count by the same convention costmodel.cycle_count uses for rhs evaluations, since both are application-supplied code. The reported saving is therefore the finite-difference assembly arithmetic plus the n extra rhs evaluations per step that assembly needs.",
+  "params": {
+    "problem": "servo_load_step"
+  },
+  "problem": "servo_load_step",
+  "sample_steps": 1024,
+  "samples": [
+    {
+      "analytic": [
+        [
+          -9.666666666666666,
+          -9.75
+        ],
+        [
+          0.017475728155339806,
+          0.0
+        ]
+      ],
+      "at": "t0",
+      "finite_difference": [
+        [
+          -9.666666666666666,
+          -9.75
+        ],
+        [
+          0.01747572817839682,
+          0.0
+        ]
+      ],
+      "max_abs_diff": 2.3057014630900596e-11,
+      "max_rel_diff": 2.3057014630900596e-11,
+      "t": 0.0,
+      "y": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "analytic": [
+        [
+          -9.666666666666666,
+          -9.75
+        ],
+        [
+          0.017475728155339806,
+          0.0
+        ]
+      ],
+      "at": "t_end_half",
+      "finite_difference": [
+        [
+          -9.66666665673256,
+          -9.75
+        ],
+        [
+          0.01747572812018916,
+          0.0
+        ]
+      ],
+      "max_abs_diff": 9.934106870446158e-09,
+      "max_rel_diff": 1.0276662279771887e-09,
+      "t": 130.0,
+      "y": [
+        0.38423792406049717,
+        -0.38103192212481996
+      ]
+    }
+  ],
+  "schema": "the analytic Jacobian and the one-sided finite difference, sampled as whole matrices at two fixed states, then the same fixed-step SDIRK2 run with each of them at three step counts, plus the per-step cycle estimate under both",
+  "summary": {
+    "best_error_analytic": 3.4604768400607145e-06,
+    "best_error_finite_difference": 3.4604768399674405e-06,
+    "cycles_analytic": 348,
+    "cycles_finite_difference": 372,
+    "cycles_saved": 24,
+    "f_evals_saved": 2,
+    "max_abs_diff": 9.934106870446158e-09,
+    "max_rel_diff": 1.0276662279771887e-09
+  }
+}

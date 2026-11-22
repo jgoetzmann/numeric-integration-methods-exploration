@@ -1,0 +1,46 @@
+{
+  "arithmetic": "exact over Fractions; no float and no Q15 arithmetic is involved",
+  "cap": 100000,
+  "closes": "EPOCH2-DESIGN section 2: the search-space note assumes a dyadic A admits both an order-p b and an order-(p-1) b_hat with a free parameter left, and that has not been counted",
+  "counts": {
+    "b_hat_exact": 4096,
+    "b_hat_free": 4096,
+    "both_solvable": 3646,
+    "d_forced_zero": 0,
+    "fsal": 0,
+    "matrices": 4096,
+    "order2_consistent": 4096,
+    "order3_consistent": 3646
+  },
+  "definitions": {
+    "b_hat_exact": "every entry of the order-2 solution with free columns set to zero is exactly m / 2**s under coeffrep.to_rep",
+    "b_hat_free": "the order-2 system is solvable and leaves at least one free column, so an embedded b_hat exists that differs from b",
+    "d_forced_zero": "order 3 and order 2 are both solvable but order 2 has a unique solution, so d = b - b_hat can only be zero",
+    "fsal": "c ends at 1 and the last row of A satisfies the order-3 conditions, which is what makes the last stage of an accepted step reusable"
+  },
+  "free_entries": 6,
+  "fsal_examples": [],
+  "job": "adaptive.pair_census",
+  "key": "st4_s1",
+  "lattice": "m / 2**s with s <= 1 and 0 < |m / 2**s| <= 1 (enumeration.lattice, abs_max 1)",
+  "lattice_size": 4,
+  "params": {
+    "s_max": 1,
+    "stages": 4
+  },
+  "s_max": 1,
+  "schema": "counts over every strictly lower-triangular dyadic A at this stage count and lattice size: how many admit an order-3 weight vector, how many admit an order-2 vector with a free column left (so that the embedded estimate is not forced to zero), how many are FSAL, and how many have an exactly representable order-2 vector. A space larger than the cap is reported rather than walked.",
+  "space_size": 4096,
+  "stages": 4,
+  "status": "ok",
+  "summary": {
+    "b_hat_exact": 4096,
+    "b_hat_free": 4096,
+    "both_solvable": 3646,
+    "d_forced_zero": 0,
+    "fsal": 0,
+    "matrices": 4096,
+    "space_size": 4096,
+    "status": "ok"
+  }
+}

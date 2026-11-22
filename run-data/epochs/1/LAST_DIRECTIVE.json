@@ -1,0 +1,14 @@
+{
+ "directive_id": "D-3929A",
+ "hypothesis_id": "H-633",
+ "target_order": 4,
+ "stages": [
+  5
+ ],
+ "constraints": {
+  "dyadic_denominator_max": 32768
+ },
+ "islands": 8,
+ "budget_minutes": 120,
+ "rationale": "Order-4 stage-5 has no archived samples or occupied cells, blocking H-633 and many related open tests. A full-Q15 dyadic grid preserves the widest allowed coefficient resolution while concentrating all islands on establishing this missing stage family."
+}

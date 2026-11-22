@@ -1,0 +1,188 @@
+{
+  "methods": {
+    "heun2": {
+      "coefficient_fraction": {
+        "m0plus_fast": 0.5,
+        "m0plus_slow": 0.14772727272727273
+      },
+      "crossover_h": 0.0390625,
+      "crossover_practical": true,
+      "cycles_per_step": {
+        "m0plus_fast": 26,
+        "m0plus_slow": 26
+      },
+      "derivative_cost": {
+        "m0plus_fast": 13,
+        "m0plus_slow": 75
+      },
+      "stages": 2,
+      "sweep": [
+        {
+          "float_error": 441467703.3340454,
+          "h": 5.0,
+          "n": 8,
+          "q15_error": Infinity
+        },
+        {
+          "float_error": 36767760.80920368,
+          "h": 2.5,
+          "n": 16,
+          "q15_error": Infinity
+        },
+        {
+          "float_error": 17.473796137501722,
+          "h": 1.25,
+          "n": 32,
+          "q15_error": Infinity
+        },
+        {
+          "float_error": 0.04673953135521949,
+          "h": 0.625,
+          "n": 64,
+          "q15_error": 0.04669684583367464
+        },
+        {
+          "float_error": 0.012337288647742011,
+          "h": 0.3125,
+          "n": 128,
+          "q15_error": 0.012754253389141329
+        },
+        {
+          "float_error": 0.0031269496223140718,
+          "h": 0.15625,
+          "n": 256,
+          "q15_error": 0.004005365433236916
+        },
+        {
+          "float_error": 0.0007860605750068425,
+          "h": 0.078125,
+          "n": 512,
+          "q15_error": 0.0029709624841080576
+        },
+        {
+          "float_error": 0.00019668005840999943,
+          "h": 0.0390625,
+          "n": 1024,
+          "q15_error": 0.006420725472237357
+        },
+        {
+          "float_error": 4.915106014002267e-05,
+          "h": 0.01953125,
+          "n": 2048,
+          "q15_error": 0.01263412309910694
+        },
+        {
+          "float_error": 1.2282336675459784e-05,
+          "h": 0.009765625,
+          "n": 4096,
+          "q15_error": 0.027605204093685495
+        }
+      ]
+    },
+    "rk4": {
+      "coefficient_fraction": {
+        "m0plus_fast": 0.559322033898305,
+        "m0plus_slow": 0.3617021276595745
+      },
+      "crossover_h": 0.15625,
+      "crossover_practical": true,
+      "cycles_per_step": {
+        "m0plus_fast": 66,
+        "m0plus_slow": 170
+      },
+      "derivative_cost": {
+        "m0plus_fast": 13,
+        "m0plus_slow": 75
+      },
+      "stages": 4,
+      "sweep": [
+        {
+          "float_error": 23701561365.1371,
+          "h": 5.0,
+          "n": 8,
+          "q15_error": Infinity
+        },
+        {
+          "float_error": 0.017638366398950913,
+          "h": 2.5,
+          "n": 16,
+          "q15_error": Infinity
+        },
+        {
+          "float_error": 0.01247217092554969,
+          "h": 1.25,
+          "n": 32,
+          "q15_error": Infinity
+        },
+        {
+          "float_error": 0.0010188938037773321,
+          "h": 0.625,
+          "n": 64,
+          "q15_error": 0.0013358159502710532
+        },
+        {
+          "float_error": 6.293258904841706e-05,
+          "h": 0.3125,
+          "n": 128,
+          "q15_error": 0.0011276339211315962
+        },
+        {
+          "float_error": 3.883824773719522e-06,
+          "h": 0.15625,
+          "n": 256,
+          "q15_error": 0.0025371506975046987
+        },
+        {
+          "float_error": 2.4092203037013574e-07,
+          "h": 0.078125,
+          "n": 512,
+          "q15_error": 0.004793330098197475
+        },
+        {
+          "float_error": 1.4996521055800507e-08,
+          "h": 0.0390625,
+          "n": 1024,
+          "q15_error": 0.015626464715168938
+        },
+        {
+          "float_error": 9.353050463242288e-10,
+          "h": 0.01953125,
+          "n": 2048,
+          "q15_error": 0.03985306538437665
+        },
+        {
+          "float_error": 5.839372788231957e-11,
+          "h": 0.009765625,
+          "n": 4096,
+          "q15_error": 0.02583084404068834
+        }
+      ]
+    }
+  },
+  "models": [
+    "m0plus_fast",
+    "m0plus_slow"
+  ],
+  "n_states": 2,
+  "ns": [
+    8,
+    16,
+    32,
+    64,
+    128,
+    256,
+    512,
+    1024,
+    2048,
+    4096
+  ],
+  "problem": "damped_osc",
+  "t_end": 40.0,
+  "thresholds": {
+    "kill_fraction": 0.15,
+    "practical_h_max": 1.0,
+    "practical_h_min": 0.001,
+    "proceed_fraction": 0.3
+  },
+  "verdict": "mixed"
+}

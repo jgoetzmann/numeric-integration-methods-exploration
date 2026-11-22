@@ -1,0 +1,280 @@
+{
+  "arithmetic": "float64 only; no Q15 effects are included",
+  "budget_cycles": 65536,
+  "budget_ladder": [
+    "1/4",
+    "1/2",
+    "1/1",
+    "2/1",
+    "4/1"
+  ],
+  "closes": "EPOCH3-DESIGN: the stiff ladder in J3 stops at 256 steps while the harness scores at a matched cycle budget, where the cheap explicit methods take thousands of steps",
+  "divergence_bound": 1000000.0,
+  "job": "sdirk.stiff_suite_budget",
+  "key": "servo_load_step",
+  "methods": {
+    "euler": {
+      "error_at_budget": 2.3216003742081968e-05,
+      "est_cycles_per_step": 10,
+      "f_evals_per_step": 1,
+      "ladder": [
+        1638,
+        3276,
+        6553,
+        13106,
+        26212
+      ],
+      "points": [
+        {
+          "analytic_cycles": 16380,
+          "error": 9.278410412940453e-05,
+          "n": 1638,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 32760,
+          "error": 4.642341882132888e-05,
+          "n": 3276,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 65530,
+          "error": 2.3216003742081968e-05,
+          "n": 6553,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 131060,
+          "error": 1.1609959735613375e-05,
+          "n": 13106,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 262120,
+          "error": 5.805469258019619e-06,
+          "n": 26212,
+          "status": "ok"
+        }
+      ],
+      "status_at_budget": "ok",
+      "steps_at_budget": 6553
+    },
+    "heun2": {
+      "error_at_budget": 3.672623999930946e-08,
+      "est_cycles_per_step": 26,
+      "f_evals_per_step": 2,
+      "ladder": [
+        630,
+        1260,
+        2520,
+        5040,
+        10080
+      ],
+      "points": [
+        {
+          "analytic_cycles": 16380,
+          "error": null,
+          "n": 630,
+          "status": "diverged"
+        },
+        {
+          "analytic_cycles": 32760,
+          "error": 1.311620445240856e-07,
+          "n": 1260,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 65520,
+          "error": 3.672623999930946e-08,
+          "n": 2520,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 131040,
+          "error": 9.175283554188634e-09,
+          "n": 5040,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 262080,
+          "error": 2.2930413239514313e-09,
+          "n": 10080,
+          "status": "ok"
+        }
+      ],
+      "status_at_budget": "ok",
+      "steps_at_budget": 2520
+    },
+    "midpoint": {
+      "error_at_budget": 2.6292794736502453e-08,
+      "est_cycles_per_step": 22,
+      "f_evals_per_step": 2,
+      "ladder": [
+        744,
+        1489,
+        2978,
+        5956,
+        11912
+      ],
+      "points": [
+        {
+          "analytic_cycles": 16368,
+          "error": null,
+          "n": 744,
+          "status": "diverged"
+        },
+        {
+          "analytic_cycles": 32758,
+          "error": 1.0529313371081703e-07,
+          "n": 1489,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 65516,
+          "error": 2.6292794736502453e-08,
+          "n": 2978,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 131032,
+          "error": 6.569399684674907e-09,
+          "n": 5956,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 262064,
+          "error": 1.6418812176179233e-09,
+          "n": 11912,
+          "status": "ok"
+        }
+      ],
+      "status_at_budget": "ok",
+      "steps_at_budget": 2978
+    },
+    "rk4": {
+      "error_at_budget": 2.625163507499333e-13,
+      "est_cycles_per_step": 66,
+      "f_evals_per_step": 4,
+      "ladder": [
+        248,
+        496,
+        992,
+        1984,
+        3968
+      ],
+      "points": [
+        {
+          "analytic_cycles": 16368,
+          "error": null,
+          "n": 248,
+          "status": "diverged"
+        },
+        {
+          "analytic_cycles": 32736,
+          "error": null,
+          "n": 496,
+          "status": "diverged"
+        },
+        {
+          "analytic_cycles": 65472,
+          "error": 2.625163507499333e-13,
+          "n": 992,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 130944,
+          "error": 2.37557523087589e-14,
+          "n": 1984,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 261888,
+          "error": 8.724523211229146e-15,
+          "n": 3968,
+          "status": "ok"
+        }
+      ],
+      "status_at_budget": "ok",
+      "steps_at_budget": 992
+    },
+    "sdirk2": {
+      "error_at_budget": 1.8287233963278472e-06,
+      "est_cycles_per_step": 372,
+      "f_evals_per_step": 8,
+      "ladder": [
+        44,
+        88,
+        176,
+        352,
+        704
+      ],
+      "points": [
+        {
+          "analytic_cycles": 16368,
+          "error": 2.9464048875643307e-05,
+          "n": 44,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 32736,
+          "error": 7.332047190426129e-06,
+          "n": 88,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 65472,
+          "error": 1.8287233963278472e-06,
+          "n": 176,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 130944,
+          "error": 4.56642154825535e-07,
+          "n": 352,
+          "status": "ok"
+        },
+        {
+          "analytic_cycles": 261888,
+          "error": 1.140930323605145e-07,
+          "n": 704,
+          "status": "ok"
+        }
+      ],
+      "status_at_budget": "ok",
+      "steps_at_budget": 176
+    }
+  },
+  "n_states": 2,
+  "note": "cycle estimates exclude rhs and Jacobian evaluations, matching costmodel.cycle_count; SDIRK2 is priced with a finite-difference Jacobian because that is how every other side-track SDIRK number is costed. The budget is not read from any results file: an artifact that depended on host state would stop being reproducible.",
+  "params": {
+    "problem": "servo_load_step"
+  },
+  "problem": "servo_load_step",
+  "schema": "per method, the step count that BUDGET_CYCLES buys on this problem, the error there, and a ladder of a quarter, a half, one, two and four times that count with the analytic cycles each rung would cost; a diverged rung is a result, not a gap",
+  "stiffness_ratio": 546.4,
+  "summary": {
+    "budget_cycles": 65536,
+    "error_at_budget": {
+      "euler": 2.3216003742081968e-05,
+      "heun2": 3.672623999930946e-08,
+      "midpoint": 2.6292794736502453e-08,
+      "rk4": 2.625163507499333e-13,
+      "sdirk2": 1.8287233963278472e-06
+    },
+    "finishers_at_budget": [
+      "euler",
+      "heun2",
+      "midpoint",
+      "rk4",
+      "sdirk2"
+    ],
+    "sdirk2_error_at_budget": 1.8287233963278472e-06,
+    "steps_at_budget": {
+      "euler": 6553,
+      "heun2": 2520,
+      "midpoint": 2978,
+      "rk4": 992,
+      "sdirk2": 176
+    }
+  }
+}
